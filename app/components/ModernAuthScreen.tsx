@@ -8,7 +8,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { Text, useTheme } from "react-native-paper";
+import { Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -17,10 +17,8 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Check,
   User,
   Phone,
-  GraduationCap,
 } from "lucide-react-native";
 import Animated, {
   useSharedValue,
@@ -28,13 +26,12 @@ import Animated, {
   withTiming,
   withSequence,
   withDelay,
-  interpolate,
   Easing,
 } from "react-native-reanimated";
 
 import Button from "./ui/Button";
 import Input from "./ui/Input";
-import AnimatedBackground from "./AnimatedBackground";
+import { supabase } from "../lib/supabase";
 
 const { width, height } = Dimensions.get("window");
 
@@ -51,9 +48,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
   onAuthenticated,
   isDarkMode = false,
 }) => {
-  const theme = useTheme();
-
-  // Form state
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,19 +60,16 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Validation state
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Animation values
   const containerOpacity = useSharedValue(0);
   const headerScale = useSharedValue(0.8);
   const formTranslateY = useSharedValue(50);
   const demoCardOpacity = useSharedValue(0);
 
   useEffect(() => {
-    // Entrance animations
     containerOpacity.value = withTiming(1, { duration: 600 });
     headerScale.value = withSequence(
       withTiming(1.05, { duration: 400, easing: Easing.out(Easing.back(1.2)) }),
@@ -91,36 +82,23 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     demoCardOpacity.value = withDelay(800, withTiming(1, { duration: 600 }));
   }, []);
 
-  const containerAnimatedStyle = useAnimatedStyle(
-    () => ({
-      opacity: containerOpacity.value,
-    }),
-    []
-  );
+  const containerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: containerOpacity.value,
+  }));
 
-  const headerAnimatedStyle = useAnimatedStyle(
-    () => ({
-      transform: [{ scale: headerScale.value }],
-    }),
-    []
-  );
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: headerScale.value }],
+  }));
 
-  const formAnimatedStyle = useAnimatedStyle(
-    () => ({
-      transform: [{ translateY: formTranslateY.value }],
-    }),
-    []
-  );
+  const formAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: formTranslateY.value }],
+  }));
 
-  const demoCardAnimatedStyle = useAnimatedStyle(
-    () => ({
-      opacity: demoCardOpacity.value,
-    }),
-    []
-  );
+  const demoCardAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: demoCardOpacity.value,
+  }));
 
   const validateEmail = (email: string) => {
-    // LNMIIT email format: YYUXXnnn@lnmiit.ac.in
     const emailRegex = /^\d{2}U[A-Z]{2}\d{3}@lnmiit\.ac\.in$/;
     return emailRegex.test(email);
   };
@@ -130,17 +108,14 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
   };
 
   const handleSubmit = async () => {
-    // Clear previous errors
     setEmailError("");
     setPasswordError("");
 
-    // Validate email
     if (!email) {
       setEmailError("Email is required");
       return;
     }
 
-    // Demo credentials check
     const isDemoLogin =
       (email === "demo@lnmiit.ac.in" && password === "demo123") ||
       (email === "21UCS045@lnmiit.ac.in" && password === "student123") ||
@@ -148,13 +123,10 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       (email === "rajesh.driver@gmail.com" && password === "driver123");
 
     if (!isDemoLogin && !validateEmail(email)) {
-      setEmailError(
-        "Invalid LNMIIT email format. Example: 21UCS045@lnmiit.ac.in"
-      );
+      setEmailError("Invalid LNMIIT email format. Example: 21UCS045@lnmiit.ac.in");
       return;
     }
 
-    // Validate password
     if (!password) {
       setPasswordError("Password is required");
       return;
@@ -165,10 +137,13 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       return;
     }
 
-    // Additional validation for signup
     if (!isLogin) {
       if (!name.trim()) {
         Alert.alert("Error", "Name is required");
+        return;
+      }
+      if (!phone.trim()) {
+        Alert.alert("Error", "Phone number is required");
         return;
       }
       if (password !== confirmPassword) {
@@ -180,25 +155,47 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     setLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      // Auto-assign role based on demo credentials
-      let role: "driver" | "passenger" | "external_driver" = selectedRole;
-      if (email === "21UME023@lnmiit.ac.in") {
-        role = "driver";
-      } else if (email === "rajesh.driver@gmail.com") {
-        role = "external_driver";
-      } else if (
-        email === "21UCS045@lnmiit.ac.in" ||
-        email === "demo@lnmiit.ac.in"
-      ) {
-        role = "passenger";
+        if (error) {
+          Alert.alert("Login Error", error.message);
+          return;
+        }
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+              phone: phone,
+              role: selectedRole,
+            },
+          },
+        });
+
+        if (error) {
+          Alert.alert("Signup Error", error.message);
+          return;
+        }
       }
 
+      let role: "driver" | "passenger" | "external_driver" = selectedRole;
+      if (email === "21UME023@lnmiit.ac.in") role = "driver";
+      else if (email === "rajesh.driver@gmail.com") role = "external_driver";
+      else if (
+        email === "21UCS045@lnmiit.ac.in" ||
+        email === "demo@lnmiit.ac.in"
+      )
+        role = "passenger";
+
       onAuthenticated(email, password, role);
-    } catch (error) {
-      Alert.alert("Error", "Authentication failed. Please try again.");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -230,10 +227,8 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
         break;
     }
   };
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: "#FFFFFF" }]}>
-      {/* Background Pattern */}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.backgroundPattern}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
@@ -243,14 +238,13 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       <Animated.View style={[styles.content, containerAnimatedStyle]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardAvoid}
+          style={{ flex: 1 }}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header */}
             <Animated.View style={[styles.header, headerAnimatedStyle]}>
               <View style={styles.modernLogoContainer}>
                 <LinearGradient
@@ -262,37 +256,20 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                 <View style={styles.logoShadow} />
               </View>
 
-              <Text style={[styles.title, { color: "#1a1a1a" }]}>
+              <Text style={styles.title}>
                 {isLogin ? "Welcome Back!" : "Join LNMIIT Carpool"}
               </Text>
-              <Text style={[styles.subtitle, { color: "#6b7280" }]}>
+              <Text style={styles.subtitle}>
                 {isLogin
                   ? "Sign in to continue your carpooling journey"
-                  : "Create your account and start sharing rides with fellow students"}
+                  : "Create your account and start sharing rides"}
               </Text>
             </Animated.View>
 
-            {/* Demo Credentials Card */}
             <Animated.View style={[styles.demoCard, demoCardAnimatedStyle]}>
-              <View
-                style={[
-                  styles.demoCardGradient,
-                  {
-                    backgroundColor: "#f8fafc",
-                    borderWidth: 1,
-                    borderColor: "#e2e8f0",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 12,
-                    elevation: 4,
-                  },
-                ]}
-              >
-                <Text style={[styles.demoTitle, { color: "#1e293b" }]}>
-                  🚀 Quick Demo Access
-                </Text>
-                <Text style={[styles.demoSubtitle, { color: "#64748b" }]}>
+              <View style={styles.demoCardGradient}>
+                <Text style={styles.demoTitle}>🚀 Quick Demo Access</Text>
+                <Text style={styles.demoSubtitle}>
                   Try the app instantly with demo credentials
                 </Text>
 
@@ -309,12 +286,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                     variant="outline"
                     size="small"
                   />
-                  {/* <Button
-                    title="Student Driver"
-                    onPress={() => fillDemoCredentials("driver")}
-                    variant="outline"
-                    size="small"
-                  /> */}
                   <Button
                     title="Pro Driver"
                     onPress={() => fillDemoCredentials("external_driver")}
@@ -325,13 +296,12 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
               </View>
             </Animated.View>
 
-            {/* Form */}
             <Animated.View
               style={[
                 styles.form,
                 formAnimatedStyle,
                 {
-                  backgroundColor: "#ffffff",
+                  backgroundColor: "#fff",
                   borderRadius: 20,
                   padding: 24,
                   borderWidth: 1,
@@ -423,18 +393,17 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
               )}
 
               {!isLogin && (
-                <View style={styles.roleSelection}>
-                  <Text style={[styles.roleTitle, { color: "#1e293b" }]}>
+                <View>
+                  <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
                     I want to
                   </Text>
-                  <View style={styles.roleButtons}>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                     <Button
                       title="🧳 Find Rides"
                       onPress={() => setSelectedRole("passenger")}
                       variant={
                         selectedRole === "passenger" ? "primary" : "outline"
                       }
-                      style={styles.roleButton}
                     />
                     <Button
                       title="🚗 Student Driver"
@@ -442,7 +411,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                       variant={
                         selectedRole === "driver" ? "primary" : "outline"
                       }
-                      style={styles.roleButton}
                     />
                     <Button
                       title="🚕 Pro Driver"
@@ -452,7 +420,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                           ? "primary"
                           : "outline"
                       }
-                      style={styles.roleButton}
                     />
                   </View>
                 </View>
@@ -465,7 +432,7 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                 fullWidth
                 size="large"
                 rightIcon={!loading && <ArrowRight size={20} color="white" />}
-                style={styles.submitButton}
+                style={{ marginTop: 16 }}
               />
 
               <Button
@@ -489,7 +456,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     </SafeAreaView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -642,5 +608,4 @@ const styles = StyleSheet.create({
 });
 
 ModernAuthScreen.displayName = "ModernAuthScreen";
-
 export default ModernAuthScreen;

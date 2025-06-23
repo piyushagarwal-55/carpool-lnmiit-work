@@ -3,31 +3,26 @@ import {
   View,
   StyleSheet,
   useColorScheme,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
+  Animated,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Text,
   ActivityIndicator,
-  IconButton,
-  PaperProvider,
   MD3LightTheme,
   MD3DarkTheme,
+  PaperProvider,
 } from "react-native-paper";
-import { Animated } from "react-native";
+import { useRouter } from "expo-router";
 import ReAnimated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   Easing,
 } from "react-native-reanimated";
-import { LinearGradient } from "expo-linear-gradient";
 
-// Import new components
+// Screens
 import LoadingScreen from "./components/LoadingScreen";
 import ModernAuthScreen from "./components/ModernAuthScreen";
 import StudentCarpoolSystem from "./components/StudentCarpoolSystem";
@@ -35,24 +30,26 @@ import BusBookingSystem from "./components/BusBookingSystem";
 import UserProfileSafety from "./components/UserProfileSafety";
 import DriverDashboard from "./components/DriverDashboard";
 
-// Custom theme colors - Pure Black & White
+// ✅ Add these missing imports at the top
+import { TouchableOpacity, ScrollView, Alert } from "react-native";
+import { IconButton } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+
+
+import { Session } from "@supabase/supabase-js";
+import { supabase } from "./lib/supabase";
+import Auth from "./components/AuthScreen";
+
+// Theme
 const lightTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
     primary: "#000000",
-    secondary: "#666666",
-    surface: "#FFFFFF",
     background: "#FFFFFF",
-    onPrimary: "#FFFFFF",
-    onSecondary: "#FFFFFF",
-    onSurface: "#000000",
     onBackground: "#000000",
-    surfaceVariant: "#F5F5F5",
-    onSurfaceVariant: "#666666",
-    outline: "#E0E0E0",
-    error: "#FF0000",
-    onError: "#FFFFFF",
+    surface: "#FFFFFF",
+    onSurface: "#000000",
   },
 };
 
@@ -61,124 +58,60 @@ const darkTheme = {
   colors: {
     ...MD3DarkTheme.colors,
     primary: "#FFFFFF",
-    secondary: "#CCCCCC",
-    surface: "#000000",
     background: "#000000",
-    onPrimary: "#000000",
-    onSecondary: "#000000",
-    onSurface: "#FFFFFF",
     onBackground: "#FFFFFF",
-    surfaceVariant: "#1A1A1A",
-    onSurfaceVariant: "#CCCCCC",
-    outline: "#333333",
-    error: "#FF6B6B",
-    onError: "#000000",
+    surface: "#000000",
+    onSurface: "#FFFFFF",
   },
 };
 
-// Demo credentials for easy access
-const DEMO_CREDENTIALS = {
-  demo: {
-    email: "demo@lnmiit.ac.in",
-    password: "demo123",
-    role: "passenger" as const,
-  },
-  student: {
-    email: "21UCS045@lnmiit.ac.in",
-    password: "student123",
-    role: "passenger" as const,
-  },
-  driver: {
-    email: "21UME023@lnmiit.ac.in",
-    password: "driver123",
-    role: "driver" as const,
-  },
-  external_driver: {
-    email: "rajesh.driver@gmail.com",
-    password: "driver123",
-    role: "external_driver" as const,
-  },
-};
 
-// Mock user authentication state
-const useAuth = () => {
+
+
+ 
+
+
+
+
+const useAuth = (session?: Session) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   useEffect(() => {
-    // Show loading screen for 3 seconds
-    const timer = setTimeout(() => {
-      setIsInitialLoading(false);
-      setLoading(false);
-    }, 3000);
-
+    if (session?.user) {
+      const sessionUser = session.user;
+      const userFromSession = {
+        id: sessionUser.id,
+        email: sessionUser.email,
+        name: sessionUser.user_metadata.full_name || sessionUser.email,
+        role: sessionUser.user_metadata.role || "passenger",
+        branch: sessionUser.user_metadata.branch,
+        year: sessionUser.user_metadata.year,
+        rating: sessionUser.user_metadata.rating || 4.5,
+        profilePicture: sessionUser.user_metadata.avatar_url,
+        phone: sessionUser.user_metadata.phone,
+        ridesCompleted: sessionUser.user_metadata.ridesCompleted || 0,
+      };
+      setUser(userFromSession);
+    }
+    setLoading(false);
+    const timer = setTimeout(() => setIsInitialLoading(false), 1000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [session]);
 
+ 
   const login = (
     email: string,
     password: string,
     role: "driver" | "passenger" | "external_driver"
   ) => {
-    // Create user object based on credentials
-    const isDemo = email === "demo@lnmiit.ac.in";
-    const isStudent = email === "21UCS045@lnmiit.ac.in";
-    const isDriver = email === "21UME023@lnmiit.ac.in";
-    const isExternalDriver = email === "rajesh.driver@gmail.com";
-
     const userData = {
-      id: isDemo
-        ? "demo-1"
-        : isStudent
-        ? "student-1"
-        : isDriver
-        ? "driver-1"
-        : "ext-driver-1",
+      id: email,
       email,
       role,
-      name: isDemo
-        ? "Demo User"
-        : isStudent
-        ? "Arjun Sharma"
-        : isDriver
-        ? "Priya Gupta"
-        : "Rajesh Kumar",
-      profilePicture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-      phone: isDemo
-        ? "+91 99999 00000"
-        : isStudent
-        ? "+91 98765 43210"
-        : isDriver
-        ? "+91 87654 32109"
-        : "+91 98765 43210",
-      branch: isStudent
-        ? "Computer Science"
-        : isDriver
-        ? "Mechanical Engineering"
-        : isExternalDriver
-        ? "Professional Driver"
-        : "Demo",
-      year: isStudent
-        ? "3rd Year"
-        : isDriver
-        ? "4th Year"
-        : isExternalDriver
-        ? "5+ years experience"
-        : "Demo",
-      rating: isDriver || isExternalDriver ? 4.8 : 4.5,
-      isVerified: true,
-      ridesCompleted: isDriver || isExternalDriver ? 245 : 87,
-      emergencyContacts: [
-        {
-          id: "1",
-          name: "Parent",
-          phone: "+91 99887 76655",
-          relation: "Father",
-        },
-      ],
+      name: role === "driver" ? "Driver" : "Student",
     };
-
     setUser(userData);
     return Promise.resolve();
   };
@@ -191,26 +124,27 @@ const useAuth = () => {
   return { user, loading, isInitialLoading, login, logout };
 };
 
-const AppContent = () => {
-  const { user, loading, isInitialLoading, login, logout } = useAuth();
+
+
+
+const AppContent = ({ session }: { session: Session }) => {
+ 
+  const {user, loading, isInitialLoading, login, logout } = useAuth(session);
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarAnimation] = useState(new Animated.Value(-400));
+  const colorScheme = useColorScheme();
   const [busBookings, setBusBookings] = useState<any[]>([]);
   const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>(
     {}
   );
-  const colorScheme = useColorScheme();
   const router = useRouter();
 
-  // Animation for theme transition
   const themeTransition = useSharedValue(0);
 
   useEffect(() => {
-    // Default to light theme instead of following system
-    setIsDarkMode(false);
+    setIsDarkMode(false); // default theme
   }, [colorScheme]);
 
   useEffect(() => {
@@ -220,14 +154,11 @@ const AppContent = () => {
     });
   }, [isDarkMode]);
 
-  const animatedContainerStyle = useAnimatedStyle(
-    () => ({
-      backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
-    }),
-    [isDarkMode]
-  );
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
+  }));
 
-  const [routes] = useState([
+ const [routes] = useState([
     {
       key: "carpool",
       title: "Carpool",
@@ -251,7 +182,6 @@ const AppContent = () => {
   const toggleSidebar = () => {
     const toValue = sidebarVisible ? -400 : 0;
     setSidebarVisible(!sidebarVisible);
-
     Animated.spring(sidebarAnimation, {
       toValue,
       useNativeDriver: true,
@@ -260,12 +190,10 @@ const AppContent = () => {
     }).start();
   };
 
-  // Show loading screen on app startup
   if (isInitialLoading) {
     return <LoadingScreen isDarkMode={isDarkMode} />;
   }
 
-  // Show loading if authentication is in progress
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
@@ -288,9 +216,9 @@ const AppContent = () => {
     );
   }
 
-  // Show modern auth screen if not authenticated
   if (!user) {
     return <ModernAuthScreen onAuthenticated={login} isDarkMode={isDarkMode} />;
+    
   }
 
   return (
@@ -973,9 +901,25 @@ const AppContent = () => {
 AppContent.displayName = "AppContent";
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+  }, []);
+
   return (
     <PaperProvider theme={lightTheme}>
-      <AppContent />
+      {session && session.user ? (
+        <AppContent session={session} />
+      ) : (
+        <Auth />
+      )}
     </PaperProvider>
   );
 }
