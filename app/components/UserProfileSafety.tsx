@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -33,7 +33,7 @@ interface UserProfileSafetyProps {
     name: string;
     email: string;
     profilePicture?: string;
-    role: "driver" | "passenger";
+    role: "passenger"; // Removed "driver" as requested
     rating: number;
     branch: string;
     year: string;

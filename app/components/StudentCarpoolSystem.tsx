@@ -10,6 +10,7 @@ import {
   Linking,
   Alert,
   Modal,
+  TextInput,
 } from "react-native";
 import { Avatar, Chip, Searchbar } from "react-native-paper";
 import {
@@ -34,10 +35,11 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "react-native";
 // Removed Button import - using TouchableOpacity instead
-// import RideDetailsScreen from "./RideDetailsScreen";
-// import CreateRideScreen from "./CreateRideScreen";
+import RideDetailsScreen from "./RideDetailsScreen";
+import CreateRideScreen from "./CreateRideScreen";
 import ChatScreen from "./ChatScreen";
 import { socketService } from "../services/SocketService";
+import { supabase } from "../lib/supabase";
 
 interface CarpoolRide {
   id: string;
@@ -47,6 +49,7 @@ interface CarpoolRide {
   driverPhoto: string;
   driverBranch: string;
   driverYear: string;
+  driverPhone?: string;
   from: string;
   to: string;
   departureTime: string;
@@ -73,8 +76,21 @@ interface CarpoolRide {
     name: string;
     photo: string;
     joinedAt: string;
-    status?: "pending" | "accepted";
+    status: "pending" | "accepted" | "confirmed";
+    seatsBooked: number;
   }>;
+  pendingRequests: Array<{
+    id: string;
+    passengerId: string;
+    passengerName: string;
+    passengerPhoto: string;
+    seatsRequested: number;
+    message?: string;
+    requestedAt: string;
+    status: "pending" | "accepted" | "rejected";
+  }>;
+  instantBooking: boolean;
+  chatEnabled: boolean;
   createdAt: string;
 }
 
@@ -127,136 +143,77 @@ const StudentCarpoolSystem = ({
   const [showJoinVerification, setShowJoinVerification] = useState(false);
   const [selectedRideForJoin, setSelectedRideForJoin] =
     useState<CarpoolRide | null>(null);
+  const [joinMessage, setJoinMessage] = useState("");
+  const [seatsToBook, setSeatsToBook] = useState(1);
+  const [showJoinRequestModal, setShowJoinRequestModal] = useState(false);
 
-  // Mock data for demonstration
-  const mockRides: CarpoolRide[] = [
-    {
-      id: "ride_001",
-      driverId: "driver_001",
-      driverName: "Priya Gupta",
-      driverRating: 4.8,
-      driverPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=priya",
-      driverBranch: "Mechanical Engineering",
-      driverYear: "4th Year",
-      from: "LNMIIT Main Gate",
-      to: "Jaipur Railway Station",
-      departureTime: "08:30 AM",
-      date: "2024-01-15",
-      availableSeats: 2,
-      totalSeats: 4,
-      pricePerSeat: 120,
-      vehicleInfo: {
-        make: "Hyundai",
-        model: "i20",
-        color: "White",
-        isAC: true,
-      },
-      route: ["LNMIIT", "Mahindra SEZ", "Sitapura", "Railway Station"],
-      preferences: {
-        gender: "any",
-        smokingAllowed: false,
-        musicAllowed: true,
-        petsAllowed: false,
-      },
-      status: "active",
-      passengers: [
-        {
-          id: "pass_001",
-          name: "Rahul Singh",
-          photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=rahul",
-          joinedAt: "2024-01-14T10:30:00Z",
+  // Fetch rides from database
+  const fetchRides = async () => {
+    try {
+      const { data: ridesData, error } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching rides:", error);
+        return;
+      }
+
+      // Transform database data to frontend format
+      const transformedRides: CarpoolRide[] = ridesData.map((ride) => ({
+        id: ride.id,
+        driverId: ride.driver_id,
+        driverName: ride.driver_name,
+        driverRating: 4.8, // Default rating
+        driverPhoto: `https://api.dicebear.com/7.x/avataaars/svg?seed=${ride.driver_name}`,
+        driverBranch: "Computer Science", // Default - should come from user profile
+        driverYear: "3rd Year", // Default - should come from user profile
+        driverPhone: ride.driver_phone,
+        from: ride.from_location,
+        to: ride.to_location,
+        departureTime: new Date(ride.departure_time).toLocaleTimeString(
+          "en-US",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        ),
+        date: ride.departure_date,
+        availableSeats: ride.available_seats,
+        totalSeats: ride.total_seats,
+        pricePerSeat: ride.price_per_seat,
+        vehicleInfo: {
+          make: ride.vehicle_make,
+          model: ride.vehicle_model,
+          color: ride.vehicle_color || "White",
+          isAC: ride.is_ac,
         },
-        {
-          id: "pass_002",
-          name: "Ananya Sharma",
-          photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=ananya",
-          joinedAt: "2024-01-14T11:15:00Z",
+        route: [ride.from_location, ride.to_location],
+        preferences: {
+          gender: "any" as const,
+          smokingAllowed: ride.smoking_allowed,
+          musicAllowed: ride.music_allowed,
+          petsAllowed: ride.pets_allowed,
         },
-      ],
-      createdAt: "2024-01-14T09:00:00Z",
-    },
-    {
-      id: "ride_002",
-      driverId: "driver_002",
-      driverName: "Amit Kumar",
-      driverRating: 4.6,
-      driverPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=amit",
-      driverBranch: "Electronics & Communication",
-      driverYear: "3rd Year",
-      from: "Jaipur City Mall",
-      to: "LNMIIT Campus",
-      departureTime: "09:00",
-      date: "2024-01-16",
-      availableSeats: 3,
-      totalSeats: 4,
-      pricePerSeat: 60,
-      vehicleInfo: {
-        make: "Honda",
-        model: "City",
-        color: "Silver",
-        isAC: true,
-      },
-      route: ["Jaipur City Mall", "C-Scheme", "Mahindra SEZ", "LNMIIT Campus"],
-      preferences: {
-        gender: "any",
-        smokingAllowed: false,
-        musicAllowed: true,
-        petsAllowed: false,
-      },
-      status: "active",
-      passengers: [],
-      createdAt: "2024-01-14T15:20:00Z",
-    },
-    {
-      id: "ride_003",
-      driverId: "driver_003",
-      driverName: "Sneha Patel",
-      driverRating: 4.9,
-      driverPhoto: "https://api.dicebear.com/7.x/avataaars/svg?seed=sneha",
-      driverBranch: "Computer Science",
-      driverYear: "2nd Year",
-      from: "LNMIIT Campus",
-      to: "Pink City Metro Station",
-      departureTime: "18:00",
-      date: "2024-01-15",
-      availableSeats: 1,
-      totalSeats: 4,
-      pricePerSeat: 70,
-      vehicleInfo: {
-        make: "Hyundai",
-        model: "i20",
-        color: "Red",
-        isAC: true,
-      },
-      route: ["LNMIIT Campus", "Mahindra SEZ", "Jagatpura", "Pink City Metro"],
-      preferences: {
-        gender: "female",
-        smokingAllowed: false,
-        musicAllowed: true,
-        petsAllowed: false,
-      },
-      status: "active",
-      passengers: [
-        {
-          id: "pass_002",
-          name: "Ananya Sharma",
-          photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=ananya",
-          joinedAt: "2024-01-14T12:15:00Z",
-        },
-        {
-          id: "pass_003",
-          name: "Kavya Singh",
-          photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=kavya",
-          joinedAt: "2024-01-14T13:45:00Z",
-        },
-      ],
-      createdAt: "2024-01-14T11:30:00Z",
-    },
-  ];
+        status: ride.status as "active",
+        passengers: [], // TODO: Fetch from passengers table
+        pendingRequests: [], // Will fetch separately if needed
+        instantBooking: ride.instant_booking,
+        chatEnabled: ride.chat_enabled,
+        createdAt: ride.created_at,
+      }));
+
+      setRides(transformedRides);
+      setFilteredRides(transformedRides);
+    } catch (error) {
+      console.error("Error in fetchRides:", error);
+    }
+  };
 
   useEffect(() => {
-    setRides(mockRides);
-    setFilteredRides(mockRides);
+    fetchRides();
     socketService.connect(currentUser.id);
 
     return () => {
@@ -304,7 +261,7 @@ const StudentCarpoolSystem = ({
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await fetchRides();
     setRefreshing(false);
   };
 
@@ -317,40 +274,115 @@ const StudentCarpoolSystem = ({
     const ride = rides.find((r) => r.id === rideId);
     if (ride) {
       setSelectedRideForJoin(ride);
-      setShowJoinVerification(true);
+      setSeatsToBook(1);
+      setJoinMessage("");
+      if (ride.instantBooking) {
+        setShowJoinVerification(true);
+      } else {
+        setShowJoinRequestModal(true);
+      }
     }
   };
 
-  const confirmJoinRide = () => {
+  const confirmJoinRide = async () => {
     if (!selectedRideForJoin) return;
 
-    setRides((prevRides) =>
-      prevRides.map((ride) => {
-        if (ride.id === selectedRideForJoin.id && ride.availableSeats > 0) {
-          const newPassenger = {
-            id: currentUser.id,
-            name: currentUser.name,
-            photo: currentUser.photo,
-            joinedAt: new Date().toISOString(),
-            status: "pending" as const, // Add pending status
-          };
-          return {
-            ...ride,
-            passengers: [...ride.passengers, newPassenger],
-            availableSeats: ride.availableSeats - 1,
-          };
-        }
-        return ride;
-      })
-    );
+    try {
+      // Get current user
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    setShowJoinVerification(false);
-    setSelectedRideForJoin(null);
-    Alert.alert(
-      "Request Sent!",
-      "Your join request has been sent to the ride creator. You'll be notified once they accept your request."
-    );
-    onJoinRide(selectedRideForJoin.id);
+      if (userError || !user) {
+        Alert.alert("Error", "You must be logged in to join a ride");
+        return;
+      }
+
+      if (selectedRideForJoin.instantBooking) {
+        // For instant booking, directly add to passengers
+        const { error: passengerError } = await supabase
+          .from("ride_passengers")
+          .insert([
+            {
+              ride_id: selectedRideForJoin.id,
+              passenger_id: user.id,
+              passenger_name:
+                user.user_metadata?.full_name ||
+                user.email?.split("@")[0] ||
+                "Passenger",
+              passenger_email: user.email,
+              seats_booked: seatsToBook,
+              status: "confirmed",
+              joined_at: new Date().toISOString(),
+            },
+          ]);
+
+        if (passengerError) {
+          console.error("Error adding passenger:", passengerError);
+          Alert.alert("Error", "Failed to join ride. Please try again.");
+          return;
+        }
+
+        // Update available seats
+        const { error: updateError } = await supabase
+          .from("carpool_rides")
+          .update({
+            available_seats: selectedRideForJoin.availableSeats - seatsToBook,
+          })
+          .eq("id", selectedRideForJoin.id);
+
+        if (updateError) {
+          console.error("Error updating seats:", updateError);
+        }
+
+        Alert.alert("Success", "You have successfully joined the ride!");
+      } else {
+        // For request-based booking, create a join request
+        const { error: requestError } = await supabase
+          .from("join_requests")
+          .insert([
+            {
+              ride_id: selectedRideForJoin.id,
+              passenger_id: user.id,
+              passenger_name:
+                user.user_metadata?.full_name ||
+                user.email?.split("@")[0] ||
+                "Passenger",
+              passenger_email: user.email,
+              seats_requested: seatsToBook,
+              message: joinMessage,
+              status: "pending",
+              created_at: new Date().toISOString(),
+            },
+          ]);
+
+        if (requestError) {
+          console.error("Error creating join request:", requestError);
+          Alert.alert(
+            "Error",
+            "Failed to send join request. Please try again."
+          );
+          return;
+        }
+
+        Alert.alert(
+          "Request Sent",
+          "Your join request has been sent to the driver. You'll be notified when they respond."
+        );
+      }
+
+      // Refresh rides data
+      await fetchRides();
+
+      setShowJoinRequestModal(false);
+      setSelectedRideForJoin(null);
+      setJoinMessage("");
+      setSeatsToBook(1);
+    } catch (error) {
+      console.error("Error in confirmJoinRide:", error);
+      Alert.alert("Error", "Failed to process your request. Please try again.");
+    }
   };
 
   const handleContactDriver = (ride: CarpoolRide) => {
@@ -416,8 +448,10 @@ const StudentCarpoolSystem = ({
       { bg: "#F3E5F5", accent: "#9C27B0" }, // Purple
       { bg: "#FCE4EC", accent: "#E91E63" }, // Pink
     ];
-    const colorIndex = parseInt(ride.id.slice(-1)) % cardColors.length;
-    const colors = cardColors[colorIndex];
+    const colorIndex = ride.id
+      ? (parseInt(ride.id.slice(-1)) || 0) % cardColors.length
+      : 0;
+    const colors = cardColors[colorIndex] || cardColors[0];
 
     return (
       <TouchableOpacity
@@ -452,6 +486,29 @@ const StudentCarpoolSystem = ({
               {ride.departureTime}
             </Text>
           </View>
+          {ride.instantBooking && (
+            <View style={[styles.tag, { backgroundColor: "#4CAF50" + "20" }]}>
+              <Text style={[styles.tagText, { color: "#4CAF50" }]}>
+                ⚡ Instant
+              </Text>
+            </View>
+          )}
+          {ride.pendingRequests.length > 0 &&
+            ride.driverId === currentUser.id && (
+              <View style={[styles.tag, { backgroundColor: "#FF9800" + "20" }]}>
+                <Text style={[styles.tagText, { color: "#FF9800" }]}>
+                  📩 {ride.pendingRequests.length} Request
+                  {ride.pendingRequests.length > 1 ? "s" : ""}
+                </Text>
+              </View>
+            )}
+          {ride.chatEnabled && (
+            <View style={[styles.tag, { backgroundColor: "#2196F3" + "20" }]}>
+              <Text style={[styles.tagText, { color: "#2196F3" }]}>
+                💬 Chat
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Be in first applicants section */}
@@ -512,9 +569,25 @@ const StudentCarpoolSystem = ({
                 style={[styles.joinBtn, { backgroundColor: colors.accent }]}
                 onPress={() => handleJoinRide(ride.id)}
               >
-                <Text style={styles.joinBtnText}>Join Ride</Text>
+                <Text style={styles.joinBtnText}>
+                  {ride.instantBooking ? "Book Now" : "Request Join"}
+                </Text>
               </TouchableOpacity>
             </>
+          )}
+
+          {(hasJoined || isDriverCurrentUser) && ride.chatEnabled && (
+            <TouchableOpacity
+              style={[styles.contactBtn, { borderColor: "#2196F3" }]}
+              onPress={() =>
+                handleStartChat(ride.id, `${ride.from} → ${ride.to}`)
+              }
+            >
+              <MessageCircle size={16} color="#2196F3" />
+              <Text style={[styles.contactBtnText, { color: "#2196F3" }]}>
+                Chat
+              </Text>
+            </TouchableOpacity>
           )}
 
           {hasJoined && !isPending && (
@@ -758,7 +831,6 @@ const StudentCarpoolSystem = ({
       </View>
 
       {/* Modals */}
-      {/* Removed RideDetailsScreen and CreateRideScreen - moved to unused folder
       {showRideDetails && selectedRide && (
         <RideDetailsScreen
           ride={selectedRide}
@@ -777,7 +849,6 @@ const StudentCarpoolSystem = ({
           isDarkMode={isDarkMode}
         />
       )}
-      */}
 
       {showChat && (
         <ChatScreen
@@ -1037,6 +1108,288 @@ const StudentCarpoolSystem = ({
                     ]}
                   >
                     Confirm & Join Ride
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Join Request Modal */}
+      {showJoinRequestModal && selectedRideForJoin && (
+        <Modal visible={true} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View
+              style={[
+                styles.verificationModal,
+                { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
+              ]}
+            >
+              <View style={styles.verificationHeader}>
+                <View
+                  style={[
+                    styles.verificationIcon,
+                    { backgroundColor: isDarkMode ? "#2196F3" : "#E3F2FD" },
+                  ]}
+                >
+                  <MessageCircle
+                    size={32}
+                    color={isDarkMode ? "#FFFFFF" : "#2196F3"}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.verificationTitle,
+                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                  ]}
+                >
+                  Request to Join Ride
+                </Text>
+                <Text
+                  style={[
+                    styles.verificationSubtitle,
+                    { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                  ]}
+                >
+                  Send a request to the driver
+                </Text>
+              </View>
+
+              <ScrollView
+                style={styles.verificationContent}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Ride Details */}
+                <View
+                  style={[
+                    styles.verificationSection,
+                    { backgroundColor: isDarkMode ? "#2A2A2A" : "#F8F9FA" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.verificationSectionTitle,
+                      { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                    ]}
+                  >
+                    🚗 Ride Details
+                  </Text>
+                  <View style={styles.verificationRow}>
+                    <MapPin
+                      size={16}
+                      color={isDarkMode ? "#CCCCCC" : "#666666"}
+                    />
+                    <Text
+                      style={[
+                        styles.verificationText,
+                        { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                      ]}
+                    >
+                      {selectedRideForJoin.from} → {selectedRideForJoin.to}
+                    </Text>
+                  </View>
+                  <View style={styles.verificationRow}>
+                    <Clock
+                      size={16}
+                      color={isDarkMode ? "#CCCCCC" : "#666666"}
+                    />
+                    <Text
+                      style={[
+                        styles.verificationText,
+                        { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                      ]}
+                    >
+                      {selectedRideForJoin.date} at{" "}
+                      {selectedRideForJoin.departureTime}
+                    </Text>
+                  </View>
+                  <View style={styles.verificationRow}>
+                    <DollarSign
+                      size={16}
+                      color={isDarkMode ? "#CCCCCC" : "#666666"}
+                    />
+                    <Text
+                      style={[
+                        styles.verificationText,
+                        { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                      ]}
+                    >
+                      ₹{selectedRideForJoin.pricePerSeat} per seat
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Seat Selection */}
+                <View
+                  style={[
+                    styles.verificationSection,
+                    { backgroundColor: isDarkMode ? "#2A2A2A" : "#F8F9FA" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.verificationSectionTitle,
+                      { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                    ]}
+                  >
+                    🎫 Seats Required
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() =>
+                        setSeatsToBook(Math.max(1, seatsToBook - 1))
+                      }
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: isDarkMode ? "#333" : "#E0E0E0",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isDarkMode ? "#FFF" : "#000",
+                          fontSize: 18,
+                        }}
+                      >
+                        -
+                      </Text>
+                    </TouchableOpacity>
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "600",
+                        color: isDarkMode ? "#FFFFFF" : "#000000",
+                        minWidth: 30,
+                        textAlign: "center",
+                      }}
+                    >
+                      {seatsToBook}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setSeatsToBook(
+                          Math.min(
+                            selectedRideForJoin.availableSeats,
+                            seatsToBook + 1
+                          )
+                        )
+                      }
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: isDarkMode ? "#333" : "#E0E0E0",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isDarkMode ? "#FFF" : "#000",
+                          fontSize: 18,
+                        }}
+                      >
+                        +
+                      </Text>
+                    </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.verificationText,
+                        {
+                          color: isDarkMode ? "#CCCCCC" : "#666666",
+                          marginLeft: 8,
+                        },
+                      ]}
+                    >
+                      (Max: {selectedRideForJoin.availableSeats})
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Message */}
+                <View
+                  style={[
+                    styles.verificationSection,
+                    { backgroundColor: isDarkMode ? "#2A2A2A" : "#F8F9FA" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.verificationSectionTitle,
+                      { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                    ]}
+                  >
+                    💬 Message to Driver (Optional)
+                  </Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1,
+                      borderColor: isDarkMode ? "#444" : "#E0E0E0",
+                      borderRadius: 8,
+                      padding: 12,
+                      minHeight: 80,
+                      textAlignVertical: "top",
+                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                      backgroundColor: isDarkMode ? "#333" : "#FFFFFF",
+                    }}
+                    multiline
+                    placeholder="Introduce yourself or add any special requests..."
+                    placeholderTextColor={isDarkMode ? "#888" : "#999"}
+                    value={joinMessage}
+                    onChangeText={setJoinMessage}
+                  />
+                </View>
+              </ScrollView>
+
+              <View style={styles.verificationActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.cancelVerificationButton,
+                    { borderColor: isDarkMode ? "#666666" : "#CCCCCC" },
+                  ]}
+                  onPress={() => {
+                    setShowJoinRequestModal(false);
+                    setSelectedRideForJoin(null);
+                    setJoinMessage("");
+                    setSeatsToBook(1);
+                  }}
+                >
+                  <X size={16} color={isDarkMode ? "#666666" : "#CCCCCC"} />
+                  <Text
+                    style={[
+                      styles.cancelVerificationText,
+                      { color: isDarkMode ? "#666666" : "#CCCCCC" },
+                    ]}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.confirmVerificationButton,
+                    { backgroundColor: "#2196F3" },
+                  ]}
+                  onPress={confirmJoinRide}
+                >
+                  <MessageCircle size={16} color="#FFFFFF" />
+                  <Text
+                    style={[
+                      styles.confirmVerificationText,
+                      { color: "#FFFFFF" },
+                    ]}
+                  >
+                    Send Request
                   </Text>
                 </TouchableOpacity>
               </View>

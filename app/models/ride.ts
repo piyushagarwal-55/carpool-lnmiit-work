@@ -15,12 +15,85 @@ export interface Ride {
   updatedAt: Date;
 }
 
+// Enhanced Carpool Ride Schema
+export interface CarpoolRide {
+  id: string;
+  driverId: string;
+  driverName: string;
+  driverRating: number;
+  driverPhoto: string;
+  driverBranch: string;
+  driverYear: string;
+  driverPhone?: string;
+  from: string;
+  to: string;
+  departureTime: string;
+  date: string;
+  availableSeats: number;
+  totalSeats: number;
+  pricePerSeat: number;
+  vehicleInfo: VehicleInfo;
+  route: string[];
+  preferences: RidePreferences;
+  status: "active" | "full" | "completed" | "cancelled" | "in_progress";
+  passengers: CarpoolPassenger[];
+  pendingRequests: JoinRequest[];
+  chatEnabled: boolean;
+  instantBooking: boolean; // If true, auto-accept; if false, driver must confirm
+  estimatedDuration: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CarpoolPassenger {
+  id: string;
+  name: string;
+  photo: string;
+  branch?: string;
+  year?: string;
+  rating?: number;
+  phone?: string;
+  joinedAt: string;
+  status: "pending" | "accepted" | "confirmed" | "cancelled";
+  seatsBooked: number;
+  pickupPoint?: string;
+  dropoffPoint?: string;
+  paymentStatus: "pending" | "paid" | "refunded";
+}
+
+export interface JoinRequest {
+  id: string;
+  passengerId: string;
+  passengerName: string;
+  passengerPhoto: string;
+  passengerBranch?: string;
+  passengerYear?: string;
+  passengerRating?: number;
+  seatsRequested: number;
+  message?: string;
+  pickupPreference?: string;
+  dropoffPreference?: string;
+  requestedAt: string;
+  status: "pending" | "accepted" | "rejected" | "cancelled";
+}
+
+export interface RidePreferences {
+  gender?: "male" | "female" | "any";
+  smokingAllowed: boolean;
+  musicAllowed: boolean;
+  petsAllowed: boolean;
+  chatRequired?: boolean;
+  verificationRequired?: boolean;
+}
+
 export interface VehicleInfo {
   make: string;
   model: string;
   color: string;
   licensePlate: string;
   year?: number;
+  isAC?: boolean;
+  capacity?: number;
 }
 
 export interface RoutePoint {
@@ -39,6 +112,38 @@ export interface RidePassenger {
   pickupPoint?: RoutePoint;
   dropoffPoint?: RoutePoint;
   bookedAt: Date;
+}
+
+// Create Ride Request for new enhanced system
+export interface CreateCarpoolRideRequest {
+  from: string;
+  to: string;
+  departureTime: string;
+  date: string;
+  availableSeats: number;
+  pricePerSeat: number;
+  vehicleInfo: VehicleInfo;
+  route: string[];
+  preferences: RidePreferences;
+  description?: string;
+  instantBooking: boolean;
+  estimatedDuration?: string;
+}
+
+// Join Ride Request
+export interface JoinCarpoolRideRequest {
+  rideId: string;
+  seatsRequested: number;
+  message?: string;
+  pickupPreference?: string;
+  dropoffPreference?: string;
+}
+
+// Response from driver for join requests
+export interface RespondToJoinRequest {
+  requestId: string;
+  response: "accept" | "reject";
+  message?: string;
 }
 
 export interface CreateRideRequest {
@@ -64,6 +169,10 @@ export interface RideSearchFilters {
   date?: string;
   maxPrice?: number;
   minSeats?: number;
+  gender?: "male" | "female" | "any";
+  smokingAllowed?: boolean;
+  musicAllowed?: boolean;
+  petsAllowed?: boolean;
 }
 
 export interface RideRating {
@@ -74,6 +183,41 @@ export interface RideRating {
   rating: number;
   comment?: string;
   createdAt: Date;
+}
+
+// Chat integration
+export interface RideChat {
+  id: string;
+  rideId: string;
+  participants: string[];
+  createdAt: string;
+  lastMessage?: {
+    senderId: string;
+    message: string;
+    timestamp: string;
+  };
+}
+
+// Notification types for carpool system
+export interface CarpoolNotification {
+  id: string;
+  userId: string;
+  type:
+    | "join_request"
+    | "request_accepted"
+    | "request_rejected"
+    | "ride_updated"
+    | "ride_cancelled"
+    | "chat_message";
+  title: string;
+  message: string;
+  data: {
+    rideId?: string;
+    requestId?: string;
+    chatId?: string;
+  };
+  read: boolean;
+  createdAt: string;
 }
 
 // Dummy default export to satisfy Expo Router
