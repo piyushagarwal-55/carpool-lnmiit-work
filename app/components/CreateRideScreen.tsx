@@ -218,11 +218,18 @@ export default function CreateRideScreen({
   };
 
   const onTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(false);
+    setShowTimePicker(Platform.OS === "ios" ? false : false);
+    if (event.type === "dismissed") {
+      setShowTimePicker(false);
+      return;
+    }
     if (selectedTime) {
       // Ensure the time has proper values
       const newTime = new Date(selectedTime);
       setFormData((prev) => ({ ...prev, time: newTime }));
+      if (Platform.OS === "android") {
+        setShowTimePicker(false);
+      }
     }
   };
 

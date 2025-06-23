@@ -66,4 +66,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NotificationBadge;
+// Default export for Expo Router compatibility
+const NotificationBadgeDefault = NotificationBadge;
+export { NotificationBadgeDefault as default };

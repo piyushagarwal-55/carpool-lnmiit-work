@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { socketService, RideRequest } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import { CarpoolRide, JoinRequest, CarpoolPassenger } from "../models/ride";
+import NotificationService from "../services/NotificationService";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -282,15 +283,62 @@ export default function RideDetailsScreen({
   const handleJoinRide = async () => {
     if (canJoin && ride) {
       try {
+        // Check if user has already joined this ride
+        const { data: existingPassenger } = await supabase
+          .from("ride_passengers")
+          .select("id")
+          .eq("ride_id", ride.id)
+          .eq("passenger_id", currentUser.id)
+          .single();
+
+        if (existingPassenger) {
+          Alert.alert("Info", "You have already joined this ride!");
+          return;
+        }
+
+        // Check if user has already sent a request for this ride
+        const { data: existingRequest } = await supabase
+          .from("join_requests")
+          .select("id, status")
+          .eq("ride_id", ride.id)
+          .eq("passenger_id", currentUser.id)
+          .single();
+
+        if (existingRequest) {
+          if (existingRequest.status === "pending") {
+            Alert.alert(
+              "Info",
+              "You have already sent a request for this ride!"
+            );
+          } else if (existingRequest.status === "accepted") {
+            Alert.alert(
+              "Info",
+              "Your request for this ride has already been accepted!"
+            );
+          } else if (existingRequest.status === "rejected") {
+            Alert.alert(
+              "Info",
+              "Your request for this ride was previously rejected. Please try a different ride."
+            );
+          }
+          return;
+        }
+
         // Create join request in database
-        const { error } = await supabase.from("join_requests").insert({
-          ride_id: ride.id,
-          passenger_id: currentUser.id,
-          passenger_name: currentUser.name,
-          passenger_email: currentUser.email,
-          seats_requested: 1,
-          message: `Hi! I'd like to join your ride from ${ride.from} to ${ride.to}.`,
-        });
+        const { data: joinRequestData, error } = await supabase
+          .from("join_requests")
+          .insert({
+            ride_id: ride.id,
+            passenger_id: currentUser.id,
+            passenger_name: currentUser.name,
+            passenger_email: currentUser.email,
+            seats_requested: 1,
+            message: `Hi! I'd like to join your ride from ${ride.from} to ${ride.to}.`,
+            status: "pending",
+            created_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
 
         if (error) {
           console.error("Error creating join request:", error);
@@ -309,30 +357,57 @@ export default function RideDetailsScreen({
               passenger_email: currentUser.email,
               seats_booked: 1,
               status: "confirmed",
+              joined_at: new Date().toISOString(),
             });
 
           if (!passengerError) {
             // Update available seats
             await supabase
               .from("carpool_rides")
-              .update({ available_seats: ride.availableSeats - 1 })
+              .update({
+                available_seats: ride.availableSeats - 1,
+                updated_at: new Date().toISOString(),
+              })
               .eq("id", ride.id);
+
+            // Update join request to accepted for instant booking
+            await supabase
+              .from("join_requests")
+              .update({
+                status: "accepted",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", joinRequestData.id);
 
             Alert.alert("Success", "You have successfully joined the ride!");
             fetchRideDetails(); // Refresh data
           }
         } else {
-          // Send ride request via Socket.IO for non-instant booking
+          // For request-based booking, send notification to driver
+          await NotificationService.notifyJoinRequest(
+            ride.driverId,
+            currentUser.name,
+            ride.id,
+            joinRequestData.id,
+            ride.from,
+            ride.to
+          );
+
+          // Send ride request via Socket.IO for real-time updates
           const rideRequest = {
             userId: currentUser.id,
             userName: currentUser.name,
             userPhoto: currentUser.photo,
             rideId: ride.id,
+            requestId: joinRequestData.id,
           };
 
           socketService.sendRideRequest(rideRequest);
           setJoinRequestSent(true);
-          Alert.alert("Success", "Join request sent to driver!");
+          Alert.alert(
+            "Success",
+            "Join request sent to driver! They will be notified."
+          );
         }
 
         // Also call the original join ride function
@@ -349,15 +424,43 @@ export default function RideDetailsScreen({
       const request = joinRequests.find((r) => r.id === requestId);
       if (!request || !ride) return;
 
+      // Get the full request details from database including email
+      const { data: requestData, error: requestError } = await supabase
+        .from("join_requests")
+        .select("*")
+        .eq("id", requestId)
+        .single();
+
+      if (requestError || !requestData) {
+        Alert.alert("Error", "Could not fetch request details");
+        return;
+      }
+
       // Update request status to accepted
       const { error: updateError } = await supabase
         .from("join_requests")
-        .update({ status: "accepted" })
+        .update({
+          status: "accepted",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", requestId);
 
       if (updateError) {
         console.error("Error accepting request:", updateError);
         Alert.alert("Error", "Failed to accept request");
+        return;
+      }
+
+      // Check if passenger already exists for this ride
+      const { data: existingPassenger } = await supabase
+        .from("ride_passengers")
+        .select("id")
+        .eq("ride_id", ride.id)
+        .eq("passenger_id", request.passengerId)
+        .single();
+
+      if (existingPassenger) {
+        Alert.alert("Info", "This passenger has already joined the ride!");
         return;
       }
 
@@ -368,9 +471,10 @@ export default function RideDetailsScreen({
           ride_id: ride.id,
           passenger_id: request.passengerId,
           passenger_name: request.passengerName,
-          passenger_email: currentUser.email, // Use current user email as fallback
+          passenger_email: requestData.passenger_email,
           seats_booked: request.seatsRequested,
           status: "confirmed",
+          joined_at: new Date().toISOString(),
         });
 
       if (passengerError) {
@@ -384,11 +488,24 @@ export default function RideDetailsScreen({
         .from("carpool_rides")
         .update({
           available_seats: ride.availableSeats - request.seatsRequested,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", ride.id);
 
+      // Send notification to passenger
+      await NotificationService.notifyRequestAccepted(
+        request.passengerId,
+        currentUser.name,
+        ride.id,
+        ride.from,
+        ride.to
+      );
+
       socketService.acceptRideRequest(requestId);
-      Alert.alert("Success", "Request accepted successfully!");
+      Alert.alert(
+        "Success",
+        "Request accepted! The passenger has been notified."
+      );
       fetchRideDetails(); // Refresh data
     } catch (error) {
       console.error("Error in handleAcceptRequest:", error);
@@ -398,10 +515,16 @@ export default function RideDetailsScreen({
 
   const handleRejectRequest = async (requestId: string) => {
     try {
+      const request = joinRequests.find((r) => r.id === requestId);
+      if (!request || !ride) return;
+
       // Update request status to rejected
       const { error } = await supabase
         .from("join_requests")
-        .update({ status: "rejected" })
+        .update({
+          status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", requestId);
 
       if (error) {
@@ -410,8 +533,20 @@ export default function RideDetailsScreen({
         return;
       }
 
+      // Send notification to passenger
+      await NotificationService.notifyRequestRejected(
+        request.passengerId,
+        currentUser.name,
+        ride.id,
+        ride.from,
+        ride.to
+      );
+
       socketService.rejectRideRequest(requestId);
-      Alert.alert("Success", "Request rejected");
+      Alert.alert(
+        "Success",
+        "Request declined. The passenger has been notified."
+      );
       fetchRideDetails(); // Refresh data
     } catch (error) {
       console.error("Error in handleRejectRequest:", error);

@@ -38,8 +38,10 @@ import { Image } from "react-native";
 import RideDetailsScreen from "./RideDetailsScreen";
 import CreateRideScreen from "./CreateRideScreen";
 import ChatScreen from "./ChatScreen";
+import RequestAcceptanceModal from "./RequestAcceptanceModal";
 import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
+import NotificationService from "../services/NotificationService";
 
 interface CarpoolRide {
   id: string;
@@ -137,6 +139,7 @@ const StudentCarpoolSystem = ({
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [showRideDetails, setShowRideDetails] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [userRideHistory, setUserRideHistory] = useState<any[]>([]);
   const [showCreateRide, setShowCreateRide] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatRideId, setChatRideId] = useState<string>("");
@@ -147,6 +150,8 @@ const StudentCarpoolSystem = ({
   const [joinMessage, setJoinMessage] = useState("");
   const [seatsToBook, setSeatsToBook] = useState(1);
   const [showJoinRequestModal, setShowJoinRequestModal] = useState(false);
+  const [showRequestAcceptance, setShowRequestAcceptance] = useState(false);
+  const [selectedJoinRequest, setSelectedJoinRequest] = useState<any>(null);
 
   // Fetch rides from database
   const fetchRides = async () => {
@@ -224,6 +229,14 @@ const StudentCarpoolSystem = ({
         .limit(10);
 
       if (error) {
+        // If notifications table doesn't exist, just set empty array
+        if (error.code === "42P01") {
+          console.warn(
+            "Notifications table not found. Please run setup-database.sql"
+          );
+          setNotifications([]);
+          return;
+        }
         console.error("Error fetching notifications:", error);
         return;
       }
@@ -231,12 +244,68 @@ const StudentCarpoolSystem = ({
       setNotifications(notificationsData || []);
     } catch (error) {
       console.error("Error in fetchNotifications:", error);
+      setNotifications([]);
+    }
+  };
+
+  // Fetch user's ride history
+  const fetchUserRideHistory = async () => {
+    try {
+      // Fetch rides where user is driver
+      const { data: driverRides, error: driverError } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("driver_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      // Fetch rides where user is passenger
+      const { data: passengerRides, error: passengerError } = await supabase
+        .from("ride_passengers")
+        .select(
+          `
+          *,
+          carpool_rides (*)
+        `
+        )
+        .eq("passenger_id", currentUser.id);
+
+      let allRides: any[] = [];
+
+      if (!driverError && driverRides) {
+        allRides = [
+          ...allRides,
+          ...driverRides.map((ride) => ({ ...ride, userRole: "driver" })),
+        ];
+      }
+
+      if (!passengerError && passengerRides) {
+        allRides = [
+          ...allRides,
+          ...passengerRides.map((p) => ({
+            ...p.carpool_rides,
+            userRole: "passenger",
+            joinedAt: p.joined_at,
+          })),
+        ];
+      }
+
+      // Sort by date
+      allRides.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setUserRideHistory(allRides);
+    } catch (error) {
+      console.error("Error fetching ride history:", error);
+      setUserRideHistory([]);
     }
   };
 
   useEffect(() => {
     fetchRides();
     fetchNotifications();
+    fetchUserRideHistory();
     socketService.connect(currentUser.id);
 
     return () => {
@@ -284,8 +353,83 @@ const StudentCarpoolSystem = ({
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchRides();
+    await Promise.all([
+      fetchRides(),
+      fetchNotifications(),
+      fetchUserRideHistory(),
+    ]);
     setRefreshing(false);
+  };
+
+  // Function to flush all data - can be called from profile
+  const flushAllData = async () => {
+    setRides([]);
+    setFilteredRides([]);
+    setNotifications([]);
+    setUserRideHistory([]);
+    await handleRefresh();
+  };
+
+  // Handle notification clicks
+  const handleNotificationClick = async (notification: any) => {
+    try {
+      if (notification.type === "join_request") {
+        // For join request notifications, show the request acceptance modal
+        const requestId = notification.data?.requestId;
+        if (requestId) {
+          // Fetch the full request details
+          const { data: requestData, error } = await supabase
+            .from("join_requests")
+            .select(
+              `
+              *,
+              carpool_rides(from_location, to_location, departure_time)
+            `
+            )
+            .eq("id", requestId)
+            .single();
+
+          if (error || !requestData) {
+            Alert.alert("Error", "Could not fetch request details");
+            return;
+          }
+
+          // Transform data for the modal
+          const transformedRequest = {
+            id: requestData.id,
+            passengerId: requestData.passenger_id,
+            passengerName: requestData.passenger_name,
+            passengerEmail: requestData.passenger_email,
+            rideId: requestData.ride_id,
+            from: requestData.carpool_rides.from_location,
+            to: requestData.carpool_rides.to_location,
+            departureTime: requestData.carpool_rides.departure_time,
+            requestMessage: requestData.message,
+            createdAt: requestData.created_at,
+          };
+
+          setSelectedJoinRequest(transformedRequest);
+          setShowRequestAcceptance(true);
+
+          // Mark notification as read
+          await NotificationService.markAsRead(notification.id);
+          fetchNotifications(); // Refresh notifications
+        }
+      }
+    } catch (error) {
+      console.error("Error handling notification:", error);
+    }
+  };
+
+  // Handle request acceptance/rejection from modal
+  const handleRequestHandled = (
+    requestId: string,
+    action: "accepted" | "rejected"
+  ) => {
+    setShowRequestAcceptance(false);
+    setSelectedJoinRequest(null);
+    // Refresh data
+    handleRefresh();
   };
 
   const handleFilterSelect = (filterKey: string, filterLabel: string) => {
@@ -319,6 +463,44 @@ const StudentCarpoolSystem = ({
 
       if (userError || !user) {
         Alert.alert("Error", "You must be logged in to join a ride");
+        return;
+      }
+
+      // Check if user has already joined this ride
+      const { data: existingPassenger } = await supabase
+        .from("ride_passengers")
+        .select("id")
+        .eq("ride_id", selectedRideForJoin.id)
+        .eq("passenger_id", user.id)
+        .single();
+
+      if (existingPassenger) {
+        Alert.alert("Info", "You have already joined this ride!");
+        return;
+      }
+
+      // Check if user has already sent a request for this ride
+      const { data: existingRequest } = await supabase
+        .from("join_requests")
+        .select("id, status")
+        .eq("ride_id", selectedRideForJoin.id)
+        .eq("passenger_id", user.id)
+        .single();
+
+      if (existingRequest) {
+        if (existingRequest.status === "pending") {
+          Alert.alert("Info", "You have already sent a request for this ride!");
+        } else if (existingRequest.status === "accepted") {
+          Alert.alert(
+            "Info",
+            "Your request for this ride has already been accepted!"
+          );
+        } else if (existingRequest.status === "rejected") {
+          Alert.alert(
+            "Info",
+            "Your request for this ride was previously rejected. Please try a different ride."
+          );
+        }
         return;
       }
 
@@ -395,8 +577,8 @@ const StudentCarpoolSystem = ({
         );
       }
 
-      // Refresh rides data
-      await fetchRides();
+      // Refresh all data
+      await handleRefresh();
 
       setShowJoinRequestModal(false);
       setSelectedRideForJoin(null);
@@ -445,6 +627,7 @@ const StudentCarpoolSystem = ({
   const handleRideCreated = (rideData: any) => {
     setRides((prev) => [rideData, ...prev]);
     setShowCreateRide(false);
+    handleRefresh(); // Refresh all data including ride history
   };
 
   const handleRideCardPress = (ride: CarpoolRide) => {
@@ -667,7 +850,7 @@ const StudentCarpoolSystem = ({
     {
       key: "history",
       label: "My History",
-      count: "8",
+      count: `${userRideHistory.length}`,
       color: "#9C27B0",
       icon: "📋",
     },
@@ -836,6 +1019,39 @@ const StudentCarpoolSystem = ({
                   onPress={() => {
                     if (category.key === "create") {
                       handleCreateRide();
+                    } else if (category.key === "notifications") {
+                      // Show a list of notifications and handle clicks
+                      if (notifications.length > 0) {
+                        Alert.alert(
+                          "Notifications",
+                          `You have ${unreadNotifications} unread notifications`,
+                          [
+                            {
+                              text: "View Latest",
+                              onPress: () => {
+                                const latestNotification = notifications.find(
+                                  (n) => !n.read
+                                );
+                                if (latestNotification) {
+                                  handleNotificationClick(latestNotification);
+                                }
+                              },
+                            },
+                            {
+                              text: "Mark All Read",
+                              onPress: async () => {
+                                await NotificationService.markAllAsRead(
+                                  currentUser.id
+                                );
+                                fetchNotifications();
+                              },
+                            },
+                            { text: "Cancel", style: "cancel" },
+                          ]
+                        );
+                      } else {
+                        Alert.alert("Notifications", "No notifications yet!");
+                      }
                     }
                   }}
                 >
@@ -1428,6 +1644,18 @@ const StudentCarpoolSystem = ({
           </View>
         </Modal>
       )}
+
+      {/* Request Acceptance Modal */}
+      <RequestAcceptanceModal
+        visible={showRequestAcceptance}
+        onClose={() => {
+          setShowRequestAcceptance(false);
+          setSelectedJoinRequest(null);
+        }}
+        request={selectedJoinRequest}
+        onRequestHandled={handleRequestHandled}
+        isDarkMode={isDarkMode}
+      />
     </>
   );
 };
