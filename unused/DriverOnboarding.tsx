@@ -27,8 +27,8 @@ import {
   ArrowRight,
   X,
 } from "lucide-react-native";
-import { Input } from "./ui/Input";
-import { Button } from "./ui/Button";
+import Input from "./ui/Input";
+import Button from "./ui/Button";
 
 interface DriverOnboardingProps {
   isDarkMode?: boolean;
@@ -257,7 +257,9 @@ const DriverOnboarding = ({
         <Input
           label="Full Name"
           value={formData.fullName}
-          onChangeText={(text) => setFormData({ ...formData, fullName: text })}
+          onChangeText={(text: string) =>
+            setFormData({ ...formData, fullName: text })
+          }
           leftIcon={<User size={20} color="#CCCCCC" />}
           placeholder="Enter your full name"
           isDarkMode={isDarkMode}
@@ -266,7 +268,9 @@ const DriverOnboarding = ({
         <Input
           label="Phone Number"
           value={formData.phone}
-          onChangeText={(text) => setFormData({ ...formData, phone: text })}
+          onChangeText={(text: string) =>
+            setFormData({ ...formData, phone: text })
+          }
           leftIcon={<Phone size={20} color="#CCCCCC" />}
           placeholder="+91 98765 43210"
           keyboardType="phone-pad"
@@ -276,7 +280,9 @@ const DriverOnboarding = ({
         <Input
           label="Email Address"
           value={formData.email}
-          onChangeText={(text) => setFormData({ ...formData, email: text })}
+          onChangeText={(text: string) =>
+            setFormData({ ...formData, email: text })
+          }
           leftIcon={<Mail size={20} color="#CCCCCC" />}
           placeholder="your.email@gmail.com"
           keyboardType="email-address"
@@ -286,7 +292,9 @@ const DriverOnboarding = ({
         <Input
           label="Current Address"
           value={formData.address}
-          onChangeText={(text) => setFormData({ ...formData, address: text })}
+          onChangeText={(text: string) =>
+            setFormData({ ...formData, address: text })
+          }
           leftIcon={<MapPin size={20} color="#CCCCCC" />}
           placeholder="Your complete address"
           multiline

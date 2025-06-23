@@ -36,7 +36,7 @@ const RideBookingFlow: React.FC<RideBookingFlowProps> = ({
   const theme = useTheme();
   const [step, setStep] = useState(1); // 1: Enter destination, 2: Choose ride, 3: Confirm
   const [destination, setDestination] = useState("");
-  const [selectedRide, setSelectedRide] = useState(null);
+  const [selectedRide, setSelectedRide] = useState<any>(null);
   const [pickup, setPickup] = useState("LNMIIT Campus");
 
   const rideOptions = [

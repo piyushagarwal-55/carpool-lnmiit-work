@@ -34,8 +34,8 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "react-native";
 // Removed Button import - using TouchableOpacity instead
-import RideDetailsScreen from "./RideDetailsScreen";
-import CreateRideScreen from "./CreateRideScreen";
+// import RideDetailsScreen from "./RideDetailsScreen";
+// import CreateRideScreen from "./CreateRideScreen";
 import ChatScreen from "./ChatScreen";
 import { socketService } from "../services/SocketService";
 

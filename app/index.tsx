@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  StyleSheet,
-  useColorScheme,
-  Animated,
-} from "react-native";
+import { View, StyleSheet, useColorScheme, Animated } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -28,17 +23,15 @@ import ModernAuthScreen from "./components/ModernAuthScreen";
 import StudentCarpoolSystem from "./components/StudentCarpoolSystem";
 import BusBookingSystem from "./components/BusBookingSystem";
 import UserProfileSafety from "./components/UserProfileSafety";
-import DriverDashboard from "./components/DriverDashboard";
 
 // ✅ Add these missing imports at the top
 import { TouchableOpacity, ScrollView, Alert } from "react-native";
 import { IconButton } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 
-
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
-import Auth from "./components/AuthScreen";
+import Auth from "./components/ModernAuthScreen";
 
 // Theme
 const lightTheme = {
@@ -64,14 +57,6 @@ const darkTheme = {
     onSurface: "#FFFFFF",
   },
 };
-
-
-
-
- 
-
-
-
 
 const useAuth = (session?: Session) => {
   const [user, setUser] = useState<any>(null);
@@ -100,7 +85,6 @@ const useAuth = (session?: Session) => {
     return () => clearTimeout(timer);
   }, [session]);
 
- 
   const login = (
     email: string,
     password: string,
@@ -124,12 +108,8 @@ const useAuth = (session?: Session) => {
   return { user, loading, isInitialLoading, login, logout };
 };
 
-
-
-
 const AppContent = ({ session }: { session: Session }) => {
- 
-  const {user, loading, isInitialLoading, login, logout } = useAuth(session);
+  const { user, loading, isInitialLoading, login, logout } = useAuth(session);
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -158,7 +138,7 @@ const AppContent = ({ session }: { session: Session }) => {
     backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
   }));
 
- const [routes] = useState([
+  const [routes] = useState([
     {
       key: "carpool",
       title: "Carpool",
@@ -218,7 +198,6 @@ const AppContent = ({ session }: { session: Session }) => {
 
   if (!user) {
     return <ModernAuthScreen onAuthenticated={login} isDarkMode={isDarkMode} />;
-    
   }
 
   return (
@@ -288,30 +267,11 @@ const AppContent = ({ session }: { session: Session }) => {
               )}
               {index === 2 &&
                 (user.role === "external_driver" ? (
-                  <DriverDashboard
+                  <UserProfileSafety
+                    user={user}
+                    busBookings={busBookings}
+                    onLogout={logout}
                     isDarkMode={isDarkMode}
-                    driver={{
-                      id: user.id,
-                      name: user.name,
-                      phone: user.phone,
-                      verificationStatus: "approved",
-                      rating: user.rating,
-                      totalRides: user.ridesCompleted,
-                      monthlyEarnings: 8500,
-                      performanceScore: 92,
-                      vehicleInfo: {
-                        make: "Maruti",
-                        model: "Swift Dzire",
-                        licensePlate: "RJ14 CA 1234",
-                        isAC: true,
-                      },
-                      currentRide: {
-                        pickupLocation: "LNMIIT Campus",
-                        destination: "Jaipur Railway Station",
-                        passengers: 3,
-                        fare: 120,
-                      },
-                    }}
                   />
                 ) : (
                   <UserProfileSafety
@@ -918,7 +878,7 @@ export default function App() {
       {session && session.user ? (
         <AppContent session={session} />
       ) : (
-        <Auth />
+        <Auth onAuthenticated={() => {}} isDarkMode={false} />
       )}
     </PaperProvider>
   );
