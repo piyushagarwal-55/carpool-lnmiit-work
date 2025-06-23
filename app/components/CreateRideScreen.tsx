@@ -34,32 +34,45 @@ interface CreateRideScreenProps {
   isDarkMode?: boolean;
 }
 
+interface CreateRideFormData {
+  from: string;
+  to: string;
+  date: Date;
+  time: Date;
+  availableSeats: string;
+  pricePerSeat: string;
+  carModel: string;
+  description: string;
+  preferences: {
+    airConditioning: boolean;
+    smoking: boolean;
+    music: boolean;
+    pets: boolean;
+  };
+  instantBooking: boolean;
+}
+
 export default function CreateRideScreen({
   onBack,
   onRideCreated,
   isDarkMode = false,
 }: CreateRideScreenProps) {
-  const [formData, setFormData] = useState(() => {
-    const now = new Date();
-    const defaultTime = new Date();
-    defaultTime.setHours(now.getHours() + 1, 0, 0, 0); // Set to next hour with minutes/seconds reset
-
-    return {
-      from: "",
-      to: "",
-      date: new Date(),
-      time: defaultTime,
-      availableSeats: "3",
-      pricePerSeat: "",
-      carModel: "",
-      description: "",
-      preferences: {
-        smoking: false,
-        pets: false,
-        music: true,
-        airConditioning: true,
-      },
-    };
+  const [formData, setFormData] = useState<CreateRideFormData>({
+    from: "",
+    to: "",
+    date: new Date(),
+    time: new Date(),
+    availableSeats: "3",
+    pricePerSeat: "100",
+    carModel: "",
+    description: "",
+    preferences: {
+      airConditioning: true,
+      smoking: false,
+      music: true,
+      pets: false,
+    },
+    instantBooking: false,
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -138,7 +151,7 @@ export default function CreateRideScreen({
         music_allowed: formData.preferences.music,
         pets_allowed: formData.preferences.pets,
         status: "active",
-        instant_booking: true,
+        instant_booking: formData.instantBooking,
         chat_enabled: true,
         description: formData.description,
         created_at: new Date().toISOString(),

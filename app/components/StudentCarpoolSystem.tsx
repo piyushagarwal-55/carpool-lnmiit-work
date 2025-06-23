@@ -544,7 +544,7 @@ const StudentCarpoolSystem = ({
         Alert.alert("Success", "You have successfully joined the ride!");
       } else {
         // For request-based booking, create a join request
-        const { error: requestError } = await supabase
+        const { data: requestData, error: requestError } = await supabase
           .from("join_requests")
           .insert([
             {
@@ -560,9 +560,10 @@ const StudentCarpoolSystem = ({
               status: "pending",
               created_at: new Date().toISOString(),
             },
-          ]);
+          ])
+          .select();
 
-        if (requestError) {
+        if (requestError || !requestData || requestData.length === 0) {
           console.error("Error creating join request:", requestError);
           Alert.alert(
             "Error",
@@ -570,6 +571,18 @@ const StudentCarpoolSystem = ({
           );
           return;
         }
+
+        // Send notification to driver about the join request
+        await NotificationService.notifyJoinRequest(
+          selectedRideForJoin.driverId,
+          user.user_metadata?.full_name ||
+            user.email?.split("@")[0] ||
+            "Passenger",
+          selectedRideForJoin.id,
+          requestData[0].id,
+          selectedRideForJoin.from,
+          selectedRideForJoin.to
+        );
 
         Alert.alert(
           "Request Sent",
