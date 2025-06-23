@@ -113,6 +113,9 @@ export default function ChatScreen({
   const [replyingTo, setReplyingTo] = useState<EnhancedChatMessage | null>(
     null
   );
+  const [showMessageActions, setShowMessageActions] = useState(false);
+  const [selectedMessage, setSelectedMessage] =
+    useState<EnhancedChatMessage | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -1390,103 +1393,5 @@ const styles = StyleSheet.create({
   },
   replyPreviewClose: {
     padding: 8,
-  },
-
-  // Updated message styles for better spacing
-  messageContainer: {
-    flexDirection: "row",
-    marginHorizontal: 16,
-    marginVertical: 2,
-  },
-  ownMessageContainer: {
-    justifyContent: "flex-end",
-  },
-  otherMessageContainer: {
-    justifyContent: "flex-start",
-  },
-  messageAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 8,
-    marginTop: 4,
-  },
-  messageBubble: {
-    maxWidth: "75%",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  ownMessageBubble: {
-    backgroundColor: "#007AFF",
-  },
-  otherMessageBubble: {
-    backgroundColor: "#F0F0F0",
-  },
-  senderName: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  messageFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    marginTop: 4,
-  },
-  timeText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-
-  // Updated input styles
-  inputContainer: {
-    borderTopWidth: 1,
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-  },
-  textInputContainer: {
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  textInput: {
-    fontSize: 16,
-    lineHeight: 20,
-    textAlignVertical: "center",
-  },
-  sendButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-
-  // Messages list styles
-  messagesList: {
-    flex: 1,
-  },
-  messagesContent: {
-    paddingVertical: 8,
-    paddingBottom: 16,
   },
 });
