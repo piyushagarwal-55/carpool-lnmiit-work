@@ -758,6 +758,7 @@ const StudentCarpoolSystem = ({
       </View>
 
       {/* Modals */}
+      {/* Removed RideDetailsScreen and CreateRideScreen - moved to unused folder
       {showRideDetails && selectedRide && (
         <RideDetailsScreen
           ride={selectedRide}
@@ -776,6 +777,7 @@ const StudentCarpoolSystem = ({
           isDarkMode={isDarkMode}
         />
       )}
+      */}
 
       {showChat && (
         <ChatScreen
