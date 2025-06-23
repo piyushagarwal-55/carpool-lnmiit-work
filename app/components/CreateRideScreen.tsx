@@ -732,6 +732,52 @@ export default function CreateRideScreen({
                   />
                 </View>
               ))}
+
+              {/* Instant Booking Toggle */}
+              <View
+                style={[
+                  styles.preferenceRow,
+                  { borderBottomWidth: 0, paddingTop: 20 },
+                ]}
+              >
+                <View style={styles.preferenceLeft}>
+                  <Text style={styles.preferenceIcon}>⚡</Text>
+                  <View>
+                    <Text
+                      style={[
+                        styles.preferenceLabel,
+                        { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                      ]}
+                    >
+                      Instant Booking
+                    </Text>
+                    <Text
+                      style={[
+                        {
+                          fontSize: 12,
+                          color: isDarkMode ? "#CCCCCC" : "#666666",
+                          marginTop: 2,
+                        },
+                      ]}
+                    >
+                      {formData.instantBooking
+                        ? "Passengers can join immediately"
+                        : "You'll approve each request manually"}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={formData.instantBooking}
+                  onValueChange={(value) =>
+                    updateFormData("instantBooking", value)
+                  }
+                  trackColor={{
+                    false: "#767577",
+                    true: isDarkMode ? "#FFFFFF" : "#000000",
+                  }}
+                  thumbColor={isDarkMode ? "#000000" : "#FFFFFF"}
+                />
+              </View>
             </View>
 
             {/* Description Section */}

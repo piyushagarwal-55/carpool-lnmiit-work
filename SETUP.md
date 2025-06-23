@@ -122,6 +122,67 @@ The app comes with pre-configured demo accounts:
 - Light/Dark mode toggle
 - Professional UI design
 
+## 🔄 Ride Request Flow
+
+The app supports two types of ride booking:
+
+### 1. Instant Booking Rides
+
+- Passengers can join immediately without driver approval
+- Seats are allocated on first-come, first-served basis
+- Suitable for trusted groups or flexible drivers
+
+### 2. Approval-Based Rides (Default)
+
+- All join requests require driver approval
+- Complete notification system for request handling
+- Better control for drivers over their passengers
+
+### Complete Flow:
+
+#### For Passengers:
+
+1. **Find Ride**: Browse available rides in the main screen
+2. **Join Request**: Click "Request Join" (for approval-based) or "Book Now" (for instant)
+3. **Wait for Approval**: For approval-based rides, wait for driver response
+4. **Get Notification**: Receive notification when request is accepted/rejected
+5. **Join Ride**: Once accepted, passenger is added to the ride
+
+#### For Drivers:
+
+1. **Create Ride**: Use CreateRideScreen with instant booking toggle
+2. **Receive Requests**: Get notifications when passengers request to join
+3. **Review Requests**: Click notifications to open RequestAcceptanceModal
+4. **Accept/Reject**: Make decisions and send notifications to passengers
+5. **Manage Ride**: View all passengers in RideDetailsScreen
+
+### Notification System:
+
+- **join_request**: Sent to driver when passenger requests to join
+- **request_accepted**: Sent to passenger when driver accepts request
+- **request_rejected**: Sent to passenger when driver rejects request
+- **ride_updated**: Sent to all participants when ride details change
+- **ride_cancelled**: Sent to all participants when ride is cancelled
+- **chat_message**: Sent for new chat messages in ride groups
+
+### Database Tables Involved:
+
+- `carpool_rides`: Main ride information
+- `join_requests`: Pending and processed join requests
+- `ride_passengers`: Confirmed passengers for each ride
+- `notifications`: All notification history
+- `user_profiles`: User information and ratings
+
+### Testing the Flow:
+
+1. Run `setup-database.sql` in Supabase to create all tables
+2. Create a test ride with instant_booking = false
+3. From another user account, try to join the ride
+4. Check notifications table for the join_request notification
+5. As the driver, click the notification and accept/reject
+6. Verify passenger gets acceptance/rejection notification
+7. Check that passenger is added to ride_passengers table if accepted
+
 ## Troubleshooting
 
 ### Common Issues

@@ -20,6 +20,14 @@ import { socketService, RideRequest } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import { CarpoolRide, JoinRequest, CarpoolPassenger } from "../models/ride";
 import NotificationService from "../services/NotificationService";
+import {
+  parseEmailInfo,
+  calculateAcademicYear,
+  formatTime,
+  formatDate,
+  calculateRideExpiry,
+  generateAvatarFromName,
+} from "../lib/utils";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -124,17 +132,20 @@ export default function RideDetailsScreen({
         return;
       }
 
+      // Parse driver email for branch and year info
+      const emailInfo = parseEmailInfo(rideData.driver_email);
+      const academicYear = calculateAcademicYear(emailInfo.joiningYear);
+
       // Transform database data to CarpoolRide interface
       const transformedRide: CarpoolRide = {
         id: rideData.id,
         driverId: rideData.driver_id,
         driverName: rideData.driver_name,
-
         driverPhone: rideData.driver_phone || "",
         driverRating: 4.5, // Default rating
         driverPhoto: generateAvatarFromName(rideData.driver_name),
-        driverBranch: "CSE", // Default branch
-        driverYear: "2024", // Default year
+        driverBranch: emailInfo.branchFull,
+        driverYear: academicYear,
         from: rideData.from_location,
         to: rideData.to_location,
         departureTime: rideData.departure_time,

@@ -18,14 +18,17 @@ CREATE TABLE IF NOT EXISTS carpool_rides (
   vehicle_make VARCHAR(100),
   vehicle_model VARCHAR(100),
   vehicle_color VARCHAR(50),
+  license_plate VARCHAR(20),
   is_ac BOOLEAN DEFAULT true,
   smoking_allowed BOOLEAN DEFAULT false,
   music_allowed BOOLEAN DEFAULT true,
   pets_allowed BOOLEAN DEFAULT false,
-  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'full', 'completed', 'cancelled')),
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'full', 'completed', 'cancelled', 'expired')),
   instant_booking BOOLEAN DEFAULT true,
   chat_enabled BOOLEAN DEFAULT true,
+  estimated_duration VARCHAR(50) DEFAULT '30 mins',
   description TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE GENERATED ALWAYS AS (departure_time - INTERVAL '30 minutes') STORED,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -69,16 +72,22 @@ CREATE TABLE IF NOT EXISTS ride_chats (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. Create user_profiles table
+-- 5. Create enhanced user_profiles table with edit tracking and email parsing
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id),
   full_name VARCHAR(255),
+  email VARCHAR(255),
   branch VARCHAR(100),
+  branch_code VARCHAR(10), -- Extracted from email (ucs, uec, ucc, etc.)
   year VARCHAR(20),
+  joining_year VARCHAR(4), -- Extracted from email (e.g., "24" from "24UCS045")
   phone VARCHAR(20),
   rating DECIMAL(3,2) DEFAULT 4.5 CHECK (rating >= 0 AND rating <= 5),
   total_rides INTEGER DEFAULT 0,
   profile_photo TEXT,
+  profile_edit_count INTEGER DEFAULT 0 CHECK (profile_edit_count <= 2),
+  can_edit_profile BOOLEAN DEFAULT true,
+  last_profile_edit TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -94,6 +103,67 @@ CREATE TABLE IF NOT EXISTS notifications (
   read BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Function to parse email and extract branch info
+CREATE OR REPLACE FUNCTION parse_email_info(email TEXT)
+RETURNS TABLE(joining_year TEXT, branch_code TEXT, branch_full TEXT) AS $$
+BEGIN
+  -- Extract year from email (first 2 digits)
+  joining_year := SUBSTRING(email FROM '(\d{2})[A-Z]+\d+@');
+  
+  -- Extract branch code (letters after year)
+  branch_code := UPPER(SUBSTRING(email FROM '\d{2}([A-Z]+)\d+@'));
+  
+  -- Map branch codes to full names
+  CASE branch_code
+    WHEN 'UCS' THEN branch_full := 'Undergraduate Computer Science';
+    WHEN 'UEC' THEN branch_full := 'Undergraduate Electronics and Communication';
+    WHEN 'UCC' THEN branch_full := 'Undergraduate Computer and Communication';
+    WHEN 'UME' THEN branch_full := 'Undergraduate Mechanical Engineering';
+    WHEN 'UCE' THEN branch_full := 'Undergraduate Civil Engineering';
+    WHEN 'UEE' THEN branch_full := 'Undergraduate Electrical Engineering';
+    ELSE branch_full := 'Unknown Branch';
+  END CASE;
+  
+  RETURN NEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to automatically expire rides
+CREATE OR REPLACE FUNCTION auto_expire_rides()
+RETURNS void AS $$
+BEGIN
+  UPDATE carpool_rides 
+  SET status = 'expired'
+  WHERE status = 'active' 
+    AND NOW() > expires_at;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to track profile edits
+CREATE OR REPLACE FUNCTION increment_profile_edit()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only increment if this is an actual edit (not initial creation)
+  IF OLD.profile_edit_count IS NOT NULL THEN
+    NEW.profile_edit_count := OLD.profile_edit_count + 1;
+    NEW.last_profile_edit := NOW();
+    
+    -- Disable editing if limit reached
+    IF NEW.profile_edit_count >= 2 THEN
+      NEW.can_edit_profile := false;
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for profile edit tracking
+CREATE TRIGGER track_profile_edits
+  BEFORE UPDATE ON user_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION increment_profile_edit();
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE carpool_rides ENABLE ROW LEVEL SECURITY;
@@ -119,9 +189,9 @@ DROP POLICY IF EXISTS "Users can update their own profile" ON user_profiles;
 
 -- Create RLS Policies
 
--- Carpool rides policies
-CREATE POLICY "Anyone can view active rides" ON carpool_rides
-  FOR SELECT USING (status = 'active');
+-- Carpool rides policies (include expired rides)
+CREATE POLICY "Anyone can view active and expired rides" ON carpool_rides
+  FOR SELECT USING (status IN ('active', 'expired'));
 
 CREATE POLICY "Users can create their own rides" ON carpool_rides
   FOR INSERT WITH CHECK (auth.uid() = driver_id);
@@ -194,35 +264,17 @@ CREATE POLICY "System can create notifications" ON notifications
 CREATE INDEX IF NOT EXISTS idx_carpool_rides_status ON carpool_rides(status);
 CREATE INDEX IF NOT EXISTS idx_carpool_rides_driver ON carpool_rides(driver_id);
 CREATE INDEX IF NOT EXISTS idx_carpool_rides_date ON carpool_rides(departure_date);
+CREATE INDEX IF NOT EXISTS idx_carpool_rides_expires ON carpool_rides(expires_at);
 CREATE INDEX IF NOT EXISTS idx_join_requests_ride ON join_requests(ride_id);
 CREATE INDEX IF NOT EXISTS idx_join_requests_passenger ON join_requests(passenger_id);
 CREATE INDEX IF NOT EXISTS idx_ride_passengers_ride ON ride_passengers(ride_id);
 CREATE INDEX IF NOT EXISTS idx_ride_chats_ride ON ride_chats(ride_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles(email);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_branch_code ON user_profiles(branch_code);
 
--- Insert some sample data for testing (optional)
--- Note: Replace with actual user IDs from your auth.users table
-
--- INSERT INTO carpool_rides (
---   driver_id, driver_name, driver_email, from_location, to_location,
---   departure_time, departure_date, available_seats, total_seats,
---   price_per_seat, vehicle_make, vehicle_model, instant_booking
--- ) VALUES 
--- (
---   '00000000-0000-0000-0000-000000000000', -- Replace with actual user ID
---   'Sample Driver',
---   'driver@lnmiit.ac.in',
---   'LNMIIT Main Gate',
---   'Jaipur Railway Station',
---   NOW() + INTERVAL '2 hours',
---   CURRENT_DATE + INTERVAL '1 day',
---   3,
---   4,
---   120.00,
---   'Hyundai',
---   'i20',
---   true
--- );
+-- Create a scheduled job to auto-expire rides (if pg_cron is available)
+-- SELECT cron.schedule('auto-expire-rides', '*/5 * * * *', 'SELECT auto_expire_rides();');
 
 COMMIT; 

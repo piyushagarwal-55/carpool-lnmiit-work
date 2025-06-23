@@ -31,6 +31,8 @@ import {
   Menu,
   X,
   Check,
+  Timer,
+  AlertCircle,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "react-native";
@@ -39,9 +41,19 @@ import RideDetailsScreen from "./RideDetailsScreen";
 import CreateRideScreen from "./CreateRideScreen";
 import ChatScreen from "./ChatScreen";
 import RequestAcceptanceModal from "./RequestAcceptanceModal";
+import LoadingOverlay from "./LoadingOverlay";
 import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import NotificationService from "../services/NotificationService";
+import {
+  parseEmailInfo,
+  calculateAcademicYear,
+  formatTime,
+  formatDate,
+  calculateRideExpiry,
+  filterRides,
+  generateAvatarFromName,
+} from "../lib/utils";
 
 interface CarpoolRide {
   id: string;
@@ -136,6 +148,8 @@ const StudentCarpoolSystem = ({
     "all" | "today" | "tomorrow" | "this_week"
   >("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sectionLoading, setSectionLoading] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [showRideDetails, setShowRideDetails] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -156,10 +170,15 @@ const StudentCarpoolSystem = ({
   // Fetch rides from database
   const fetchRides = async () => {
     try {
+      setLoading(true);
+
+      // Auto-expire rides first
+      await supabase.rpc("auto_expire_rides");
+
       const { data: ridesData, error } = await supabase
         .from("carpool_rides")
         .select("*")
-        .eq("status", "active")
+        .in("status", ["active", "expired"])
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -168,53 +187,60 @@ const StudentCarpoolSystem = ({
       }
 
       // Transform database data to frontend format
-      const transformedRides: CarpoolRide[] = ridesData.map((ride) => ({
-        id: ride.id,
-        driverId: ride.driver_id,
-        driverName: ride.driver_name,
-        driverRating: 4.8, // Default rating
-        driverPhoto: `https://api.dicebear.com/7.x/avataaars/svg?seed=${ride.driver_name}`,
-        driverBranch: "Computer Science", // Default - should come from user profile
-        driverYear: "3rd Year", // Default - should come from user profile
-        driverPhone: ride.driver_phone,
-        from: ride.from_location,
-        to: ride.to_location,
-        departureTime: new Date(ride.departure_time).toLocaleTimeString(
-          "en-US",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        ),
-        date: ride.departure_date,
-        availableSeats: ride.available_seats,
-        totalSeats: ride.total_seats,
-        pricePerSeat: ride.price_per_seat,
-        vehicleInfo: {
-          make: ride.vehicle_make,
-          model: ride.vehicle_model,
-          color: ride.vehicle_color || "White",
-          isAC: ride.is_ac,
-        },
-        route: [ride.from_location, ride.to_location],
-        preferences: {
-          gender: "any" as const,
-          smokingAllowed: ride.smoking_allowed,
-          musicAllowed: ride.music_allowed,
-          petsAllowed: ride.pets_allowed,
-        },
-        status: ride.status as "active",
-        passengers: [], // TODO: Fetch from passengers table
-        pendingRequests: [], // Will fetch separately if needed
-        instantBooking: ride.instant_booking,
-        chatEnabled: ride.chat_enabled,
-        createdAt: ride.created_at,
-      }));
+      const transformedRides: CarpoolRide[] = ridesData.map((ride) => {
+        const emailInfo = parseEmailInfo(ride.driver_email);
+        const academicYear = calculateAcademicYear(emailInfo.joiningYear);
+
+        return {
+          id: ride.id,
+          driverId: ride.driver_id,
+          driverName: ride.driver_name,
+          driverRating: 4.8, // Default rating
+          driverPhoto: generateAvatarFromName(ride.driver_name),
+          driverBranch: emailInfo.branchFull,
+          driverYear: academicYear,
+          driverPhone: ride.driver_phone,
+          from: ride.from_location,
+          to: ride.to_location,
+          departureTime: ride.departure_time, // Keep as ISO string for proper formatting
+          date: ride.departure_date,
+          availableSeats: ride.available_seats,
+          totalSeats: ride.total_seats,
+          pricePerSeat: ride.price_per_seat,
+          vehicleInfo: {
+            make: ride.vehicle_make || "Unknown",
+            model: ride.vehicle_model || "Unknown",
+            color: ride.vehicle_color || "White",
+            isAC: ride.is_ac,
+          },
+          route: [ride.from_location, ride.to_location],
+          preferences: {
+            gender: "any" as const,
+            smokingAllowed: ride.smoking_allowed,
+            musicAllowed: ride.music_allowed,
+            petsAllowed: ride.pets_allowed,
+          },
+          status: ride.status as "active" | "full" | "completed" | "cancelled",
+          passengers: [], // TODO: Fetch from passengers table
+          pendingRequests: [], // Will fetch separately if needed
+          instantBooking: ride.instant_booking,
+          chatEnabled: ride.chat_enabled,
+          createdAt: ride.created_at,
+        };
+      });
 
       setRides(transformedRides);
-      setFilteredRides(transformedRides);
+      // Apply current filters to new data
+      const filtered = filterRides(
+        transformedRides,
+        selectedFilter,
+        searchQuery
+      );
+      setFilteredRides(filtered);
     } catch (error) {
       console.error("Error in fetchRides:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -314,40 +340,7 @@ const StudentCarpoolSystem = ({
   }, []);
 
   useEffect(() => {
-    let filtered = rides;
-
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (ride) =>
-          ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ride.to.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ride.driverName.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
-    switch (selectedFilter) {
-      case "today":
-        filtered = filtered.filter(
-          (ride) => new Date(ride.date).toDateString() === today.toDateString()
-        );
-        break;
-      case "tomorrow":
-        filtered = filtered.filter(
-          (ride) =>
-            new Date(ride.date).toDateString() === tomorrow.toDateString()
-        );
-        break;
-      case "this_week":
-        filtered = filtered.filter((ride) => new Date(ride.date) <= nextWeek);
-        break;
-    }
-
+    const filtered = filterRides(rides, selectedFilter, searchQuery);
     setFilteredRides(filtered);
   }, [searchQuery, selectedFilter, rides]);
 
@@ -432,9 +425,16 @@ const StudentCarpoolSystem = ({
     handleRefresh();
   };
 
-  const handleFilterSelect = (filterKey: string, filterLabel: string) => {
+  const handleFilterSelect = async (filterKey: string, filterLabel: string) => {
+    setSectionLoading(true);
+
+    // Simulate loading for smooth UX
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     setSelectedFilter(filterKey as any);
     console.log(`Filter applied: ${filterLabel}`);
+
+    setSectionLoading(false);
   };
 
   const handleJoinRide = (rideId: string) => {
@@ -660,6 +660,10 @@ const StudentCarpoolSystem = ({
     );
     const hasJoined = !!currentPassenger;
     const isPending = currentPassenger?.status === "pending";
+
+    // Calculate expiry information
+    const expiryInfo = calculateRideExpiry(ride.departureTime);
+
     const cardColors = [
       { bg: "#E8F5E8", accent: "#4CAF50" }, // Green
       { bg: "#FFF3E0", accent: "#FF9800" }, // Orange
@@ -702,7 +706,7 @@ const StudentCarpoolSystem = ({
           </View>
           <View style={[styles.tag, { backgroundColor: colors.accent + "20" }]}>
             <Text style={[styles.tagText, { color: colors.accent }]}>
-              {ride.departureTime}
+              {formatTime(ride.departureTime)}
             </Text>
           </View>
           {ride.instantBooking && (
@@ -730,13 +734,33 @@ const StudentCarpoolSystem = ({
           )}
         </View>
 
-        {/* Be in first applicants section */}
+        {/* Expiry and availability section */}
         <View style={styles.applicantsSection}>
           <Clock size={16} color="#666" />
           <Text style={styles.applicantsText}>
             {ride.availableSeats > 0
               ? `${ride.availableSeats} seats available`
               : "Ride is full"}
+          </Text>
+        </View>
+
+        {/* Expiry information */}
+        <View style={styles.expirySection}>
+          {expiryInfo.isExpired ? (
+            <View style={styles.expiredTag}>
+              <AlertCircle size={14} color="#F44336" />
+              <Text style={styles.expiredText}>Expired</Text>
+            </View>
+          ) : (
+            <View style={styles.expiryTag}>
+              <Timer size={14} color="#FF9800" />
+              <Text style={styles.expiryText}>
+                Expires in {expiryInfo.timeUntilExpiry}
+              </Text>
+            </View>
+          )}
+          <Text style={styles.startTimeText}>
+            Starts in {expiryInfo.timeUntilStart}
           </Text>
         </View>
 
@@ -1669,6 +1693,19 @@ const StudentCarpoolSystem = ({
         onRequestHandled={handleRequestHandled}
         isDarkMode={isDarkMode}
       />
+
+      {/* Loading Overlays */}
+      <LoadingOverlay
+        visible={loading}
+        message="Loading rides..."
+        isDarkMode={isDarkMode}
+      />
+
+      <LoadingOverlay
+        visible={sectionLoading}
+        message="Applying filter..."
+        isDarkMode={isDarkMode}
+      />
     </>
   );
 };
@@ -2087,6 +2124,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginLeft: 8,
+  },
+  expirySection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingLeft: 4,
+  },
+  expiredTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFEBEE",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  expiredText: {
+    fontSize: 12,
+    color: "#F44336",
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  expiryTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3E0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  expiryText: {
+    fontSize: 12,
+    color: "#FF9800",
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  startTimeText: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "500",
   },
   bottomSection: {
     flexDirection: "row",
