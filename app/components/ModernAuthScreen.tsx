@@ -483,31 +483,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
   },
-  demoCard: {
-    marginBottom: 32,
-  },
-  demoCardGradient: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#6366f120",
-  },
-  demoTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  demoSubtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  demoButtons: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    gap: 8,
-  },
+
   form: {
     marginBottom: 20,
   },
