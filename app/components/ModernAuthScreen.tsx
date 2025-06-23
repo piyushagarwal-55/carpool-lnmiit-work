@@ -67,7 +67,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
   const containerOpacity = useSharedValue(0);
   const headerScale = useSharedValue(0.8);
   const formTranslateY = useSharedValue(50);
-  const demoCardOpacity = useSharedValue(0);
 
   useEffect(() => {
     containerOpacity.value = withTiming(1, { duration: 600 });
@@ -79,7 +78,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       200,
       withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) })
     );
-    demoCardOpacity.value = withDelay(800, withTiming(1, { duration: 600 }));
   }, []);
 
   const containerAnimatedStyle = useAnimatedStyle(() => ({
@@ -94,12 +92,8 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     transform: [{ translateY: formTranslateY.value }],
   }));
 
-  const demoCardAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: demoCardOpacity.value,
-  }));
-
   const validateEmail = (email: string) => {
-    const emailRegex = /^\d{2}U[A-Z]{2}\d{3}@lnmiit\.ac\.in$/;
+    const emailRegex = /^\d{2}u[a-z]{2}\d{3}@lnmiit\.ac\.in$/i;
     return emailRegex.test(email);
   };
 
@@ -116,14 +110,10 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       return;
     }
 
-    const isDemoLogin =
-      (email === "demo@lnmiit.ac.in" && password === "demo123") ||
-      (email === "21UCS045@lnmiit.ac.in" && password === "student123") ||
-      (email === "21UME023@lnmiit.ac.in" && password === "driver123") ||
-      (email === "rajesh.driver@gmail.com" && password === "driver123");
-
-    if (!isDemoLogin && !validateEmail(email)) {
-      setEmailError("Invalid LNMIIT email format. Example: 21UCS045@lnmiit.ac.in");
+    if (!validateEmail(email)) {
+      setEmailError(
+        "Invalid LNMIIT email format. Example: 24uec092@lnmiit.ac.in"
+      );
       return;
     }
 
@@ -132,7 +122,7 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       return;
     }
 
-    if (!isDemoLogin && !validatePassword(password)) {
+    if (!validatePassword(password)) {
       setPasswordError("Password must be at least 6 characters");
       return;
     }
@@ -184,16 +174,7 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
         }
       }
 
-      let role: "driver" | "passenger" | "external_driver" = selectedRole;
-      if (email === "21UME023@lnmiit.ac.in") role = "driver";
-      else if (email === "rajesh.driver@gmail.com") role = "external_driver";
-      else if (
-        email === "21UCS045@lnmiit.ac.in" ||
-        email === "demo@lnmiit.ac.in"
-      )
-        role = "passenger";
-
-      onAuthenticated(email, password, role);
+      onAuthenticated(email, password, selectedRole);
     } catch (error: any) {
       Alert.alert("Error", error.message || "Something went wrong");
     } finally {
@@ -201,32 +182,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     }
   };
 
-  const fillDemoCredentials = (
-    type: "student" | "driver" | "demo" | "external_driver"
-  ) => {
-    switch (type) {
-      case "demo":
-        setEmail("demo@lnmiit.ac.in");
-        setPassword("demo123");
-        setSelectedRole("passenger");
-        break;
-      case "student":
-        setEmail("21UCS045@lnmiit.ac.in");
-        setPassword("student123");
-        setSelectedRole("passenger");
-        break;
-      case "driver":
-        setEmail("21UME023@lnmiit.ac.in");
-        setPassword("driver123");
-        setSelectedRole("driver");
-        break;
-      case "external_driver":
-        setEmail("rajesh.driver@gmail.com");
-        setPassword("driver123");
-        setSelectedRole("external_driver");
-        break;
-    }
-  };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={styles.backgroundPattern}>
@@ -264,36 +219,6 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                   ? "Sign in to continue your carpooling journey"
                   : "Create your account and start sharing rides"}
               </Text>
-            </Animated.View>
-
-            <Animated.View style={[styles.demoCard, demoCardAnimatedStyle]}>
-              <View style={styles.demoCardGradient}>
-                <Text style={styles.demoTitle}>🚀 Quick Demo Access</Text>
-                <Text style={styles.demoSubtitle}>
-                  Try the app instantly with demo credentials
-                </Text>
-
-                <View style={styles.demoButtons}>
-                  <Button
-                    title="Demo User"
-                    onPress={() => fillDemoCredentials("demo")}
-                    variant="outline"
-                    size="small"
-                  />
-                  <Button
-                    title="Student"
-                    onPress={() => fillDemoCredentials("student")}
-                    variant="outline"
-                    size="small"
-                  />
-                  <Button
-                    title="Pro Driver"
-                    onPress={() => fillDemoCredentials("external_driver")}
-                    variant="outline"
-                    size="small"
-                  />
-                </View>
-              </View>
             </Animated.View>
 
             <Animated.View
@@ -334,7 +259,7 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
                 }}
                 error={emailError}
                 leftIcon={<Mail size={20} color="#64748b" />}
-                placeholder="21UCS045@lnmiit.ac.in"
+                placeholder="24uec092@lnmiit.ac.in"
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
