@@ -83,12 +83,25 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 6. Create notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  type VARCHAR(50) NOT NULL CHECK (type IN ('join_request', 'request_accepted', 'request_rejected', 'ride_updated', 'ride_cancelled', 'chat_message')),
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  data JSONB DEFAULT '{}',
+  read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE carpool_rides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE join_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ride_passengers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ride_chats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS "Anyone can view active rides" ON carpool_rides;
@@ -167,6 +180,16 @@ CREATE POLICY "Anyone can view profiles" ON user_profiles
 CREATE POLICY "Users can update their own profile" ON user_profiles
   FOR ALL USING (auth.uid() = id);
 
+-- Notifications policies
+CREATE POLICY "Users can view their own notifications" ON notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own notifications" ON notifications
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "System can create notifications" ON notifications
+  FOR INSERT WITH CHECK (true);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_carpool_rides_status ON carpool_rides(status);
 CREATE INDEX IF NOT EXISTS idx_carpool_rides_driver ON carpool_rides(driver_id);
@@ -175,6 +198,8 @@ CREATE INDEX IF NOT EXISTS idx_join_requests_ride ON join_requests(ride_id);
 CREATE INDEX IF NOT EXISTS idx_join_requests_passenger ON join_requests(passenger_id);
 CREATE INDEX IF NOT EXISTS idx_ride_passengers_ride ON ride_passengers(ride_id);
 CREATE INDEX IF NOT EXISTS idx_ride_chats_ride ON ride_chats(ride_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
 
 -- Insert some sample data for testing (optional)
 -- Note: Replace with actual user IDs from your auth.users table

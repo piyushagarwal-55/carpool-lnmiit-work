@@ -134,8 +134,9 @@ const StudentCarpoolSystem = ({
     "all" | "today" | "tomorrow" | "this_week"
   >("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
+  const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [showRideDetails, setShowRideDetails] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [showCreateRide, setShowCreateRide] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatRideId, setChatRideId] = useState<string>("");
@@ -212,8 +213,30 @@ const StudentCarpoolSystem = ({
     }
   };
 
+  // Fetch notifications from database
+  const fetchNotifications = async () => {
+    try {
+      const { data: notificationsData, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error("Error fetching notifications:", error);
+        return;
+      }
+
+      setNotifications(notificationsData || []);
+    } catch (error) {
+      console.error("Error in fetchNotifications:", error);
+    }
+  };
+
   useEffect(() => {
     fetchRides();
+    fetchNotifications();
     socketService.connect(currentUser.id);
 
     return () => {
@@ -425,13 +448,13 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCardPress = (ride: CarpoolRide) => {
-    setSelectedRide(ride);
+    setSelectedRideId(ride.id);
     setShowRideDetails(true);
   };
 
   const handleBackFromDetails = () => {
     setShowRideDetails(false);
-    setSelectedRide(null);
+    setSelectedRideId(null);
   };
 
   const renderJobStyleCard = (ride: CarpoolRide) => {
@@ -617,7 +640,16 @@ const StudentCarpoolSystem = ({
     );
   };
 
+  const unreadNotifications = notifications.filter((n) => !n.read).length;
+
   const sidebarCategories = [
+    {
+      key: "notifications",
+      label: "Notifications",
+      count: `${unreadNotifications}`,
+      color: "#FF5722",
+      icon: "🔔",
+    },
     {
       key: "search",
       label: "Search Rides",
@@ -831,9 +863,9 @@ const StudentCarpoolSystem = ({
       </View>
 
       {/* Modals */}
-      {showRideDetails && selectedRide && (
+      {showRideDetails && selectedRideId && (
         <RideDetailsScreen
-          ride={selectedRide}
+          rideId={selectedRideId}
           currentUser={currentUser}
           visible={showRideDetails}
           onBack={handleBackFromDetails}
@@ -859,18 +891,17 @@ const StudentCarpoolSystem = ({
           onBack={() => setShowChat(false)}
           isDarkMode={isDarkMode}
           rideDetails={{
-            from: selectedRide?.from || "LNMIIT Campus",
-            to: selectedRide?.to || "Jaipur Railway Station",
-            departureTime: selectedRide?.departureTime || "2:30 PM",
-            date: selectedRide?.date || "Today",
-            driverName: selectedRide?.driverName || "Ride Creator",
+            from: "LNMIIT Campus",
+            to: "Jaipur Railway Station",
+            departureTime: "2:30 PM",
+            date: "Today",
+            driverName: "Ride Creator",
             driverPhone: "+91 98765 43210",
-            driverRating: selectedRide?.driverRating || 4.8,
+            driverRating: 4.8,
             driverPhoto:
-              selectedRide?.driverPhoto ||
               "https://api.dicebear.com/7.x/avataaars/svg?seed=driver",
-            pricePerSeat: selectedRide?.pricePerSeat || 120,
-            availableSeats: selectedRide?.availableSeats || 2,
+            pricePerSeat: 120,
+            availableSeats: 2,
           }}
         />
       )}

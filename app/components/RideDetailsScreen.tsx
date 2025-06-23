@@ -13,50 +13,53 @@ import {
   PanResponder,
   Linking,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { socketService, RideRequest } from "../services/SocketService";
+import { supabase } from "../lib/supabase";
+import { CarpoolRide, JoinRequest, CarpoolPassenger } from "../models/ride";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
+// Avatar generation utility
+const generateAvatarFromName = (name: string, size: number = 40): string => {
+  const initials = name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("")
+    .substring(0, 2);
+
+  const colors = [
+    "#FF6B6B",
+    "#4ECDC4",
+    "#45B7D1",
+    "#96CEB4",
+    "#FECA57",
+    "#FF9FF3",
+    "#54A0FF",
+    "#5F27CD",
+    "#00D2D3",
+    "#FF9F43",
+    "#FFA502",
+    "#2ED573",
+    "#1E90FF",
+    "#3742FA",
+    "#FF6348",
+  ];
+
+  const colorIndex = name.length % colors.length;
+  const backgroundColor = colors[colorIndex];
+
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    initials
+  )}&size=${size}&background=${backgroundColor.slice(
+    1
+  )}&color=fff&bold=true&format=svg`;
+};
+
 interface RideDetailsProps {
-  ride: {
-    id: string;
-    driverId: string;
-    driverName: string;
-    driverRating: number;
-    driverPhoto: string;
-    driverBranch: string;
-    driverYear: string;
-    from: string;
-    to: string;
-    departureTime: string;
-    date: string;
-    availableSeats: number;
-    totalSeats: number;
-    pricePerSeat: number;
-    vehicleInfo: {
-      make: string;
-      model: string;
-      color: string;
-      isAC: boolean;
-    };
-    route: string[];
-    preferences: {
-      gender?: "male" | "female" | "any";
-      smokingAllowed: boolean;
-      musicAllowed: boolean;
-      petsAllowed: boolean;
-    };
-    status: "active" | "full" | "completed" | "cancelled";
-    passengers: Array<{
-      id: string;
-      name: string;
-      photo: string;
-      joinedAt: string;
-    }>;
-    createdAt: string;
-  };
+  rideId: string;
   currentUser: {
     id: string;
     name: string;
@@ -73,13 +76,17 @@ interface RideDetailsProps {
 }
 
 export default function RideDetailsScreen({
-  ride,
+  rideId,
   currentUser,
   visible,
   onBack,
   onJoinRide,
   onStartChat,
 }: RideDetailsProps) {
+  const [ride, setRide] = useState<CarpoolRide | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [passengers, setPassengers] = useState<CarpoolPassenger[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [isFavorited, setIsFavorited] = useState(false);
   const [rideRequests, setRideRequests] = useState<RideRequest[]>([]);
   const [joinRequestSent, setJoinRequestSent] = useState(false);
@@ -87,9 +94,143 @@ export default function RideDetailsScreen({
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
-  const isDriverCurrentUser = ride.driverId === currentUser.id;
-  const hasJoined = ride.passengers.some((p: any) => p.id === currentUser.id);
-  const canJoin = !isDriverCurrentUser && !hasJoined && ride.availableSeats > 0;
+  const isDriverCurrentUser = ride?.driverId === currentUser.id;
+  const hasJoined = passengers.some((p) => p.id === currentUser.id);
+  const canJoin =
+    !isDriverCurrentUser && !hasJoined && ride && ride.availableSeats > 0;
+
+  // Fetch ride details from database
+  useEffect(() => {
+    if (visible && rideId) {
+      fetchRideDetails();
+    }
+  }, [visible, rideId]);
+
+  const fetchRideDetails = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch ride details
+      const { data: rideData, error: rideError } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("id", rideId)
+        .single();
+
+      if (rideError) {
+        console.error("Error fetching ride:", rideError);
+        Alert.alert("Error", "Failed to load ride details");
+        return;
+      }
+
+      // Transform database data to CarpoolRide interface
+      const transformedRide: CarpoolRide = {
+        id: rideData.id,
+        driverId: rideData.driver_id,
+        driverName: rideData.driver_name,
+
+        driverPhone: rideData.driver_phone || "",
+        driverRating: 4.5, // Default rating
+        driverPhoto: generateAvatarFromName(rideData.driver_name),
+        driverBranch: "CSE", // Default branch
+        driverYear: "2024", // Default year
+        from: rideData.from_location,
+        to: rideData.to_location,
+        departureTime: rideData.departure_time,
+        date: rideData.departure_date,
+        availableSeats: rideData.available_seats,
+        totalSeats: rideData.total_seats,
+        pricePerSeat: rideData.price_per_seat,
+        vehicleInfo: {
+          make: rideData.vehicle_make || "Unknown",
+          model: rideData.vehicle_model || "Unknown",
+          color: rideData.vehicle_color || "Unknown",
+          licensePlate: rideData.license_plate || "N/A",
+          isAC: rideData.is_ac || false,
+        },
+        route: [rideData.from_location, rideData.to_location],
+        preferences: {
+          smokingAllowed: rideData.smoking_allowed || false,
+          musicAllowed: rideData.music_allowed || true,
+          petsAllowed: rideData.pets_allowed || false,
+        },
+        status: rideData.status as
+          | "active"
+          | "full"
+          | "completed"
+          | "cancelled",
+        instantBooking: rideData.instant_booking || true,
+        chatEnabled: rideData.chat_enabled || true,
+        estimatedDuration: rideData.estimated_duration || "30 mins",
+        createdAt: rideData.created_at,
+        passengers: [],
+        pendingRequests: [],
+      };
+
+      setRide(transformedRide);
+
+      // Fetch passengers
+      const { data: passengersData, error: passengersError } = await supabase
+        .from("ride_passengers")
+        .select("*")
+        .eq("ride_id", rideId);
+
+      if (!passengersError && passengersData) {
+        const transformedPassengers: CarpoolPassenger[] = passengersData.map(
+          (p) => ({
+            id: p.passenger_id,
+            name: p.passenger_name,
+            photo: generateAvatarFromName(p.passenger_name),
+            seatsBooked: p.seats_booked,
+            status: p.status as "pending" | "accepted" | "confirmed",
+            joinedAt: p.joined_at,
+            paymentStatus: "pending" as const,
+          })
+        );
+        setPassengers(transformedPassengers);
+      }
+
+      // Fetch join requests (for drivers)
+      if (transformedRide.driverId === currentUser.id) {
+        const { data: requestsData, error: requestsError } = await supabase
+          .from("join_requests")
+          .select("*")
+          .eq("ride_id", rideId)
+          .eq("status", "pending");
+
+        if (!requestsError && requestsData) {
+          const transformedRequests: JoinRequest[] = requestsData.map((r) => ({
+            id: r.id,
+            passengerId: r.passenger_id,
+            passengerName: r.passenger_name,
+            passengerPhoto: generateAvatarFromName(r.passenger_name),
+            seatsRequested: r.seats_requested,
+            message: r.message || "",
+            status: r.status as "pending" | "accepted" | "rejected",
+            requestedAt: r.created_at,
+          }));
+          setJoinRequests(transformedRequests);
+        }
+      }
+
+      // Check if current user has already sent a request
+      const { data: userRequestData } = await supabase
+        .from("join_requests")
+        .select("*")
+        .eq("ride_id", rideId)
+        .eq("passenger_id", currentUser.id)
+        .single();
+
+      if (userRequestData) {
+        setJoinRequestSent(true);
+      }
+    } catch (error) {
+      console.error("Error in fetchRideDetails:", error);
+      Alert.alert("Error", "Failed to load ride details");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (visible) {
@@ -127,7 +268,7 @@ export default function RideDetailsScreen({
     if (isDriverCurrentUser) {
       // Listen for ride requests if current user is the driver
       socketService.onRideRequest((request: RideRequest) => {
-        if (request.rideId === ride.id) {
+        if (request.rideId === ride?.id) {
           setRideRequests((prev) => [...prev, request]);
         }
       });
@@ -136,37 +277,150 @@ export default function RideDetailsScreen({
         socketService.offRideRequest();
       };
     }
-  }, [isDriverCurrentUser, ride.id]);
+  }, [isDriverCurrentUser, ride?.id]);
 
-  const handleJoinRide = () => {
-    if (canJoin) {
-      // Send ride request via Socket.IO
-      const rideRequest = {
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userPhoto: currentUser.photo,
-        rideId: ride.id,
-      };
+  const handleJoinRide = async () => {
+    if (canJoin && ride) {
+      try {
+        // Create join request in database
+        const { error } = await supabase.from("join_requests").insert({
+          ride_id: ride.id,
+          passenger_id: currentUser.id,
+          passenger_name: currentUser.name,
+          passenger_email: currentUser.email,
+          seats_requested: 1,
+          message: `Hi! I'd like to join your ride from ${ride.from} to ${ride.to}.`,
+        });
 
-      socketService.sendRideRequest(rideRequest);
-      setJoinRequestSent(true);
+        if (error) {
+          console.error("Error creating join request:", error);
+          Alert.alert("Error", "Failed to send join request");
+          return;
+        }
 
-      // Also call the original join ride function
-      onJoinRide(ride.id);
+        if (ride.instantBooking) {
+          // For instant booking, add directly to passengers
+          const { error: passengerError } = await supabase
+            .from("ride_passengers")
+            .insert({
+              ride_id: ride.id,
+              passenger_id: currentUser.id,
+              passenger_name: currentUser.name,
+              passenger_email: currentUser.email,
+              seats_booked: 1,
+              status: "confirmed",
+            });
+
+          if (!passengerError) {
+            // Update available seats
+            await supabase
+              .from("carpool_rides")
+              .update({ available_seats: ride.availableSeats - 1 })
+              .eq("id", ride.id);
+
+            Alert.alert("Success", "You have successfully joined the ride!");
+            fetchRideDetails(); // Refresh data
+          }
+        } else {
+          // Send ride request via Socket.IO for non-instant booking
+          const rideRequest = {
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userPhoto: currentUser.photo,
+            rideId: ride.id,
+          };
+
+          socketService.sendRideRequest(rideRequest);
+          setJoinRequestSent(true);
+          Alert.alert("Success", "Join request sent to driver!");
+        }
+
+        // Also call the original join ride function
+        onJoinRide(ride.id);
+      } catch (error) {
+        console.error("Error in handleJoinRide:", error);
+        Alert.alert("Error", "Failed to join ride");
+      }
     }
   };
 
-  const handleAcceptRequest = (requestId: string) => {
-    socketService.acceptRideRequest(requestId);
-    setRideRequests((prev) => prev.filter((req) => req.id !== requestId));
+  const handleAcceptRequest = async (requestId: string) => {
+    try {
+      const request = joinRequests.find((r) => r.id === requestId);
+      if (!request || !ride) return;
+
+      // Update request status to accepted
+      const { error: updateError } = await supabase
+        .from("join_requests")
+        .update({ status: "accepted" })
+        .eq("id", requestId);
+
+      if (updateError) {
+        console.error("Error accepting request:", updateError);
+        Alert.alert("Error", "Failed to accept request");
+        return;
+      }
+
+      // Add passenger to ride
+      const { error: passengerError } = await supabase
+        .from("ride_passengers")
+        .insert({
+          ride_id: ride.id,
+          passenger_id: request.passengerId,
+          passenger_name: request.passengerName,
+          passenger_email: currentUser.email, // Use current user email as fallback
+          seats_booked: request.seatsRequested,
+          status: "confirmed",
+        });
+
+      if (passengerError) {
+        console.error("Error adding passenger:", passengerError);
+        Alert.alert("Error", "Failed to add passenger");
+        return;
+      }
+
+      // Update available seats
+      await supabase
+        .from("carpool_rides")
+        .update({
+          available_seats: ride.availableSeats - request.seatsRequested,
+        })
+        .eq("id", ride.id);
+
+      socketService.acceptRideRequest(requestId);
+      Alert.alert("Success", "Request accepted successfully!");
+      fetchRideDetails(); // Refresh data
+    } catch (error) {
+      console.error("Error in handleAcceptRequest:", error);
+      Alert.alert("Error", "Failed to accept request");
+    }
   };
 
-  const handleRejectRequest = (requestId: string) => {
-    socketService.rejectRideRequest(requestId);
-    setRideRequests((prev) => prev.filter((req) => req.id !== requestId));
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      // Update request status to rejected
+      const { error } = await supabase
+        .from("join_requests")
+        .update({ status: "rejected" })
+        .eq("id", requestId);
+
+      if (error) {
+        console.error("Error rejecting request:", error);
+        Alert.alert("Error", "Failed to reject request");
+        return;
+      }
+
+      socketService.rejectRideRequest(requestId);
+      Alert.alert("Success", "Request rejected");
+      fetchRideDetails(); // Refresh data
+    } catch (error) {
+      console.error("Error in handleRejectRequest:", error);
+      Alert.alert("Error", "Failed to reject request");
+    }
   };
 
   const handleStartChat = () => {
+    if (!ride) return;
     const rideTitle = `${ride.from} → ${ride.to}`;
     onStartChat(ride.id, rideTitle);
   };
@@ -193,7 +447,7 @@ export default function RideDetailsScreen({
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out this carpool ride from ${ride.from} to ${ride.to} on ${ride.date} at ${ride.departureTime}. Driver: ${ride.driverName} (${ride.driverRating}⭐). Price: ₹${ride.pricePerSeat} per seat.`,
+        message: `Check out this carpool ride from ${ride?.from} to ${ride?.to} on ${ride?.date} at ${ride?.departureTime}. Driver: ${ride?.driverName} (${ride?.driverRating}⭐). Price: ₹${ride?.pricePerSeat} per seat.`,
       });
     } catch (error) {
       console.log("Error sharing:", error);
@@ -344,359 +598,302 @@ export default function RideDetailsScreen({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 120 }}
           >
-            {/* Driver Info */}
-            <View style={{ padding: 20 }}>
+            {loading ? (
               <View
                 style={{
-                  flexDirection: "row",
+                  flex: 1,
+                  justifyContent: "center",
                   alignItems: "center",
-                  backgroundColor: "#F8F9FA",
-                  padding: 16,
-                  borderRadius: 16,
-                  marginBottom: 20,
+                  paddingVertical: 100,
                 }}
               >
-                <Image
-                  source={{ uri: ride.driverPhoto }}
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={{ marginTop: 16, fontSize: 16, color: "#666" }}>
+                  Loading ride details...
+                </Text>
+              </View>
+            ) : !ride ? (
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  paddingVertical: 100,
+                }}
+              >
+                <Text style={{ fontSize: 18, color: "#666", marginBottom: 16 }}>
+                  Ride not found
+                </Text>
+                <TouchableOpacity
+                  onPress={onBack}
                   style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 30,
-                    marginRight: 16,
+                    backgroundColor: "#4CAF50",
+                    paddingHorizontal: 24,
+                    paddingVertical: 12,
+                    borderRadius: 8,
                   }}
-                />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text
-                      style={{ fontSize: 18, fontWeight: "600", color: "#000" }}
-                    >
-                      {ride.driverName}
-                    </Text>
-                    <View
-                      style={{
-                        backgroundColor: "#4CAF50",
-                        borderRadius: 8,
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        marginLeft: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          color: "#FFF",
-                          fontWeight: "600",
-                        }}
-                      >
-                        VERIFIED
-                      </Text>
-                    </View>
-                  </View>
+                >
+                  <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                    Go Back
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                {/* Driver Info */}
+                <View style={{ padding: 20 }}>
                   <View
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      marginTop: 4,
+                      backgroundColor: "#F8F9FA",
+                      padding: 16,
+                      borderRadius: 16,
+                      marginBottom: 20,
                     }}
                   >
-                    <Ionicons name="star" size={16} color="#FFD700" />
-                    <Text
-                      style={{ fontSize: 14, color: "#666", marginLeft: 4 }}
-                    >
-                      {ride.driverRating} • {ride.driverBranch} •{" "}
-                      {ride.driverYear}
-                    </Text>
+                    <Image
+                      source={{ uri: ride?.driverPhoto }}
+                      style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: 30,
+                        marginRight: 16,
+                      }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 18,
+                            fontWeight: "600",
+                            color: "#000",
+                          }}
+                        >
+                          {ride?.driverName}
+                        </Text>
+                        <View
+                          style={{
+                            backgroundColor: "#4CAF50",
+                            borderRadius: 8,
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            marginLeft: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: "#FFF",
+                              fontWeight: "600",
+                            }}
+                          >
+                            VERIFIED
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginTop: 4,
+                        }}
+                      >
+                        <Ionicons name="star" size={16} color="#FFD700" />
+                        <Text
+                          style={{ fontSize: 14, color: "#666", marginLeft: 4 }}
+                        >
+                          {ride?.driverRating} • {ride?.driverBranch} •{" "}
+                          {ride?.driverYear}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={handleCallDriver}
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: "#000",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Ionicons name="call" size={18} color="#FFF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleStartChat}
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: "#000",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Ionicons name="chatbubble" size={18} color="#FFF" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <TouchableOpacity
-                    onPress={handleCallDriver}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: "#000",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Ionicons name="call" size={18} color="#FFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleStartChat}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: "#000",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Ionicons name="chatbubble" size={18} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-              </View>
 
-              {/* Route Info */}
-              <View
-                style={{
-                  backgroundColor: "#F8F9FA",
-                  padding: 16,
-                  borderRadius: 16,
-                  marginBottom: 20,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: "#000",
-                    marginBottom: 12,
-                  }}
-                >
-                  Route Details
-                </Text>
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 12,
-                  }}
-                >
+                  {/* Route Info */}
                   <View
                     style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 6,
-                      backgroundColor: "#4CAF50",
-                      marginRight: 12,
+                      backgroundColor: "#F8F9FA",
+                      padding: 16,
+                      borderRadius: 16,
+                      marginBottom: 20,
                     }}
-                  />
-                  <Text
-                    style={{ fontSize: 16, color: "#000", fontWeight: "500" }}
                   >
-                    {ride.from}
-                  </Text>
-                </View>
-
-                <View
-                  style={{
-                    width: 2,
-                    height: 30,
-                    backgroundColor: "#DDD",
-                    marginLeft: 5,
-                    marginVertical: 4,
-                  }}
-                />
-
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <View
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 6,
-                      backgroundColor: "#FF5722",
-                      marginRight: 12,
-                    }}
-                  />
-                  <Text
-                    style={{ fontSize: 16, color: "#000", fontWeight: "500" }}
-                  >
-                    {ride.to}
-                  </Text>
-                </View>
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    marginTop: 16,
-                    paddingTop: 16,
-                    borderTopWidth: 1,
-                    borderTopColor: "#E0E0E0",
-                  }}
-                >
-                  <View style={{ alignItems: "center" }}>
-                    <Ionicons name="calendar" size={20} color="#666" />
-                    <Text style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
-                      {ride.date}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "center" }}>
-                    <Ionicons name="time" size={20} color="#666" />
-                    <Text style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
-                      {ride.departureTime}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "center" }}>
-                    <Ionicons name="people" size={20} color="#666" />
-                    <Text style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
-                      {ride.availableSeats}/{ride.totalSeats} seats
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "center" }}>
-                    <Ionicons name="cash" size={20} color="#666" />
-                    <Text style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
-                      ₹{ride.pricePerSeat}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Vehicle Info */}
-              <View
-                style={{
-                  backgroundColor: "#F8F9FA",
-                  padding: 16,
-                  borderRadius: 16,
-                  marginBottom: 20,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: "#000",
-                    marginBottom: 12,
-                  }}
-                >
-                  Vehicle Information
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="car"
-                    size={24}
-                    color="#666"
-                    style={{ marginRight: 12 }}
-                  />
-                  <View>
                     <Text
-                      style={{ fontSize: 16, color: "#000", fontWeight: "500" }}
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#000",
+                        marginBottom: 12,
+                      }}
                     >
-                      {ride.vehicleInfo.make} {ride.vehicleInfo.model}
+                      Route Details
                     </Text>
-                    <Text style={{ fontSize: 14, color: "#666" }}>
-                      {ride.vehicleInfo.color} •{" "}
-                      {ride.vehicleInfo.isAC ? "AC Available" : "Non-AC"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
 
-              {/* Preferences */}
-              <View
-                style={{
-                  backgroundColor: "#F8F9FA",
-                  padding: 16,
-                  borderRadius: 16,
-                  marginBottom: 20,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: "#000",
-                    marginBottom: 12,
-                  }}
-                >
-                  Ride Preferences
-                </Text>
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                >
-                  {[
-                    {
-                      key: "music",
-                      label: "Music",
-                      icon: "musical-notes",
-                      allowed: ride.preferences.musicAllowed,
-                    },
-                    {
-                      key: "smoking",
-                      label: "Smoking",
-                      icon: "ban",
-                      allowed: ride.preferences.smokingAllowed,
-                    },
-                    {
-                      key: "pets",
-                      label: "Pets",
-                      icon: "paw",
-                      allowed: ride.preferences.petsAllowed,
-                    },
-                  ].map((pref) => (
                     <View
-                      key={pref.key}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        backgroundColor: pref.allowed ? "#E8F5E8" : "#FFE8E8",
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 20,
+                        marginBottom: 12,
                       }}
                     >
-                      <Ionicons
-                        name={pref.icon as any}
-                        size={16}
-                        color={pref.allowed ? "#4CAF50" : "#F44336"}
-                        style={{ marginRight: 6 }}
+                      <View
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 6,
+                          backgroundColor: "#4CAF50",
+                          marginRight: 12,
+                        }}
                       />
                       <Text
                         style={{
-                          fontSize: 14,
-                          color: pref.allowed ? "#4CAF50" : "#F44336",
+                          fontSize: 16,
+                          color: "#000",
                           fontWeight: "500",
                         }}
                       >
-                        {pref.label} {pref.allowed ? "OK" : "Not OK"}
+                        {ride?.from}
                       </Text>
                     </View>
-                  ))}
-                </View>
-              </View>
 
-              {/* Current Passengers */}
-              {ride.passengers.length > 0 && (
-                <View
-                  style={{
-                    backgroundColor: "#F8F9FA",
-                    padding: 16,
-                    borderRadius: 16,
-                    marginBottom: 20,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: "#000",
-                      marginBottom: 12,
-                    }}
-                  >
-                    Current Passengers ({ride.passengers.length})
-                  </Text>
-                  {ride.passengers.map((passenger) => (
                     <View
-                      key={passenger.id}
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 8,
+                        width: 2,
+                        height: 30,
+                        backgroundColor: "#DDD",
+                        marginLeft: 5,
+                        marginVertical: 4,
                       }}
+                    />
+
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
                     >
-                      <Image
-                        source={{ uri: passenger.photo }}
+                      <View
                         style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
+                          width: 12,
+                          height: 12,
+                          borderRadius: 6,
+                          backgroundColor: "#FF5722",
                           marginRight: 12,
                         }}
                       />
-                      <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: "#000",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {ride?.to}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        marginTop: 16,
+                        paddingTop: 16,
+                        borderTopWidth: 1,
+                        borderTopColor: "#E0E0E0",
+                      }}
+                    >
+                      <View style={{ alignItems: "center" }}>
+                        <Ionicons name="calendar" size={20} color="#666" />
+                        <Text
+                          style={{ fontSize: 14, color: "#666", marginTop: 4 }}
+                        >
+                          {ride?.date}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "center" }}>
+                        <Ionicons name="time" size={20} color="#666" />
+                        <Text
+                          style={{ fontSize: 14, color: "#666", marginTop: 4 }}
+                        >
+                          {ride?.departureTime}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "center" }}>
+                        <Ionicons name="people" size={20} color="#666" />
+                        <Text
+                          style={{ fontSize: 14, color: "#666", marginTop: 4 }}
+                        >
+                          {ride?.availableSeats}/{ride?.totalSeats} seats
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "center" }}>
+                        <Ionicons name="cash" size={20} color="#666" />
+                        <Text
+                          style={{ fontSize: 14, color: "#666", marginTop: 4 }}
+                        >
+                          ₹{ride?.pricePerSeat}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Vehicle Info */}
+                  <View
+                    style={{
+                      backgroundColor: "#F8F9FA",
+                      padding: 16,
+                      borderRadius: 16,
+                      marginBottom: 20,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#000",
+                        marginBottom: 12,
+                      }}
+                    >
+                      Vehicle Information
+                    </Text>
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <Ionicons
+                        name="car"
+                        size={24}
+                        color="#666"
+                        style={{ marginRight: 12 }}
+                      />
+                      <View>
                         <Text
                           style={{
                             fontSize: 16,
@@ -704,105 +901,251 @@ export default function RideDetailsScreen({
                             fontWeight: "500",
                           }}
                         >
-                          {passenger.name}
+                          {ride?.vehicleInfo.make} {ride?.vehicleInfo.model}
                         </Text>
-                        <Text style={{ fontSize: 12, color: "#666" }}>
-                          Joined{" "}
-                          {new Date(passenger.joinedAt).toLocaleDateString()}
+                        <Text style={{ fontSize: 14, color: "#666" }}>
+                          {ride?.vehicleInfo.color} •{" "}
+                          {ride?.vehicleInfo.isAC ? "AC Available" : "Non-AC"}
                         </Text>
                       </View>
                     </View>
-                  ))}
-                </View>
-              )}
+                  </View>
 
-              {/* Ride Requests (Driver Only) */}
-              {isDriverCurrentUser && rideRequests.length > 0 && (
-                <View
-                  style={{
-                    backgroundColor: "#FFF3E0",
-                    padding: 16,
-                    borderRadius: 16,
-                    marginBottom: 20,
-                  }}
-                >
-                  <Text
+                  {/* Preferences */}
+                  <View
                     style={{
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: "#000",
-                      marginBottom: 12,
+                      backgroundColor: "#F8F9FA",
+                      padding: 16,
+                      borderRadius: 16,
+                      marginBottom: 20,
                     }}
                   >
-                    Ride Requests ({rideRequests.length})
-                  </Text>
-                  {rideRequests.map((request) => (
-                    <View
-                      key={request.id}
+                    <Text
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 8,
-                        borderBottomWidth: 1,
-                        borderBottomColor: "#E0E0E0",
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#000",
+                        marginBottom: 12,
                       }}
                     >
-                      <Image
-                        source={{ uri: request.userPhoto }}
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          marginRight: 12,
-                        }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text
+                      Ride Preferences
+                    </Text>
+                    <View
+                      style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                    >
+                      {[
+                        {
+                          key: "music",
+                          label: "Music",
+                          icon: "musical-notes",
+                          allowed: ride?.preferences.musicAllowed,
+                        },
+                        {
+                          key: "smoking",
+                          label: "Smoking",
+                          icon: "ban",
+                          allowed: ride?.preferences.smokingAllowed,
+                        },
+                        {
+                          key: "pets",
+                          label: "Pets",
+                          icon: "paw",
+                          allowed: ride?.preferences.petsAllowed,
+                        },
+                      ].map((pref) => (
+                        <View
+                          key={pref.key}
                           style={{
-                            fontSize: 16,
-                            color: "#000",
-                            fontWeight: "500",
-                          }}
-                        >
-                          {request.userName}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: "#666" }}>
-                          {new Date(request.timestamp).toLocaleTimeString()}
-                        </Text>
-                      </View>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => handleAcceptRequest(request.id)}
-                          style={{
-                            backgroundColor: "#4CAF50",
-                            paddingHorizontal: 16,
-                            paddingVertical: 8,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: pref.allowed
+                              ? "#E8F5E8"
+                              : "#FFE8E8",
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
                             borderRadius: 20,
                           }}
                         >
-                          <Text style={{ color: "#FFF", fontWeight: "600" }}>
-                            Accept
+                          <Ionicons
+                            name={pref.icon as any}
+                            size={16}
+                            color={pref.allowed ? "#4CAF50" : "#F44336"}
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: pref.allowed ? "#4CAF50" : "#F44336",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {pref.label} {pref.allowed ? "OK" : "Not OK"}
                           </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleRejectRequest(request.id)}
-                          style={{
-                            backgroundColor: "#F44336",
-                            paddingHorizontal: 16,
-                            paddingVertical: 8,
-                            borderRadius: 20,
-                          }}
-                        >
-                          <Text style={{ color: "#FFF", fontWeight: "600" }}>
-                            Reject
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                        </View>
+                      ))}
                     </View>
-                  ))}
+                  </View>
+
+                  {/* Current Passengers */}
+                  {passengers.length > 0 && (
+                    <View
+                      style={{
+                        backgroundColor: "#F8F9FA",
+                        padding: 16,
+                        borderRadius: 16,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "600",
+                          color: "#000",
+                          marginBottom: 12,
+                        }}
+                      >
+                        Current Passengers ({passengers.length})
+                      </Text>
+                      {passengers.map((passenger) => (
+                        <View
+                          key={passenger.id}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingVertical: 8,
+                          }}
+                        >
+                          <Image
+                            source={{ uri: passenger.photo }}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              marginRight: 12,
+                            }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                color: "#000",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {passenger.name}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: "#666" }}>
+                              Joined{" "}
+                              {new Date(
+                                passenger.joinedAt
+                              ).toLocaleDateString()}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Join Requests (Driver Only) */}
+                  {isDriverCurrentUser && joinRequests.length > 0 && (
+                    <View
+                      style={{
+                        backgroundColor: "#FFF3E0",
+                        padding: 16,
+                        borderRadius: 16,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "600",
+                          color: "#000",
+                          marginBottom: 12,
+                        }}
+                      >
+                        Join Requests ({joinRequests.length})
+                      </Text>
+                      {joinRequests.map((request) => (
+                        <View
+                          key={request.id}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingVertical: 8,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#E0E0E0",
+                          }}
+                        >
+                          <Image
+                            source={{ uri: request.passengerPhoto }}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              marginRight: 12,
+                            }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                color: "#000",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {request.passengerName}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: "#666" }}>
+                              {request.message && request.message.length > 0
+                                ? request.message
+                                : "No message"}
+                            </Text>
+                            <Text style={{ fontSize: 10, color: "#999" }}>
+                              {new Date(
+                                request.requestedAt
+                              ).toLocaleTimeString()}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <TouchableOpacity
+                              onPress={() => handleAcceptRequest(request.id)}
+                              style={{
+                                backgroundColor: "#4CAF50",
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                borderRadius: 20,
+                              }}
+                            >
+                              <Text
+                                style={{ color: "#FFF", fontWeight: "600" }}
+                              >
+                                Accept
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleRejectRequest(request.id)}
+                              style={{
+                                backgroundColor: "#F44336",
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                borderRadius: 20,
+                              }}
+                            >
+                              <Text
+                                style={{ color: "#FFF", fontWeight: "600" }}
+                              >
+                                Reject
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
+              </>
+            )}
           </ScrollView>
 
           {/* Bottom Action Bar */}
@@ -841,7 +1184,7 @@ export default function RideDetailsScreen({
                 >
                   {joinRequestSent
                     ? "Request Sent"
-                    : `Join Ride - ₹${ride.pricePerSeat}`}
+                    : `Join Ride - ₹${ride?.pricePerSeat}`}
                 </Text>
               </TouchableOpacity>
             )}
