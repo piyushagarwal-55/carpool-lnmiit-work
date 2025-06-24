@@ -190,7 +190,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                       </View>
                       <View style={styles.sectionBadge}>
                         <Text style={styles.sectionBadgeText}>
-                          {activeRides.length}
+                          {activeRides.length.toString()}
                         </Text>
                       </View>
                     </View>
@@ -228,7 +228,8 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                                   : "🧍 Passenger"}
                               </Text>
                               <Text style={styles.rideLocation}>
-                                {ride.from_location} → {ride.to_location}
+                                {ride.from_location || "Unknown"} →{" "}
+                                {ride.to_location || "Unknown"}
                               </Text>
                             </View>
                           </View>
@@ -244,7 +245,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                             ]}
                           >
                             <Text style={styles.statusText}>
-                              {ride.status || "completed"}
+                              {(ride.status || "completed").toString()}
                             </Text>
                           </View>
                         </View>
@@ -253,19 +254,21 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                           <View style={styles.rideDetailItem}>
                             <MapPin size={12} color="#6B7280" />
                             <Text style={styles.rideDetailText}>
-                              Driver: {ride.driver_name}
+                              Driver: {ride.driver_name || "Unknown"}
                             </Text>
                           </View>
                           <View style={styles.rideDetailItem}>
                             <Clock size={12} color="#6B7280" />
                             <Text style={styles.rideDetailText}>
-                              {formatDate(ride.departure_time)}
+                              {ride.departure_time
+                                ? formatDate(ride.departure_time)
+                                : "Time not set"}
                             </Text>
                           </View>
                           {ride.price_per_seat && (
                             <View style={styles.rideDetailItem}>
                               <Text style={styles.ridePrice}>
-                                ₹{ride.price_per_seat}
+                                ₹{ride.price_per_seat || 0}
                               </Text>
                             </View>
                           )}
@@ -297,7 +300,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                             { color: "#6B7280" },
                           ]}
                         >
-                          {completedRides.length}
+                          {completedRides.length.toString()}
                         </Text>
                       </View>
                     </View>
@@ -343,7 +346,8 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                                   { color: "#9CA3AF" },
                                 ]}
                               >
-                                {ride.from_location} → {ride.to_location}
+                                {ride.from_location || "Unknown"} →{" "}
+                                {ride.to_location || "Unknown"}
                               </Text>
                             </View>
                           </View>
@@ -359,7 +363,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                             <Text
                               style={[styles.statusText, { color: "#6B7280" }]}
                             >
-                              {ride.status || "completed"}
+                              {(ride.status || "completed").toString()}
                             </Text>
                           </View>
                         </View>
@@ -373,7 +377,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                                 { color: "#9CA3AF" },
                               ]}
                             >
-                              Driver: {ride.driver_name}
+                              Driver: {ride.driver_name || "Unknown"}
                             </Text>
                           </View>
                           <View style={styles.rideDetailItem}>
@@ -384,7 +388,9 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                                 { color: "#9CA3AF" },
                               ]}
                             >
-                              {formatDate(ride.departure_time)}
+                              {ride.departure_time
+                                ? formatDate(ride.departure_time)
+                                : "Time not set"}
                             </Text>
                           </View>
                           {ride.price_per_seat && (
@@ -392,7 +398,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                               <Text
                                 style={[styles.ridePrice, { color: "#9CA3AF" }]}
                               >
-                                ₹{ride.price_per_seat}
+                                ₹{ride.price_per_seat || 0}
                               </Text>
                             </View>
                           )}

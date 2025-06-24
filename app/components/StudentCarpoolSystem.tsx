@@ -2058,12 +2058,14 @@ const StudentCarpoolSystem = ({
       </Modal>
 
       {/* Ride History Screen */}
-      <UserRideHistoryScreen
-        visible={showRideHistory}
-        onClose={() => setShowRideHistory(false)}
-        user={currentUser}
-        isDarkMode={isDarkMode}
-      />
+      {showRideHistory && currentUser && (
+        <UserRideHistoryScreen
+          visible={showRideHistory}
+          onClose={() => setShowRideHistory(false)}
+          user={currentUser}
+          isDarkMode={isDarkMode}
+        />
+      )}
 
       <LoadingOverlay
         visible={loading}
@@ -2370,6 +2372,7 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
+    maxWidth: 220, // Limit the maximum width
     borderRadius: 12,
   },
   menuBtn: {
