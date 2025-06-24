@@ -224,7 +224,7 @@ export default function FilterModal({
         style={[
           styles.optionTitle,
           {
-            color: isSelected ? "#1F2937" : "#4B5563",
+            color: "#1F2937",
             fontWeight: isSelected ? "600" : "500",
           },
         ]}
@@ -408,27 +408,85 @@ export default function FilterModal({
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <DollarSign size={18} color="#6B7280" />
-                <Text style={styles.sectionHeaderTitle}>Price</Text>
+                <Text style={styles.sectionHeaderTitle}>Price Range</Text>
               </View>
-              <View style={styles.optionsGrid}>
-                {priceRanges.map((range) => (
-                  <OptionCard
-                    key={`${range.min}-${range.max}`}
-                    title={range.label}
-                    icon="💰"
-                    color={range.color}
-                    isSelected={
-                      filters.priceRange.min === range.min &&
-                      filters.priceRange.max === range.max
-                    }
-                    onPress={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        priceRange: { min: range.min, max: range.max },
-                      }))
-                    }
+
+              {/* Custom Price Slider */}
+              <View style={styles.sliderContainer}>
+                <View style={styles.priceLabels}>
+                  <Text style={styles.priceLabel}>
+                    ₹{filters.priceRange.min}
+                  </Text>
+                  <Text style={styles.priceLabel}>
+                    ₹{filters.priceRange.max}
+                  </Text>
+                </View>
+
+                <View style={styles.sliderTrack}>
+                  <View
+                    style={[
+                      styles.sliderFill,
+                      {
+                        left: `${(filters.priceRange.min / 1000) * 100}%`,
+                        width: `${
+                          ((filters.priceRange.max - filters.priceRange.min) /
+                            1000) *
+                          100
+                        }%`,
+                      },
+                    ]}
                   />
-                ))}
+                </View>
+
+                {/* Quick Price Options */}
+                <View style={styles.quickPriceOptions}>
+                  {priceRanges.map((range) => (
+                    <TouchableOpacity
+                      key={`${range.min}-${range.max}`}
+                      style={[
+                        styles.quickPriceChip,
+                        {
+                          backgroundColor:
+                            filters.priceRange.min === range.min &&
+                            filters.priceRange.max === range.max
+                              ? "#E8F5E9"
+                              : "#F5F7FA",
+                          borderColor:
+                            filters.priceRange.min === range.min &&
+                            filters.priceRange.max === range.max
+                              ? "#4CAF50"
+                              : "#E0E0E0",
+                        },
+                      ]}
+                      onPress={() =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          priceRange: { min: range.min, max: range.max },
+                        }))
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.quickPriceText,
+                          {
+                            color:
+                              filters.priceRange.min === range.min &&
+                              filters.priceRange.max === range.max
+                                ? "#4CAF50"
+                                : "#6B7280",
+                            fontWeight:
+                              filters.priceRange.min === range.min &&
+                              filters.priceRange.max === range.max
+                                ? "600"
+                                : "400",
+                          },
+                        ]}
+                      >
+                        {range.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
 
@@ -454,48 +512,6 @@ export default function FilterModal({
                     }
                   />
                 ))}
-              </View>
-            </View>
-
-            {/* Quick Actions Section */}
-            <View style={[styles.section, { backgroundColor: "#F0F8FF" }]}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: isDarkMode ? "#FFF" : "#1A1A1A" },
-                ]}
-              >
-                Quick Actions
-              </Text>
-
-              <View style={styles.quickActionRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.quickActionButton,
-                    { backgroundColor: "#E8F5E8" },
-                  ]}
-                  onPress={() =>
-                    setFilters({ ...filters, dateFilter: "today" })
-                  }
-                >
-                  <Text style={[styles.quickActionText, { color: "#2E7D32" }]}>
-                    Today's Rides
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.quickActionButton,
-                    { backgroundColor: "#FFF3E0" },
-                  ]}
-                  onPress={() =>
-                    setFilters({ ...filters, priceRange: { min: 0, max: 100 } })
-                  }
-                >
-                  <Text style={[styles.quickActionText, { color: "#F57C00" }]}>
-                    Budget Rides
-                  </Text>
-                </TouchableOpacity>
               </View>
             </View>
 
@@ -530,21 +546,45 @@ export default function FilterModal({
           {/* Apply Filters Button */}
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.resetButton, { backgroundColor: "#FFF5F5" }]}
+              style={[
+                styles.resetButton,
+                {
+                  backgroundColor: "#F9FAFB",
+                  borderWidth: 1,
+                  borderColor: "#E5E7EB",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 2,
+                  elevation: 1,
+                },
+              ]}
               onPress={resetFilters}
             >
-              <RotateCcw size={16} color="#DC2626" />
-              <Text style={[styles.resetButtonText, { color: "#DC2626" }]}>
+              <RotateCcw size={16} color="#6B7280" />
+              <Text style={[styles.resetButtonText, { color: "#6B7280" }]}>
                 Reset
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.applyButton, { backgroundColor: "#E8F5E8" }]}
+              style={[
+                styles.applyButton,
+                {
+                  backgroundColor: "#F0FDF4",
+                  borderWidth: 1,
+                  borderColor: "#BBF7D0",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 2,
+                },
+              ]}
               onPress={applyFilters}
             >
-              <Check size={16} color="#2E7D32" />
-              <Text style={[styles.applyButtonText, { color: "#2E7D32" }]}>
+              <Check size={16} color="#059669" />
+              <Text style={[styles.applyButtonText, { color: "#059669" }]}>
                 Apply Filters
               </Text>
             </TouchableOpacity>
@@ -858,5 +898,61 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: 12,
     backgroundColor: "#F8FAFC",
+  },
+  // New Price Slider Styles
+  sliderContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  priceLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  priceLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4CAF50",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
+  },
+  sliderTrack: {
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    marginBottom: 20,
+    position: "relative",
+  },
+  sliderFill: {
+    position: "absolute",
+    height: 6,
+    backgroundColor: "#4CAF50",
+    borderRadius: 3,
+    top: 0,
+  },
+  quickPriceOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  quickPriceChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  quickPriceText: {
+    fontSize: 13,
+    fontWeight: "500",
+    letterSpacing: 0.2,
   },
 });

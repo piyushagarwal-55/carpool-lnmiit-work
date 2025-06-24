@@ -13,7 +13,15 @@ DROP VIEW IF EXISTS active_rides_with_expiry CASCADE;
 
 -- Add missing columns to user_profiles table if they don't exist
 ALTER TABLE user_profiles 
-ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+ADD COLUMN IF NOT EXISTS student_id TEXT,
+ADD COLUMN IF NOT EXISTS phone TEXT,
+ADD COLUMN IF NOT EXISTS emergency_contact TEXT,
+ADD COLUMN IF NOT EXISTS home_location TEXT,
+ADD COLUMN IF NOT EXISTS branch_code TEXT,
+ADD COLUMN IF NOT EXISTS joining_year TEXT,
+ADD COLUMN IF NOT EXISTS current_year INTEGER,
+ADD COLUMN IF NOT EXISTS rating DECIMAL(3,2) DEFAULT 4.5;
 
 -- Create missing tables if they don't exist
 CREATE TABLE IF NOT EXISTS ride_requests (
@@ -360,14 +368,14 @@ CREATE INDEX IF NOT EXISTS idx_bus_bookings_schedule ON bus_bookings(schedule_id
 -- Insert sample bus schedules only if they don't exist
 INSERT INTO bus_schedules (route_name, origin, destination, departure_time, arrival_time, days_of_week, bus_number, total_seats, driver_name, driver_phone, fare) 
 SELECT * FROM (VALUES
-  ('LNMIIT to Raja Park', 'LNMIIT Campus', 'Raja Park', '06:00:00'::TIME, '06:40:00'::TIME, '{1,2,3,4,5}', 'RJ14-BUS-001', 40, 'Ramesh Kumar', '+91-9876543210', 25.00),
-  ('LNMIIT to Ajmeri Gate', 'LNMIIT Campus', 'Ajmeri Gate', '06:00:00'::TIME, '06:45:00'::TIME, '{1,2,3,4,5}', 'RJ14-BUS-002', 40, 'Suresh Sharma', '+91-9876543211', 30.00),
-  ('Raja Park to LNMIIT', 'Raja Park', 'LNMIIT Campus', '07:15:00'::TIME, '07:55:00'::TIME, '{1,2,3,4,5}', 'RJ14-BUS-001', 40, 'Ramesh Kumar', '+91-9876543210', 25.00),
-  ('Ajmeri Gate to LNMIIT', 'Ajmeri Gate', 'LNMIIT Campus', '07:15:00'::TIME, '08:00:00'::TIME, '{1,2,3,4,5}', 'RJ14-BUS-002', 40, 'Suresh Sharma', '+91-9876543211', 30.00),
-  ('LNMIIT to Railway Station', 'LNMIIT Campus', 'Jaipur Railway Station', '08:00:00'::TIME, '09:00:00'::TIME, '{1,2,3,4,5}', 'RJ14-BUS-003', 40, 'Mohan Lal', '+91-9876543212', 50.00),
-  ('Railway Station to LNMIIT', 'Jaipur Railway Station', 'LNMIIT Campus', '17:00:00'::TIME, '18:00:00'::TIME, '{1,2,3,4,5}', 'RJ14-BUS-003', 40, 'Mohan Lal', '+91-9876543212', 50.00),
-  ('LNMIIT to Airport', 'LNMIIT Campus', 'Jaipur Airport', '10:00:00'::TIME, '11:15:00'::TIME, '{1,2,3,4,5,6,7}', 'RJ14-BUS-004', 40, 'Vikram Singh', '+91-9876543213', 75.00),
-  ('Airport to LNMIIT', 'Jaipur Airport', 'LNMIIT Campus', '15:00:00'::TIME, '16:15:00'::TIME, '{1,2,3,4,5,6,7}', 'RJ14-BUS-004', 40, 'Vikram Singh', '+91-9876543213', 75.00)
+  ('LNMIIT to Raja Park', 'LNMIIT Campus', 'Raja Park', '06:00:00'::TIME, '06:40:00'::TIME, ARRAY[1,2,3,4,5], 'RJ14-BUS-001', 40, 'Ramesh Kumar', '+91-9876543210', 25.00),
+  ('LNMIIT to Ajmeri Gate', 'LNMIIT Campus', 'Ajmeri Gate', '06:00:00'::TIME, '06:45:00'::TIME, ARRAY[1,2,3,4,5], 'RJ14-BUS-002', 40, 'Suresh Sharma', '+91-9876543211', 30.00),
+  ('Raja Park to LNMIIT', 'Raja Park', 'LNMIIT Campus', '07:15:00'::TIME, '07:55:00'::TIME, ARRAY[1,2,3,4,5], 'RJ14-BUS-001', 40, 'Ramesh Kumar', '+91-9876543210', 25.00),
+  ('Ajmeri Gate to LNMIIT', 'Ajmeri Gate', 'LNMIIT Campus', '07:15:00'::TIME, '08:00:00'::TIME, ARRAY[1,2,3,4,5], 'RJ14-BUS-002', 40, 'Suresh Sharma', '+91-9876543211', 30.00),
+  ('LNMIIT to Railway Station', 'LNMIIT Campus', 'Jaipur Railway Station', '08:00:00'::TIME, '09:00:00'::TIME, ARRAY[1,2,3,4,5], 'RJ14-BUS-003', 40, 'Mohan Lal', '+91-9876543212', 50.00),
+  ('Railway Station to LNMIIT', 'Jaipur Railway Station', 'LNMIIT Campus', '17:00:00'::TIME, '18:00:00'::TIME, ARRAY[1,2,3,4,5], 'RJ14-BUS-003', 40, 'Mohan Lal', '+91-9876543212', 50.00),
+  ('LNMIIT to Airport', 'LNMIIT Campus', 'Jaipur Airport', '10:00:00'::TIME, '11:15:00'::TIME, ARRAY[1,2,3,4,5,6,7], 'RJ14-BUS-004', 40, 'Vikram Singh', '+91-9876543213', 75.00),
+  ('Airport to LNMIIT', 'Jaipur Airport', 'LNMIIT Campus', '15:00:00'::TIME, '16:15:00'::TIME, ARRAY[1,2,3,4,5,6,7], 'RJ14-BUS-004', 40, 'Vikram Singh', '+91-9876543213', 75.00)
 ) AS v(route_name, origin, destination, departure_time, arrival_time, days_of_week, bus_number, total_seats, driver_name, driver_phone, fare)
 WHERE NOT EXISTS (
   SELECT 1 FROM bus_schedules bs 
