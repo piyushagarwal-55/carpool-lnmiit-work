@@ -1,3 +1,5 @@
+//index.tsx code
+
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, useColorScheme, Animated } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -25,7 +27,7 @@ import StudentCarpoolSystem from "./components/StudentCarpoolSystem";
 import BusBookingSystem from "./components/BusBookingSystem";
 import UserProfileSafety from "./components/UserProfileSafety";
 
-// ✅ Add these missing imports at the top
+// ✅ Add these missing imports at the top 
 import { TouchableOpacity, ScrollView, Alert } from "react-native";
 import { IconButton } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
@@ -235,14 +237,13 @@ const { user, loading, isInitialLoading, login, logout } = auth;
                   }}
                   onCreateRide={() => {
                     console.log("Create ride from StudentCarpool");
-                    // Navigate to create ride functionality
                   }}
                   onJoinRide={(rideId) => {
                     console.log("Join ride:", rideId);
-                    // Handle ride join logic
+                  
                   }}
                   onShowBusBooking={() => {
-                    setIndex(1); // Switch to bus booking tab
+                    setIndex(1); 
                   }}
                   onToggleSidebar={toggleSidebar}
                 />
