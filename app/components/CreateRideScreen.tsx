@@ -53,7 +53,6 @@ interface CreateRideFormData {
     airConditioning: boolean;
     smoking: boolean;
     music: boolean;
-    pets: boolean;
   };
   instantBooking: boolean;
 }
@@ -84,7 +83,6 @@ export default function CreateRideScreen({
         airConditioning: true,
         smoking: false,
         music: true,
-        pets: false,
       },
       instantBooking: false,
     };
@@ -284,7 +282,6 @@ export default function CreateRideScreen({
         is_ac: formData.preferences.airConditioning,
         smoking_allowed: formData.preferences.smoking,
         music_allowed: formData.preferences.music,
-        pets_allowed: formData.preferences.pets,
         status: "active",
         instant_booking: formData.instantBooking,
         chat_enabled: true,
@@ -942,7 +939,6 @@ export default function CreateRideScreen({
                 },
                 { key: "music", label: "Music Allowed", icon: "🎵" },
                 { key: "smoking", label: "Smoking Allowed", icon: "🚬" },
-                { key: "pets", label: "Pets Allowed", icon: "🐕" },
               ].map((pref) => (
                 <View key={pref.key} style={styles.preferenceItem}>
                   <View style={styles.preferenceInfo}>
