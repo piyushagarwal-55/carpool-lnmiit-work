@@ -34,6 +34,8 @@ import {
   Timer,
   AlertCircle,
 } from "lucide-react-native";
+import { useNavigation } from "@react-navigation/native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "react-native";
 // Removed Button import - using TouchableOpacity instead
@@ -45,6 +47,8 @@ import LoadingOverlay from "./LoadingOverlay";
 import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import NotificationService from "../services/NotificationService";
+import UserRideHistoryScreen from "../userRideHistory";
+import { router } from "expo-router";
 import {
   parseEmailInfo,
   calculateAcademicYear,
@@ -119,6 +123,7 @@ interface StudentCarpoolSystemProps {
     rating: number;
     photo: string;
   };
+
   onCreateRide?: () => void;
   onJoinRide?: (rideId: string) => void;
   onShowBusBooking?: () => void;
@@ -168,6 +173,8 @@ const StudentCarpoolSystem = ({
   const [selectedJoinRequest, setSelectedJoinRequest] = useState<any>(null);
 
   // Fetch rides from database
+
+  const navigation = useNavigation();
   const fetchRides = async () => {
     try {
       setLoading(true);
@@ -892,7 +899,10 @@ const StudentCarpoolSystem = ({
       icon: "📋",
     },
   ];
-
+  const [activeScreen, setActiveScreen] = useState<"home" | "history">("home");
+  if (activeScreen === "history") {
+    return <UserRideHistoryScreen user={currentUser} />;
+  }
   return (
     <>
       {/* Main Container */}
@@ -1089,6 +1099,12 @@ const StudentCarpoolSystem = ({
                       } else {
                         Alert.alert("Notifications", "No notifications yet!");
                       }
+                    }
+                    if (category.key === "history") {
+                      router.push({
+                        pathname: "/ride-history",
+                        params: { user: JSON.stringify(currentUser) },
+                      });
                     }
                   }}
                 >

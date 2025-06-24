@@ -18,6 +18,7 @@ import ReAnimated, {
 } from "react-native-reanimated";
 
 // Screens
+import { AuthContext } from "./AuthContext"; 
 import LoadingScreen from "./components/LoadingScreen";
 import ModernAuthScreen from "./components/ModernAuthScreen";
 import StudentCarpoolSystem from "./components/StudentCarpoolSystem";
@@ -58,7 +59,7 @@ const darkTheme = {
   },
 };
 
-const useAuth = (session?: Session) => {
+export const useAuth = (session?: Session) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -109,7 +110,9 @@ const useAuth = (session?: Session) => {
 };
 
 const AppContent = ({ session }: { session: Session }) => {
-  const { user, loading, isInitialLoading, login, logout } = useAuth(session);
+ const auth = useAuth(session); // still keep your destructure if needed
+const { user, loading, isInitialLoading, login, logout } = auth;
+
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -201,6 +204,7 @@ const AppContent = ({ session }: { session: Session }) => {
   }
 
   return (
+    <AuthContext.Provider value={auth}>
     <View style={styles.safeArea}>
       <StatusBar
         style="dark"
@@ -855,6 +859,7 @@ const AppContent = ({ session }: { session: Session }) => {
         </Animated.View>
       </SafeAreaView>
     </View>
+  </AuthContext.Provider>
   );
 };
 

@@ -32,7 +32,7 @@ import {
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Avatar generation utility
-const generateAvatarFromName = (name: string, size: number = 40): string => {
+const generateAvatarFomName = (name: string, size: number = 40): string => {
   const initials = name
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase())
@@ -143,7 +143,7 @@ export default function RideDetailsScreen({
         driverName: rideData.driver_name,
         driverPhone: rideData.driver_phone || "",
         driverRating: 4.5, // Default rating
-        driverPhoto: generateAvatarFromName(rideData.driver_name),
+        driverPhoto: generateAvatarFomName(rideData.driver_name),
         driverBranch: emailInfo.branchFull,
         driverYear: academicYear,
         from: rideData.from_location,
@@ -192,7 +192,7 @@ export default function RideDetailsScreen({
           (p) => ({
             id: p.passenger_id,
             name: p.passenger_name,
-            photo: generateAvatarFromName(p.passenger_name),
+            photo: generateAvatarFomName(p.passenger_name),
             seatsBooked: p.seats_booked,
             status: p.status as "pending" | "accepted" | "confirmed",
             joinedAt: p.joined_at,
@@ -215,7 +215,7 @@ export default function RideDetailsScreen({
             id: r.id,
             passengerId: r.passenger_id,
             passengerName: r.passenger_name,
-            passengerPhoto: generateAvatarFromName(r.passenger_name),
+            passengerPhoto: generateAvatarFomName(r.passenger_name),
             seatsRequested: r.seats_requested,
             message: r.message || "",
             status: r.status as "pending" | "accepted" | "rejected",
