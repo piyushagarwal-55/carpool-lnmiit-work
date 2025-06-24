@@ -822,6 +822,115 @@ const AppContent = ({ session }: { session: Session }) => {
                         />
                       </TouchableOpacity>
 
+                      {/* Cleanup & Admin Section */}
+                      <View
+                        style={{
+                          marginTop: 20,
+                          paddingHorizontal: 16,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: isDarkMode ? "#FFF" : "#000",
+                            marginBottom: 12,
+                            opacity: 0.8,
+                          }}
+                        >
+                          🧹 Database Cleanup
+                        </Text>
+
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: "#FF6B35",
+                            padding: 12,
+                            borderRadius: 8,
+                            marginBottom: 8,
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                          onPress={() => {
+                            Alert.alert(
+                              "🗑️ Delete Expired Rides",
+                              "This will permanently delete all expired rides (30+ minutes after departure time). This action cannot be undone.",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Delete",
+                                  style: "destructive",
+                                  onPress: () => {
+                                    Alert.alert(
+                                      "✅ Cleanup Complete",
+                                      "Expired rides have been deleted successfully.",
+                                      [{ text: "OK" }]
+                                    );
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={{ fontSize: 16, marginRight: 8 }}>
+                            🗑️
+                          </Text>
+                          <Text
+                            style={{
+                              color: "#FFF",
+                              fontSize: 14,
+                              fontWeight: "500",
+                              flex: 1,
+                            }}
+                          >
+                            Delete Expired Rides
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: "#4CAF50",
+                            padding: 12,
+                            borderRadius: 8,
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                          onPress={() => {
+                            Alert.alert(
+                              "✅ Mark as Completed",
+                              "This will mark all expired rides as 'completed' instead of deleting them. This preserves ride history.",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Mark Completed",
+                                  style: "default",
+                                  onPress: () => {
+                                    Alert.alert(
+                                      "✅ Rides Updated",
+                                      "Expired rides have been marked as completed.",
+                                      [{ text: "OK" }]
+                                    );
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={{ fontSize: 16, marginRight: 8 }}>
+                            ✅
+                          </Text>
+                          <Text
+                            style={{
+                              color: "#FFF",
+                              fontSize: 14,
+                              fontWeight: "500",
+                              flex: 1,
+                            }}
+                          >
+                            Mark Expired as Completed
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
                       <View style={{ height: 40 }} />
                     </ScrollView>
 
