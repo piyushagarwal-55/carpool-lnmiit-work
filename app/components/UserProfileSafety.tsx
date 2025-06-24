@@ -39,6 +39,7 @@ interface UserProfileSafetyProps {
     year: string;
     phone: string;
     ridesCompleted: number;
+    
   };
   emergencyContacts?: Array<{
     id: string;
@@ -70,6 +71,7 @@ interface UserProfileSafetyProps {
 
 const { width } = Dimensions.get("window");
 
+
 const UserProfileSafety = ({
   user = {
     name: "Demo User",
@@ -82,35 +84,8 @@ const UserProfileSafety = ({
     phone: "+91 99999 00000",
     ridesCompleted: 25,
   },
-  emergencyContacts = [
-    { id: "1", name: "Parent", phone: "+91 99887 76655", relation: "Father" },
-    {
-      id: "2",
-      name: "Emergency",
-      phone: "+91 88776 65544",
-      relation: "Mother",
-    },
-  ],
-  rideHistory = [
-    {
-      id: "1",
-      date: "2023-10-15 14:30",
-      from: "LNMIIT Campus",
-      to: "Jaipur Railway Station",
-      driver: "Amit Kumar",
-      driverRating: 4.8,
-      status: "completed",
-    },
-    {
-      id: "2",
-      date: "2023-10-10 09:15",
-      from: "Jaipur City Mall",
-      to: "LNMIIT Campus",
-      driver: "Priya Singh",
-      driverRating: 4.5,
-      status: "completed",
-    },
-  ],
+ 
+ 
   busBookings = [
     {
       id: "1",
@@ -165,6 +140,9 @@ const UserProfileSafety = ({
     { key: "safety", title: "Safety", icon: Shield },
     { key: "bookings", title: "Bookings", icon: Bus },
   ];
+const usernamePart = (user?.email?.split("@")[0]) || "";
+const firstTwo = usernamePart.substring(0, 2).toUpperCase();
+const nextThree = usernamePart.substring(2, 5).toUpperCase();
 
   return (
     <View
@@ -192,7 +170,7 @@ const UserProfileSafety = ({
           Profile
         </Text>
 
-        {/* Tab Selector */}
+     
         <View
           style={[
             styles.tabContainer,
@@ -329,30 +307,8 @@ const UserProfileSafety = ({
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={[
-                    styles.editButton,
-                    {
-                      backgroundColor: isDarkMode ? "#4A90E2" : "#2196F3",
-                      width: 44,
-                      height: 44,
-                    },
-                  ]}
-                  onPress={() => {
-                    Alert.alert(
-                      "✏️ Edit Profile",
-                      "Profile editing features:\n\n📝 Update personal information\n📷 Change profile picture\n🎓 Edit academic details\n📞 Update contact information\n⭐ View ratings & reviews\n\nComing soon in the next update!",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Got it! 👍", style: "default" },
-                      ]
-                    );
-                  }}
-                >
-                  <Edit2 size={20} color="#FFFFFF" />
-                </TouchableOpacity>
               </View>
-
+         
               <View style={styles.userDetails}>
                 <View
                   style={[
@@ -391,7 +347,7 @@ const UserProfileSafety = ({
                       },
                     ]}
                   >
-                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                   Student
                   </Text>
                 </View>
                 <View
@@ -421,6 +377,7 @@ const UserProfileSafety = ({
                     >
                       Branch
                     </Text>
+                    
                   </View>
                   <Text
                     style={[
@@ -431,7 +388,7 @@ const UserProfileSafety = ({
                       },
                     ]}
                   >
-                    {user.branch}
+                    <Text>{nextThree}</Text>
                   </Text>
                 </View>
                 <View
@@ -471,7 +428,7 @@ const UserProfileSafety = ({
                       },
                     ]}
                   >
-                    {user.year}
+                    <Text> 20{firstTwo}</Text>
                   </Text>
                 </View>
                 <View
@@ -599,205 +556,11 @@ const UserProfileSafety = ({
                 />
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.settingItem,
-                  {
-                    backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                    borderRadius: 12,
-                    paddingHorizontal: 16,
-                    paddingVertical: 16,
-                  },
-                ]}
-                onPress={() =>
-                  Alert.alert(
-                    "⚙️ App Settings",
-                    "Customize your app experience!\n\nComing Soon Features:\n• 🎨 Theme preferences\n• 🌐 Language settings\n• 📊 Data usage controls\n• 🔒 Privacy settings\n• 👤 Account management\n• 🔔 Notification preferences",
-                    [{ text: "Got it! 👍", style: "default" }]
-                  )
-                }
-              >
-                <View style={styles.settingLeft}>
-                  <View
-                    style={[
-                      styles.settingIconContainer,
-                      { backgroundColor: isDarkMode ? "#8B5CF6" : "#7C3AED" },
-                    ]}
-                  >
-                    <Settings size={18} color="#FFFFFF" />
-                  </View>
-                  <View>
-                    <Text
-                      style={[
-                        styles.settingText,
-                        {
-                          color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
-                          fontSize: 16,
-                          fontWeight: "600",
-                        },
-                      ]}
-                    >
-                      Advanced Settings
-                    </Text>
-                    <Text
-                      style={[
-                        styles.settingDescription,
-                        {
-                          color: isDarkMode ? "#B8C5D1" : "#5A6C7D",
-                          fontSize: 13,
-                        },
-                      ]}
-                    >
-                      Privacy, themes & more options
-                    </Text>
-                  </View>
-                </View>
-                <ChevronRight
-                  size={20}
-                  color={isDarkMode ? "#8B5CF6" : "#7C3AED"}
-                />
-              </TouchableOpacity>
+              
             </View>
 
             {/* Recent Rides */}
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: isDarkMode ? "#1A1A2E" : "#F0FDF4",
-                  borderColor: isDarkMode ? "#22C55E" : "#16A34A",
-                  borderWidth: 2,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.cardTitle,
-                  {
-                    color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
-                    fontSize: 20,
-                    marginBottom: 20,
-                  },
-                ]}
-              >
-                🚗 Recent Rides
-              </Text>
-
-              {rideHistory.slice(0, 3).map((ride, index) => (
-                <View
-                  key={ride.id}
-                  style={[
-                    styles.rideItem,
-                    {
-                      backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      marginBottom:
-                        index === rideHistory.slice(0, 3).length - 1 ? 0 : 12,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.rideIcon,
-                      {
-                        backgroundColor: isDarkMode ? "#22C55E" : "#16A34A",
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                      },
-                    ]}
-                  >
-                    <Car size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.rideDetails}>
-                    <Text
-                      style={[
-                        styles.rideRoute,
-                        {
-                          color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
-                          fontSize: 16,
-                          fontWeight: "600",
-                        },
-                      ]}
-                    >
-                      {ride.from} → {ride.to}
-                    </Text>
-                    <View style={styles.rideInfo}>
-                      <Text
-                        style={[
-                          styles.rideDate,
-                          {
-                            color: isDarkMode ? "#B8C5D1" : "#5A6C7D",
-                            fontSize: 13,
-                            fontWeight: "500",
-                          },
-                        ]}
-                      >
-                        📅 {new Date(ride.date).toLocaleDateString()}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.rideDriver,
-                          {
-                            color: isDarkMode ? "#B8C5D1" : "#5A6C7D",
-                            fontSize: 13,
-                            fontWeight: "500",
-                          },
-                        ]}
-                      >
-                        👤 {ride.driver}
-                      </Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor:
-                          ride.status === "completed" ? "#22C55E" : "#EF4444",
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { fontSize: 11, fontWeight: "600" },
-                      ]}
-                    >
-                      {ride.status === "completed"
-                        ? "✅ Completed"
-                        : "❌ Cancelled"}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-
-              {rideHistory.length === 0 && (
-                <View style={styles.emptyBookings}>
-                  <Car size={48} color={isDarkMode ? "#666666" : "#CCCCCC"} />
-                  <Text
-                    style={[
-                      styles.emptyText,
-                      { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                    ]}
-                  >
-                    No rides yet
-                  </Text>
-                  <Text
-                    style={[
-                      styles.emptySubtext,
-                      { color: isDarkMode ? "#666666" : "#999999" },
-                    ]}
-                  >
-                    Start carpooling to see your rides here
-                  </Text>
-                </View>
-              )}
-            </View>
+         
 
             {/* Logout */}
             <TouchableOpacity
@@ -917,76 +680,7 @@ const UserProfileSafety = ({
                 📞 Emergency Contacts
               </Text>
 
-              {emergencyContacts.map((contact, index) => (
-                <View
-                  key={contact.id}
-                  style={[
-                    styles.contactItem,
-                    {
-                      backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      marginBottom:
-                        index === emergencyContacts.length - 1 ? 0 : 12,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.contactIcon,
-                      {
-                        backgroundColor: isDarkMode ? "#3B82F6" : "#2563EB",
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                      },
-                    ]}
-                  >
-                    <Phone size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.contactDetails}>
-                    <Text
-                      style={[
-                        styles.contactName,
-                        {
-                          color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
-                          fontSize: 16,
-                          fontWeight: "600",
-                        },
-                      ]}
-                    >
-                      {contact.name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.contactRelation,
-                        {
-                          color: isDarkMode ? "#B8C5D1" : "#5A6C7D",
-                          fontSize: 13,
-                          fontWeight: "500",
-                        },
-                      ]}
-                    >
-                      👥 {contact.relation} • 📱 {contact.phone}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.callButton,
-                      { backgroundColor: isDarkMode ? "#00AA00" : "#00AA00" },
-                    ]}
-                    onPress={() => {
-                      console.log(
-                        `Calling emergency contact: ${contact.name} - ${contact.phone}`
-                      );
-                      // TODO: Implement actual call functionality
-                    }}
-                  >
-                    <Phone size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-              ))}
+             
 
               <TouchableOpacity
                 style={[
@@ -1097,7 +791,7 @@ const UserProfileSafety = ({
                   },
                 ]}
               >
-                🚌 Active Bus Bookings
+                🚌 Car Bookings
               </Text>
 
               {busBookings.filter((booking) => booking.status === "active")
@@ -1239,7 +933,7 @@ const UserProfileSafety = ({
                       { color: isDarkMode ? "#CCCCCC" : "#666666" },
                     ]}
                   >
-                    No active bus bookings
+                    No active Car bookings
                   </Text>
                   <Text
                     style={[

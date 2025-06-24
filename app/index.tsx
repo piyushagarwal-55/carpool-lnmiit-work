@@ -1,3 +1,5 @@
+//index.tsx code
+
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, useColorScheme, Animated } from "react-native";
 import { StatusBar } from "expo-status-bar";
