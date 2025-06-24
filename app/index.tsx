@@ -18,7 +18,7 @@ import ReAnimated, {
 } from "react-native-reanimated";
 
 // Screens
-import { AuthContext } from "./AuthContext"; 
+import { AuthContext } from "./AuthContext";
 import LoadingScreen from "./components/LoadingScreen";
 import ModernAuthScreen from "./components/ModernAuthScreen";
 import StudentCarpoolSystem from "./components/StudentCarpoolSystem";
@@ -110,8 +110,8 @@ export const useAuth = (session?: Session) => {
 };
 
 const AppContent = ({ session }: { session: Session }) => {
- const auth = useAuth(session); // still keep your destructure if needed
-const { user, loading, isInitialLoading, login, logout } = auth;
+  const auth = useAuth(session); // still keep your destructure if needed
+  const { user, loading, isInitialLoading, login, logout } = auth;
 
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -122,6 +122,11 @@ const { user, loading, isInitialLoading, login, logout } = auth;
   const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>(
     {}
   );
+
+  // Dynamic sidebar data
+  const [availableRides, setAvailableRides] = useState(0);
+  const [userRideHistory, setUserRideHistory] = useState(0);
+  const [activeBusRoutes, setActiveBusRoutes] = useState(0);
   const router = useRouter();
 
   const themeTransition = useSharedValue(0);
@@ -136,6 +141,30 @@ const { user, loading, isInitialLoading, login, logout } = auth;
       easing: Easing.bezier(0.4, 0, 0.2, 1),
     });
   }, [isDarkMode]);
+
+  // Fetch dynamic counts for sidebar
+  const fetchSidebarData = async () => {
+    try {
+      // Mock data - replace with actual API calls
+      setAvailableRides(Math.floor(Math.random() * 20) + 5); // 5-25 rides
+      setUserRideHistory(Math.floor(Math.random() * 15) + 3); // 3-18 history
+      setActiveBusRoutes(8); // 8 bus routes from our database
+    } catch (error) {
+      console.error("Error fetching sidebar data:", error);
+      // Set default values
+      setAvailableRides(12);
+      setUserRideHistory(8);
+      setActiveBusRoutes(8);
+    }
+  };
+
+  // Fetch data on component mount and refresh periodically
+  useEffect(() => {
+    fetchSidebarData();
+    // Refresh sidebar data every 30 seconds
+    const interval = setInterval(fetchSidebarData, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
     backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
@@ -205,661 +234,663 @@ const { user, loading, isInitialLoading, login, logout } = auth;
 
   return (
     <AuthContext.Provider value={auth}>
-    <View style={styles.safeArea}>
-      <StatusBar
-        style="dark"
-        backgroundColor="transparent"
-        translucent={true}
-      />
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <Animated.View style={[styles.container, animatedContainerStyle]}>
-          {/* Header Removed */}
+      <View style={styles.safeArea}>
+        <StatusBar
+          style="dark"
+          backgroundColor="transparent"
+          translucent={true}
+        />
+        <SafeAreaView style={styles.container} edges={["top"]}>
+          <Animated.View style={[styles.container, animatedContainerStyle]}>
+            {/* Header Removed */}
 
-          {/* Content with Custom Bottom Navigation */}
-          <View style={styles.content}>
-            {/* Main Content */}
-            <View style={styles.sceneContainer}>
-              {index === 0 && (
-                <StudentCarpoolSystem
-                  isDarkMode={isDarkMode}
-                  currentUser={{
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    branch: user.branch,
-                    year: user.year,
-                    rating: user.rating,
-                    photo:
-                      user.profilePicture ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
-                  }}
-                  onCreateRide={() => {
-                    console.log("Create ride from StudentCarpool");
-                    // Navigate to create ride functionality
-                  }}
-                  onJoinRide={(rideId) => {
-                    console.log("Join ride:", rideId);
-                    // Handle ride join logic
-                  }}
-                  onShowBusBooking={() => {
-                    setIndex(1); // Switch to bus booking tab
-                  }}
-                  onToggleSidebar={toggleSidebar}
-                />
-              )}
-              {index === 1 && (
-                <BusBookingSystem
-                  isDarkMode={isDarkMode}
-                  currentUser={{
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    branch: user.branch,
-                    year: user.year,
-                    rating: user.rating,
-                    photo:
-                      user.profilePicture ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
-                  }}
-                  busBookings={busBookings}
-                  onUpdateBookings={setBusBookings}
-                  bookedSeats={bookedSeats}
-                  onUpdateBookedSeats={setBookedSeats}
-                  onToggleSidebar={toggleSidebar}
-                  sidebarVisible={sidebarVisible}
-                />
-              )}
-              {index === 2 &&
-                (user.role === "external_driver" ? (
-                  <UserProfileSafety
-                    user={user}
-                    busBookings={busBookings}
-                    onLogout={logout}
+            {/* Content with Custom Bottom Navigation */}
+            <View style={styles.content}>
+              {/* Main Content */}
+              <View style={styles.sceneContainer}>
+                {index === 0 && (
+                  <StudentCarpoolSystem
                     isDarkMode={isDarkMode}
+                    currentUser={{
+                      id: user.id,
+                      name: user.name,
+                      email: user.email,
+                      branch: user.branch,
+                      year: user.year,
+                      rating: user.rating,
+                      photo:
+                        user.profilePicture ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
+                    }}
+                    onCreateRide={() => {
+                      console.log("Create ride from StudentCarpool");
+                      // Navigate to create ride functionality
+                    }}
+                    onJoinRide={(rideId) => {
+                      console.log("Join ride:", rideId);
+                      // Handle ride join logic
+                    }}
+                    onShowBusBooking={() => {
+                      setIndex(1); // Switch to bus booking tab
+                    }}
+                    onToggleSidebar={toggleSidebar}
                   />
-                ) : (
-                  <UserProfileSafety
-                    user={user}
-                    busBookings={busBookings}
-                    onLogout={logout}
+                )}
+                {index === 1 && (
+                  <BusBookingSystem
                     isDarkMode={isDarkMode}
+                    currentUser={{
+                      id: user.id,
+                      name: user.name,
+                      email: user.email,
+                      branch: user.branch,
+                      year: user.year,
+                      rating: user.rating,
+                      photo:
+                        user.profilePicture ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
+                    }}
+                    busBookings={busBookings}
+                    onUpdateBookings={setBusBookings}
+                    bookedSeats={bookedSeats}
+                    onUpdateBookedSeats={setBookedSeats}
+                    onToggleSidebar={toggleSidebar}
+                    sidebarVisible={sidebarVisible}
                   />
-                ))}
-            </View>
+                )}
+                {index === 2 &&
+                  (user.role === "external_driver" ? (
+                    <UserProfileSafety
+                      user={user}
+                      busBookings={busBookings}
+                      onLogout={logout}
+                      isDarkMode={isDarkMode}
+                    />
+                  ) : (
+                    <UserProfileSafety
+                      user={user}
+                      busBookings={busBookings}
+                      onLogout={logout}
+                      isDarkMode={isDarkMode}
+                    />
+                  ))}
+              </View>
 
-            {/* Custom Bottom Navigation */}
-            <View
-              style={[
-                styles.bottomNavContainer,
-                {
-                  backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
-                  borderTopColor: isDarkMode ? "#333333" : "#E0E0E0",
-                  borderTopWidth: 1,
-                  zIndex: 1, // Lower z-index so sidebar can cover it
-                  elevation: 1, // Lower elevation for Android
-                },
-              ]}
-            >
-              {routes.map((route, routeIndex) => {
-                const isActive = index === routeIndex;
-                const iconName = isActive
-                  ? route.focusedIcon
-                  : route.unfocusedIcon;
-
-                return (
-                  <TouchableOpacity
-                    key={route.key}
-                    style={[styles.tabItem, isActive && styles.activeTabItem]}
-                    onPress={() => setIndex(routeIndex)}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.tabIconContainer,
-                        isActive && {
-                          backgroundColor: isDarkMode
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.1)",
-                        },
-                      ]}
-                    >
-                      <IconButton
-                        icon={iconName}
-                        size={22}
-                        iconColor={
-                          isActive
-                            ? isDarkMode
-                              ? "#FFFFFF"
-                              : "#000000"
-                            : isDarkMode
-                            ? "#666666"
-                            : "#999999"
-                        }
-                        style={styles.tabButton}
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.tabLabel,
-                        {
-                          color: isActive
-                            ? isDarkMode
-                              ? "#FFFFFF"
-                              : "#000000"
-                            : isDarkMode
-                            ? "#666666"
-                            : "#999999",
-                          fontWeight: isActive ? "700" : "500",
-                        },
-                      ]}
-                    >
-                      {route.title}
-                    </Text>
-                    {/* Underline removed */}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Global Sidebar - positioned at app level to cover everything including bottom nav */}
-          {sidebarVisible && (
-            <>
-              {/* Sidebar */}
-              <Animated.View
+              {/* Custom Bottom Navigation */}
+              <View
                 style={[
+                  styles.bottomNavContainer,
                   {
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "85%",
-                    height: "100%",
-                    maxWidth: 380,
-                    zIndex: 10000, // Highest possible z-index
-                    elevation: 50, // Maximum elevation for Android
-                    shadowColor: "#000",
-                    shadowOffset: { width: 4, height: 0 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
-                  },
-                  {
-                    transform: [{ translateX: sidebarAnimation }],
+                    backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
+                    borderTopColor: isDarkMode ? "#333333" : "#E0E0E0",
+                    borderTopWidth: 1,
+                    zIndex: 1, // Lower z-index so sidebar can cover it
+                    elevation: 1, // Lower elevation for Android
                   },
                 ]}
               >
-                {/* Gradient Background */}
-                <LinearGradient
-                  colors={
-                    isDarkMode
-                      ? ["#1A1A1A", "#2A2A2A", "#1A1A1A"]
-                      : ["#FFFFFF", "#F8F9FA", "#FFFFFF"]
-                  }
-                  style={{
-                    flex: 1,
-                    paddingTop: 60,
-                  }}
-                >
-                  {/* Simplified Header */}
-                  <View
-                    style={{
-                      padding: 20,
-                      borderBottomWidth: 1,
-                      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
+                {routes.map((route, routeIndex) => {
+                  const isActive = index === routeIndex;
+                  const iconName = isActive
+                    ? route.focusedIcon
+                    : route.unfocusedIcon;
+
+                  return (
+                    <TouchableOpacity
+                      key={route.key}
+                      style={[styles.tabItem, isActive && styles.activeTabItem]}
+                      onPress={() => setIndex(routeIndex)}
+                      activeOpacity={0.7}
                     >
                       <View
-                        style={{ flexDirection: "row", alignItems: "center" }}
-                      >
-                        <View
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 20,
-                            backgroundColor: isDarkMode ? "#4CAF50" : "#2E7D32",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginRight: 12,
-                          }}
-                        >
-                          <Text style={{ fontSize: 20 }}>🚗</Text>
-                        </View>
-                        <View>
-                          <Text
-                            style={{
-                              fontSize: 18,
-                              fontWeight: "bold",
-                              color: isDarkMode ? "#FFF" : "#000",
-                            }}
-                          >
-                            LNMIIT Carpool
-                          </Text>
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: isDarkMode ? "#CCC" : "#666",
-                            }}
-                          >
-                            Smart. Safe. Sustainable.
-                          </Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 16,
-                          backgroundColor: isDarkMode
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.1)",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                        onPress={toggleSidebar}
+                        style={[
+                          styles.tabIconContainer,
+                          isActive && {
+                            backgroundColor: isDarkMode
+                              ? "rgba(255,255,255,0.1)"
+                              : "rgba(0,0,0,0.1)",
+                          },
+                        ]}
                       >
                         <IconButton
-                          icon="close"
-                          size={18}
-                          iconColor={isDarkMode ? "#FFF" : "#000"}
+                          icon={iconName}
+                          size={22}
+                          iconColor={
+                            isActive
+                              ? isDarkMode
+                                ? "#FFFFFF"
+                                : "#000000"
+                              : isDarkMode
+                              ? "#666666"
+                              : "#999999"
+                          }
+                          style={styles.tabButton}
                         />
-                      </TouchableOpacity>
-                    </View>
+                      </View>
+                      <Text
+                        style={[
+                          styles.tabLabel,
+                          {
+                            color: isActive
+                              ? isDarkMode
+                                ? "#FFFFFF"
+                                : "#000000"
+                              : isDarkMode
+                              ? "#666666"
+                              : "#999999",
+                            fontWeight: isActive ? "700" : "500",
+                          },
+                        ]}
+                      >
+                        {route.title}
+                      </Text>
+                      {/* Underline removed */}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
-                    {/* Status Badge */}
+            {/* Global Sidebar - positioned at app level to cover everything including bottom nav */}
+            {sidebarVisible && (
+              <>
+                {/* Sidebar */}
+                <Animated.View
+                  style={[
+                    {
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "85%",
+                      height: "100%",
+                      maxWidth: 380,
+                      zIndex: 10000, // Highest possible z-index
+                      elevation: 50, // Maximum elevation for Android
+                      shadowColor: "#000",
+                      shadowOffset: { width: 4, height: 0 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                    },
+                    {
+                      transform: [{ translateX: sidebarAnimation }],
+                    },
+                  ]}
+                >
+                  {/* Gradient Background */}
+                  <LinearGradient
+                    colors={
+                      isDarkMode
+                        ? ["#1A1A1A", "#2A2A2A", "#1A1A1A"]
+                        : ["#FFFFFF", "#F8F9FA", "#FFFFFF"]
+                    }
+                    style={{
+                      flex: 1,
+                      paddingTop: 60,
+                    }}
+                  >
+                    {/* Simplified Header */}
                     <View
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginTop: 12,
+                        padding: 20,
+                        borderBottomWidth: 1,
+                        borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
                       }}
                     >
                       <View
                         style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: "#4CAF50",
-                          marginRight: 8,
-                        }}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: isDarkMode ? "#CCC" : "#666",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
                         }}
                       >
-                        Online • 3 Active Rides
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* User Info */}
-                  <View
-                    style={{
-                      padding: 20,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      backgroundColor: isDarkMode
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.05)",
-                      marginHorizontal: 20,
-                      marginTop: 20,
-                      borderRadius: 12,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 24,
-                        backgroundColor: isDarkMode ? "#333" : "#F0F0F0",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginRight: 12,
-                      }}
-                    >
-                      <Text style={{ fontSize: 24 }}>👤</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: isDarkMode ? "#FFF" : "#000",
-                        }}
-                      >
-                        {user.name}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: isDarkMode ? "#CCC" : "#666",
-                        }}
-                      >
-                        {user.branch} • {user.year}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: isDarkMode ? "#CCC" : "#666",
-                          marginTop: 4,
-                        }}
-                      >
-                        ⭐ {user.rating}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Navigation Items */}
-                  <ScrollView
-                    style={{ flex: 1, padding: 20 }}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {/* Quick Actions */}
-                    <View>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontWeight: "600",
-                          color: isDarkMode ? "#999" : "#666",
-                          marginBottom: 12,
-                          letterSpacing: 1,
-                        }}
-                      >
-                        QUICK ACTIONS
-                      </Text>
-
-                      {[
-                        {
-                          icon: "🔍",
-                          label: "Search Rides",
-                          count: 12,
-                          color: "#4CAF50",
-                          action: () => {
-                            setSidebarVisible(false);
-                            Alert.alert(
-                              "🔍 Search Rides",
-                              "Find rides to any destination across Jaipur and beyond.",
-                              [{ text: "Got it!", style: "default" }]
-                            );
-                          },
-                        },
-                        {
-                          icon: "🚗",
-                          label: "Create New Ride",
-                          count: "New",
-                          color: "#2196F3",
-                          action: () => {
-                            setSidebarVisible(false);
-                            Alert.alert(
-                              "Create Ride",
-                              "Opening create ride screen..."
-                            );
-                          },
-                        },
-                        {
-                          icon: "🚌",
-                          label: "Bus Booking",
-                          count: "Available",
-                          color: "#FF9800",
-                          action: () => {
-                            setSidebarVisible(false);
-                            setIndex(1); // Switch to bus booking tab
-                          },
-                        },
-                        {
-                          icon: "📋",
-                          label: "My Ride History",
-                          count: 8,
-                          color: "#9C27B0",
-                          action: () => {
-                            setSidebarVisible(false);
-                            Alert.alert(
-                              "📋 Ride History",
-                              "View all your past rides, earnings, and trip statistics.",
-                              [{ text: "Got it!", style: "default" }]
-                            );
-                          },
-                        },
-                      ].map((item, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingVertical: 16,
-                            paddingHorizontal: 16,
-                            borderRadius: 12,
-                            marginBottom: 12,
-                            backgroundColor: isDarkMode
-                              ? "rgba(255,255,255,0.05)"
-                              : item.color + "10",
-                            borderLeftWidth: 4,
-                            borderLeftColor: item.color,
-                            shadowColor: item.color,
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 4,
-                            elevation: 2,
-                          }}
-                          onPress={item.action}
+                        <View
+                          style={{ flexDirection: "row", alignItems: "center" }}
                         >
                           <View
                             style={{
                               width: 40,
                               height: 40,
                               borderRadius: 20,
-                              backgroundColor: item.color + "20",
+                              backgroundColor: isDarkMode
+                                ? "#4CAF50"
+                                : "#2E7D32",
                               alignItems: "center",
                               justifyContent: "center",
                               marginRight: 12,
                             }}
                           >
-                            <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                            <Text style={{ fontSize: 20 }}>🚗</Text>
                           </View>
-                          <View style={{ flex: 1 }}>
+                          <View>
                             <Text
                               style={{
-                                fontSize: 16,
-                                fontWeight: "600",
+                                fontSize: 18,
+                                fontWeight: "bold",
                                 color: isDarkMode ? "#FFF" : "#000",
-                                marginBottom: 2,
                               }}
                             >
-                              {item.label}
+                              LNMIIT Carpool
                             </Text>
                             <Text
                               style={{
                                 fontSize: 12,
-                                color: isDarkMode ? "#AAA" : "#666",
+                                color: isDarkMode ? "#CCC" : "#666",
                               }}
                             >
-                              {typeof item.count === "number"
-                                ? `${item.count} available`
-                                : item.count}
+                              Smart. Safe. Sustainable.
                             </Text>
                           </View>
-                          <View
-                            style={{
-                              backgroundColor: item.color,
-                              paddingHorizontal: 8,
-                              paddingVertical: 4,
-                              borderRadius: 12,
-                              minWidth: 24,
-                              alignItems: "center",
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: "#FFF",
-                                fontSize: 12,
-                                fontWeight: "600",
-                              }}
-                            >
-                              {item.count}
-                            </Text>
-                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: isDarkMode
+                              ? "rgba(255,255,255,0.1)"
+                              : "rgba(0,0,0,0.1)",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onPress={toggleSidebar}
+                        >
+                          <IconButton
+                            icon="close"
+                            size={18}
+                            iconColor={isDarkMode ? "#FFF" : "#000"}
+                          />
                         </TouchableOpacity>
-                      ))}
+                      </View>
+
+                      {/* Status Badge */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginTop: 12,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: "#4CAF50",
+                            marginRight: 8,
+                          }}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDarkMode ? "#CCC" : "#666",
+                          }}
+                        >
+                          Online • 3 Active Rides
+                        </Text>
+                      </View>
                     </View>
 
-                    {/* Emergency SOS Button */}
-                    <TouchableOpacity
+                    {/* User Info */}
+                    <View
                       style={{
-                        backgroundColor: "#FF4444",
-                        padding: 16,
-                        borderRadius: 12,
-                        marginTop: 20,
+                        padding: 20,
                         flexDirection: "row",
                         alignItems: "center",
-                        shadowColor: "#FF4444",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 4,
-                        elevation: 4,
-                      }}
-                      onPress={() => {
-                        Alert.alert(
-                          "🚨 Emergency Alert",
-                          "Emergency services have been notified. Your location and emergency contacts will be contacted immediately.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Send Alert",
-                              style: "destructive",
-                              onPress: () => {
-                                Alert.alert(
-                                  "✅ Alert Sent",
-                                  "Emergency alert has been sent successfully. Help is on the way.",
-                                  [{ text: "OK" }]
-                                );
-                              },
-                            },
-                          ]
-                        );
+                        backgroundColor: isDarkMode
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(0,0,0,0.05)",
+                        marginHorizontal: 20,
+                        marginTop: 20,
+                        borderRadius: 12,
                       }}
                     >
                       <View
                         style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          backgroundColor: "rgba(255,255,255,0.2)",
+                          width: 48,
+                          height: 48,
+                          borderRadius: 24,
+                          backgroundColor: isDarkMode ? "#333" : "#F0F0F0",
                           alignItems: "center",
                           justifyContent: "center",
                           marginRight: 12,
                         }}
                       >
-                        <Text style={{ fontSize: 20 }}>🚨</Text>
+                        <Text style={{ fontSize: 24 }}>👤</Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text
                           style={{
-                            color: "#FFF",
                             fontSize: 16,
                             fontWeight: "600",
-                            marginBottom: 2,
+                            color: isDarkMode ? "#FFF" : "#000",
                           }}
                         >
-                          Emergency SOS
+                          {user.name}
                         </Text>
                         <Text
                           style={{
-                            color: "rgba(255,255,255,0.8)",
-                            fontSize: 12,
+                            fontSize: 14,
+                            color: isDarkMode ? "#CCC" : "#666",
                           }}
                         >
-                          Tap for immediate help
+                          {user.branch} • {user.year}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDarkMode ? "#CCC" : "#666",
+                            marginTop: 4,
+                          }}
+                        >
+                          ⭐ {user.rating}
                         </Text>
                       </View>
-                      <View
+                    </View>
+
+                    {/* Navigation Items */}
+                    <ScrollView
+                      style={{ flex: 1, padding: 20 }}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {/* Quick Actions */}
+                      <View>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: isDarkMode ? "#999" : "#666",
+                            marginBottom: 12,
+                            letterSpacing: 1,
+                          }}
+                        >
+                          QUICK ACTIONS
+                        </Text>
+
+                        {[
+                          {
+                            icon: "🔍",
+                            label: "Search Rides",
+                            count: availableRides,
+                            color: "#4CAF50",
+                            action: () => {
+                              setSidebarVisible(false);
+                              Alert.alert(
+                                "🔍 Search Rides",
+                                `${availableRides} rides available. Find rides to any destination across Jaipur and beyond.`,
+                                [{ text: "Got it!", style: "default" }]
+                              );
+                            },
+                          },
+                          {
+                            icon: "🚗",
+                            label: "Create New Ride",
+                            count: "New",
+                            color: "#2196F3",
+                            action: () => {
+                              setSidebarVisible(false);
+                              Alert.alert(
+                                "Create Ride",
+                                "Opening create ride screen..."
+                              );
+                            },
+                          },
+                          {
+                            icon: "🚌",
+                            label: "Check Bus Schedule",
+                            count: activeBusRoutes,
+                            color: "#FF9800",
+                            action: () => {
+                              setSidebarVisible(false);
+                              setIndex(1); // Switch to bus booking tab
+                            },
+                          },
+                          {
+                            icon: "📋",
+                            label: "My Ride History",
+                            count: userRideHistory,
+                            color: "#9C27B0",
+                            action: () => {
+                              setSidebarVisible(false);
+                              Alert.alert(
+                                "📋 Ride History",
+                                `You have ${userRideHistory} rides in your history. View all your past rides, earnings, and trip statistics.`,
+                                [{ text: "Got it!", style: "default" }]
+                              );
+                            },
+                          },
+                        ].map((item, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingVertical: 16,
+                              paddingHorizontal: 16,
+                              borderRadius: 12,
+                              marginBottom: 12,
+                              backgroundColor: isDarkMode
+                                ? "rgba(255,255,255,0.05)"
+                                : item.color + "10",
+                              borderLeftWidth: 4,
+                              borderLeftColor: item.color,
+                              shadowColor: item.color,
+                              shadowOffset: { width: 0, height: 2 },
+                              shadowOpacity: 0.1,
+                              shadowRadius: 4,
+                              elevation: 2,
+                            }}
+                            onPress={item.action}
+                          >
+                            <View
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                backgroundColor: item.color + "20",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginRight: 12,
+                              }}
+                            >
+                              <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={{
+                                  fontSize: 16,
+                                  fontWeight: "600",
+                                  color: isDarkMode ? "#FFF" : "#000",
+                                  marginBottom: 2,
+                                }}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: isDarkMode ? "#AAA" : "#666",
+                                }}
+                              >
+                                {typeof item.count === "number"
+                                  ? `${item.count} available`
+                                  : item.count}
+                              </Text>
+                            </View>
+                            <View
+                              style={{
+                                backgroundColor: item.color,
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderRadius: 12,
+                                minWidth: 24,
+                                alignItems: "center",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: "#FFF",
+                                  fontSize: 12,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {item.count}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Emergency SOS Button */}
+                      <TouchableOpacity
                         style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: "#FFF",
-                          opacity: 0.8,
+                          backgroundColor: "#FF4444",
+                          padding: 16,
+                          borderRadius: 12,
+                          marginTop: 20,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          shadowColor: "#FF4444",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.3,
+                          shadowRadius: 4,
+                          elevation: 4,
                         }}
-                      />
-                    </TouchableOpacity>
+                        onPress={() => {
+                          Alert.alert(
+                            "🚨 Emergency Alert",
+                            "Emergency services have been notified. Your location and emergency contacts will be contacted immediately.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Send Alert",
+                                style: "destructive",
+                                onPress: () => {
+                                  Alert.alert(
+                                    "✅ Alert Sent",
+                                    "Emergency alert has been sent successfully. Help is on the way.",
+                                    [{ text: "OK" }]
+                                  );
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: "rgba(255,255,255,0.2)",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginRight: 12,
+                          }}
+                        >
+                          <Text style={{ fontSize: 20 }}>🚨</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              color: "#FFF",
+                              fontSize: 16,
+                              fontWeight: "600",
+                              marginBottom: 2,
+                            }}
+                          >
+                            Emergency SOS
+                          </Text>
+                          <Text
+                            style={{
+                              color: "rgba(255,255,255,0.8)",
+                              fontSize: 12,
+                            }}
+                          >
+                            Tap for immediate help
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: "#FFF",
+                            opacity: 0.8,
+                          }}
+                        />
+                      </TouchableOpacity>
 
-                    <View style={{ height: 40 }} />
-                  </ScrollView>
+                      <View style={{ height: 40 }} />
+                    </ScrollView>
 
-                  {/* Enhanced Footer */}
-                  <View
-                    style={{
-                      padding: 20,
-                      borderTopWidth: 1,
-                      borderTopColor: isDarkMode ? "#333" : "#E0E0E0",
-                      paddingBottom: 40,
-                    }}
-                  >
-                    <Text
+                    {/* Enhanced Footer */}
+                    <View
                       style={{
-                        fontSize: 12,
-                        color: isDarkMode ? "#666" : "#999",
-                        textAlign: "center",
+                        padding: 20,
+                        borderTopWidth: 1,
+                        borderTopColor: isDarkMode ? "#333" : "#E0E0E0",
+                        paddingBottom: 40,
                       }}
                     >
-                      LNMIIT Carpool v2.0
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: isDarkMode ? "#555" : "#CCC",
-                        textAlign: "center",
-                        marginTop: 4,
-                      }}
-                    >
-                      Safe. Reliable. Connected.
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </Animated.View>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: isDarkMode ? "#666" : "#999",
+                          textAlign: "center",
+                        }}
+                      >
+                        LNMIIT Carpool v2.0
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          color: isDarkMode ? "#555" : "#CCC",
+                          textAlign: "center",
+                          marginTop: 4,
+                        }}
+                      >
+                        Safe. Reliable. Connected.
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </Animated.View>
 
-              {/* Enhanced Overlay */}
-              <Animated.View
-                style={[
-                  {
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(0,0,0,0.5)",
-                    zIndex: 9999, // Just below sidebar
-                    elevation: 49,
-                  },
-                  {
-                    opacity: sidebarAnimation.interpolate({
-                      inputRange: [-400, 0],
-                      outputRange: [0, 1],
-                      extrapolate: "clamp",
-                    }),
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={{ flex: 1 }}
-                  activeOpacity={1}
-                  onPress={toggleSidebar}
-                />
-              </Animated.View>
-            </>
-          )}
-        </Animated.View>
-      </SafeAreaView>
-    </View>
-  </AuthContext.Provider>
+                {/* Enhanced Overlay */}
+                <Animated.View
+                  style={[
+                    {
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      width: "100%",
+                      height: "100%",
+                      backgroundColor: "rgba(0,0,0,0.5)",
+                      zIndex: 9999, // Just below sidebar
+                      elevation: 49,
+                    },
+                    {
+                      opacity: sidebarAnimation.interpolate({
+                        inputRange: [-400, 0],
+                        outputRange: [0, 1],
+                        extrapolate: "clamp",
+                      }),
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    activeOpacity={1}
+                    onPress={toggleSidebar}
+                  />
+                </Animated.View>
+              </>
+            )}
+          </Animated.View>
+        </SafeAreaView>
+      </View>
+    </AuthContext.Provider>
   );
 };
 

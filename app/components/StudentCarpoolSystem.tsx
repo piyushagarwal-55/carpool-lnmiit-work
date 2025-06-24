@@ -33,6 +33,7 @@ import {
   Check,
   Timer,
   AlertCircle,
+  Bell,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -44,6 +45,8 @@ import CreateRideScreen from "./CreateRideScreen";
 import ChatScreen from "./ChatScreen";
 import RequestAcceptanceModal from "./RequestAcceptanceModal";
 import LoadingOverlay from "./LoadingOverlay";
+import NotificationScreen from "./NotificationScreen";
+import FilterModal, { FilterOptions } from "./FilterModal";
 import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import NotificationService from "../services/NotificationService";
@@ -57,6 +60,8 @@ import {
   calculateRideExpiry,
   filterRides,
   generateAvatarFromName,
+  applyAdvancedFilters,
+  isRideExpired,
 } from "../lib/utils";
 
 interface CarpoolRide {
@@ -149,28 +154,45 @@ const StudentCarpoolSystem = ({
   const [rides, setRides] = useState<CarpoolRide[]>([]);
   const [filteredRides, setFilteredRides] = useState<CarpoolRide[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<
-    "all" | "today" | "tomorrow" | "this_week"
-  >("all");
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [sectionLoading, setSectionLoading] = useState(false);
-  const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
   const [showRideDetails, setShowRideDetails] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [userRideHistory, setUserRideHistory] = useState<any[]>([]);
-  const [showCreateRide, setShowCreateRide] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  const [joinModalVisible, setJoinModalVisible] = useState(false);
+  const [rideToJoin, setRideToJoin] = useState<CarpoolRide | null>(null);
+  const [chatModalVisible, setChatModalVisible] = useState(false);
   const [chatRideId, setChatRideId] = useState<string>("");
   const [chatRideTitle, setChatRideTitle] = useState<string>("");
-  const [showJoinVerification, setShowJoinVerification] = useState(false);
+  const [showCreateRide, setShowCreateRide] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Join ride modal states
+  const [selectedJoinRequest, setSelectedJoinRequest] = useState<any>(null);
+  const [showRequestAcceptance, setShowRequestAcceptance] = useState(false);
   const [selectedRideForJoin, setSelectedRideForJoin] =
     useState<CarpoolRide | null>(null);
   const [joinMessage, setJoinMessage] = useState("");
   const [seatsToBook, setSeatsToBook] = useState(1);
+  const [showJoinVerification, setShowJoinVerification] = useState(false);
   const [showJoinRequestModal, setShowJoinRequestModal] = useState(false);
-  const [showRequestAcceptance, setShowRequestAcceptance] = useState(false);
-  const [selectedJoinRequest, setSelectedJoinRequest] = useState<any>(null);
+  const [showChat, setShowChat] = useState(false);
+  const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterOptions>({
+    dateFilter: "all",
+    timeFilter: "all",
+    priceRange: { min: 0, max: 1000 },
+    seatsFilter: "all",
+    instantBooking: null,
+    sortBy: "time",
+    locations: { from: [], to: [] },
+  });
+
+  // Sidebar state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [userRideHistory, setUserRideHistory] = useState<any[]>([]);
+  const [availableRides, setAvailableRides] = useState(0);
+  const [activeBusRoutes, setActiveBusRoutes] = useState(0);
 
   // Fetch rides from database
 
@@ -238,10 +260,10 @@ const StudentCarpoolSystem = ({
 
       setRides(transformedRides);
       // Apply current filters to new data
-      const filtered = filterRides(
-        transformedRides,
-        selectedFilter,
-        searchQuery
+      const filtered = transformedRides.filter(
+        (ride) =>
+          ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ride.to.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredRides(filtered);
     } catch (error) {
@@ -347,9 +369,14 @@ const StudentCarpoolSystem = ({
   }, []);
 
   useEffect(() => {
-    const filtered = filterRides(rides, selectedFilter, searchQuery);
+    // Apply simple search filter
+    const filtered = rides.filter(
+      (ride) =>
+        ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ride.to.toLowerCase().includes(searchQuery.toLowerCase())
+    );
     setFilteredRides(filtered);
-  }, [searchQuery, selectedFilter, rides]);
+  }, [searchQuery, rides]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -432,16 +459,15 @@ const StudentCarpoolSystem = ({
     handleRefresh();
   };
 
-  const handleFilterSelect = async (filterKey: string, filterLabel: string) => {
-    setSectionLoading(true);
-
-    // Simulate loading for smooth UX
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    setSelectedFilter(filterKey as any);
-    console.log(`Filter applied: ${filterLabel}`);
-
-    setSectionLoading(false);
+  const handleApplyFilters = (newFilters: FilterOptions) => {
+    setFilters(newFilters);
+    // Apply filters to current rides
+    const filtered = rides.filter(
+      (ride) =>
+        ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ride.to.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredRides(filtered);
   };
 
   const handleJoinRide = (rideId: string) => {
@@ -672,11 +698,11 @@ const StudentCarpoolSystem = ({
     const expiryInfo = calculateRideExpiry(ride.departureTime);
 
     const cardColors = [
-      { bg: "#E8F5E8", accent: "#4CAF50" }, // Green
-      { bg: "#FFF3E0", accent: "#FF9800" }, // Orange
-      { bg: "#E3F2FD", accent: "#2196F3" }, // Blue
-      { bg: "#F3E5F5", accent: "#9C27B0" }, // Purple
-      { bg: "#FCE4EC", accent: "#E91E63" }, // Pink
+      { bg: "#F8F9FA", accent: "#4CAF50" }, // Light background with Green accent
+      { bg: "#F8F9FA", accent: "#FF9800" }, // Light background with Orange accent
+      { bg: "#F8F9FA", accent: "#2196F3" }, // Light background with Blue accent
+      { bg: "#F8F9FA", accent: "#9C27B0" }, // Light background with Purple accent
+      { bg: "#F8F9FA", accent: "#E91E63" }, // Light background with Pink accent
     ];
     const colorIndex = ride.id
       ? (parseInt(ride.id.slice(-1)) || 0) % cardColors.length
@@ -686,7 +712,14 @@ const StudentCarpoolSystem = ({
     return (
       <TouchableOpacity
         key={ride.id}
-        style={[styles.jobCard, { backgroundColor: colors.bg }]}
+        style={[
+          styles.jobCard,
+          {
+            backgroundColor: colors.bg,
+            borderWidth: 2,
+            borderColor: "#2A2A2A",
+          },
+        ]}
         onPress={() => handleRideCardPress(ride)}
       >
         {/* Header with toggle and company name */}
@@ -899,6 +932,15 @@ const StudentCarpoolSystem = ({
       icon: "📋",
     },
   ];
+
+  // Filter options
+  const filterOptions = [
+    { key: "all", label: "All Rides" },
+    { key: "today", label: "Today" },
+    { key: "tomorrow", label: "Tomorrow" },
+    { key: "this_week", label: "This Week" },
+  ];
+
   const [activeScreen, setActiveScreen] = useState<"home" | "history">("home");
   if (activeScreen === "history") {
     return <UserRideHistoryScreen user={currentUser} />;
@@ -912,7 +954,7 @@ const StudentCarpoolSystem = ({
           { backgroundColor: isDarkMode ? "#000" : "#F8F9FA" },
         ]}
       >
-        {/* Search Bar with Menu */}
+        {/* Search Bar with Menu and Notifications */}
         <View style={styles.searchContainer}>
           <TouchableOpacity onPress={onToggleSidebar} style={styles.menuBtn}>
             <Menu size={24} color={isDarkMode ? "#FFF" : "#000"} />
@@ -928,7 +970,26 @@ const StudentCarpoolSystem = ({
             inputStyle={{ color: isDarkMode ? "#FFF" : "#000" }}
             iconColor={isDarkMode ? "#CCC" : "#666"}
           />
-          <TouchableOpacity style={styles.filterIcon}>
+
+          {/* Notification Bell */}
+          <TouchableOpacity
+            style={styles.notificationIcon}
+            onPress={() => setShowNotifications(true)}
+          >
+            <Bell size={20} color={isDarkMode ? "#CCC" : "#666"} />
+            {unreadNotifications > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.filterIcon}
+            onPress={() => setShowFilterModal(true)}
+          >
             <Filter size={20} color={isDarkMode ? "#CCC" : "#666"} />
           </TouchableOpacity>
         </View>
@@ -1053,6 +1114,56 @@ const StudentCarpoolSystem = ({
                   styles.categoryCard,
                   { backgroundColor: category.color },
                 ]}
+                onPress={() => {
+                  if (category.key === "create") {
+                    handleCreateRide();
+                  } else if (category.key === "notifications") {
+                    // Show a list of notifications and handle clicks
+                    if (notifications.length > 0) {
+                      Alert.alert(
+                        "Notifications",
+                        `You have ${unreadNotifications} unread notifications`,
+                        [
+                          {
+                            text: "View Latest",
+                            onPress: () => {
+                              const latestNotification = notifications?.find(
+                                (n) => !n.read
+                              );
+                              if (latestNotification) {
+                                handleNotificationClick(latestNotification);
+                              }
+                            },
+                          },
+                          {
+                            text: "Mark All Read",
+                            onPress: async () => {
+                              await NotificationService.markAllAsRead(
+                                currentUser.id
+                              );
+                              fetchNotifications();
+                            },
+                          },
+                          { text: "Cancel", style: "cancel" },
+                        ]
+                      );
+                    } else {
+                      Alert.alert("Notifications", "No notifications yet!");
+                    }
+                  } else if (category.key === "history") {
+                    router.push({
+                      pathname: "/ride-history",
+                      params: { user: JSON.stringify(currentUser) },
+                    });
+                  } else if (category.key === "search") {
+                    // Focus on search bar or show search tips
+                    Alert.alert(
+                      "Search Tips",
+                      "Try searching for popular destinations like:\n\n• Jaipur Railway Station\n• Jaipur Airport\n• City Mall\n• World Trade Park\n• C-Scheme\n• Vaishali Nagar",
+                      [{ text: "Got it!" }]
+                    );
+                  }
+                }}
               >
                 <Text style={styles.categoryCardEmoji}>{category.icon}</Text>
                 <Text style={styles.categoryCardTitle}>{category.label}</Text>
@@ -1061,57 +1172,6 @@ const StudentCarpoolSystem = ({
                     ? category.count
                     : `${category.count} available`}
                 </Text>
-                <TouchableOpacity
-                  style={styles.viewJobsBtn}
-                  onPress={() => {
-                    if (category.key === "create") {
-                      handleCreateRide();
-                    } else if (category.key === "notifications") {
-                      // Show a list of notifications and handle clicks
-                      if (notifications.length > 0) {
-                        Alert.alert(
-                          "Notifications",
-                          `You have ${unreadNotifications} unread notifications`,
-                          [
-                            {
-                              text: "View Latest",
-                              onPress: () => {
-                                const latestNotification = notifications.find(
-                                  (n) => !n.read
-                                );
-                                if (latestNotification) {
-                                  handleNotificationClick(latestNotification);
-                                }
-                              },
-                            },
-                            {
-                              text: "Mark All Read",
-                              onPress: async () => {
-                                await NotificationService.markAllAsRead(
-                                  currentUser.id
-                                );
-                                fetchNotifications();
-                              },
-                            },
-                            { text: "Cancel", style: "cancel" },
-                          ]
-                        );
-                      } else {
-                        Alert.alert("Notifications", "No notifications yet!");
-                      }
-                    }
-                    if (category.key === "history") {
-                      router.push({
-                        pathname: "/ride-history",
-                        params: { user: JSON.stringify(currentUser) },
-                      });
-                    }
-                  }}
-                >
-                  <Text style={styles.viewJobsBtnText}>
-                    {category.key === "create" ? "Start Now" : "View All"}
-                  </Text>
-                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>
@@ -1143,13 +1203,13 @@ const StudentCarpoolSystem = ({
         />
       )}
 
-      {showCreateRide && (
-        <CreateRideScreen
-          onBack={() => setShowCreateRide(false)}
-          onRideCreated={handleRideCreated}
-          isDarkMode={isDarkMode}
-        />
-      )}
+      {/* Create Ride Screen */}
+      <CreateRideScreen
+        visible={showCreateRide}
+        onBack={() => setShowCreateRide(false)}
+        onRideCreated={handleRideCreated}
+        isDarkMode={isDarkMode}
+      />
 
       {showChat && (
         <ChatScreen
@@ -1717,9 +1777,18 @@ const StudentCarpoolSystem = ({
         isDarkMode={isDarkMode}
       />
 
+      {/* Filter Modal */}
+      <FilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApplyFilters={handleApplyFilters}
+        currentFilters={filters}
+        isDarkMode={isDarkMode}
+      />
+
       <LoadingOverlay
-        visible={sectionLoading}
-        message="Applying filter..."
+        visible={loading}
+        message="Loading..."
         isDarkMode={isDarkMode}
       />
     </>
@@ -2580,6 +2649,49 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: "#4CAF50",
     margin: 2,
+  },
+  filterContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  filterContent: {
+    paddingHorizontal: 0,
+  },
+  filterChip: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginHorizontal: 5,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  filterChipActive: {
+    borderColor: "#000",
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  notificationIcon: {
+    padding: 8,
+    borderRadius: 12,
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#FF5722",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notificationBadgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "600",
   },
 });
 

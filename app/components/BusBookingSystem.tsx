@@ -958,7 +958,26 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
                 { color: isDarkMode ? "#FFFFFF" : "#000000" },
               ]}
             >
-              {bus.availableSeats}/{bus.totalSeats} seats
+              {(() => {
+                const now = new Date();
+                const departure = new Date();
+                const [time, period] = bus.departureTime.split(" ");
+                const [hours, minutes] = time.split(":").map(Number);
+
+                let hour24 = hours;
+                if (period === "PM" && hours !== 12) hour24 += 12;
+                if (period === "AM" && hours === 12) hour24 = 0;
+
+                departure.setHours(hour24, minutes, 0, 0);
+
+                const diffMinutes =
+                  (departure.getTime() - now.getTime()) / (1000 * 60);
+                const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
+
+                return isWithin30Minutes
+                  ? `${bus.availableSeats}/${bus.totalSeats} seats`
+                  : "Schedule Info";
+              })()}
             </Text>
           </View>
         </View>
@@ -1013,17 +1032,81 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
             style={[
               styles.bookButton,
               {
-                backgroundColor: isRestricted
-                  ? isDarkMode
-                    ? "#4B5563"
-                    : "#E5E7EB"
-                  : isDarkMode
-                  ? "#FFFFFF"
-                  : "#000000",
-                opacity: isRestricted ? 0.6 : 1,
+                backgroundColor: (() => {
+                  const now = new Date();
+                  const departure = new Date();
+                  const [time, period] = bus.departureTime.split(" ");
+                  const [hours, minutes] = time.split(":").map(Number);
+
+                  let hour24 = hours;
+                  if (period === "PM" && hours !== 12) hour24 += 12;
+                  if (period === "AM" && hours === 12) hour24 = 0;
+
+                  departure.setHours(hour24, minutes, 0, 0);
+
+                  const diffMinutes =
+                    (departure.getTime() - now.getTime()) / (1000 * 60);
+                  const isWithin30Minutes =
+                    diffMinutes <= 30 && diffMinutes >= 0;
+
+                  if (!isWithin30Minutes) {
+                    return isDarkMode ? "#4B5563" : "#E5E7EB";
+                  }
+
+                  return isRestricted
+                    ? isDarkMode
+                      ? "#4B5563"
+                      : "#E5E7EB"
+                    : isDarkMode
+                    ? "#FFFFFF"
+                    : "#000000";
+                })(),
+                opacity: (() => {
+                  const now = new Date();
+                  const departure = new Date();
+                  const [time, period] = bus.departureTime.split(" ");
+                  const [hours, minutes] = time.split(":").map(Number);
+
+                  let hour24 = hours;
+                  if (period === "PM" && hours !== 12) hour24 += 12;
+                  if (period === "AM" && hours === 12) hour24 = 0;
+
+                  departure.setHours(hour24, minutes, 0, 0);
+
+                  const diffMinutes =
+                    (departure.getTime() - now.getTime()) / (1000 * 60);
+                  const isWithin30Minutes =
+                    diffMinutes <= 30 && diffMinutes >= 0;
+
+                  return !isWithin30Minutes || isRestricted ? 0.6 : 1;
+                })(),
               },
             ]}
             onPress={() => {
+              const now = new Date();
+              const departure = new Date();
+              const [time, period] = bus.departureTime.split(" ");
+              const [hours, minutes] = time.split(":").map(Number);
+
+              let hour24 = hours;
+              if (period === "PM" && hours !== 12) hour24 += 12;
+              if (period === "AM" && hours === 12) hour24 = 0;
+
+              departure.setHours(hour24, minutes, 0, 0);
+
+              const diffMinutes =
+                (departure.getTime() - now.getTime()) / (1000 * 60);
+              const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
+
+              if (!isWithin30Minutes) {
+                Alert.alert(
+                  "ℹ️ Information Only",
+                  `Seat booking will be available 30 minutes before departure.\n\nDeparture Time: ${bus.departureTime}\n\nThis is currently showing schedule information only.`,
+                  [{ text: "OK", style: "default" }]
+                );
+                return;
+              }
+
               if (isRestricted) {
                 Alert.alert(
                   "⚠️ Booking Restricted",
@@ -1040,30 +1123,91 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
                 handleBusSelect(bus);
               }
             }}
-            disabled={isRestricted}
           >
             <Text
               style={[
                 styles.bookButtonText,
                 {
-                  color: isRestricted
-                    ? isDarkMode
-                      ? "#9CA3AF"
-                      : "#6B7280"
-                    : isDarkMode
-                    ? "#000000"
-                    : "#FFFFFF",
+                  color: (() => {
+                    const now = new Date();
+                    const departure = new Date();
+                    const [time, period] = bus.departureTime.split(" ");
+                    const [hours, minutes] = time.split(":").map(Number);
+
+                    let hour24 = hours;
+                    if (period === "PM" && hours !== 12) hour24 += 12;
+                    if (period === "AM" && hours === 12) hour24 = 0;
+
+                    departure.setHours(hour24, minutes, 0, 0);
+
+                    const diffMinutes =
+                      (departure.getTime() - now.getTime()) / (1000 * 60);
+                    const isWithin30Minutes =
+                      diffMinutes <= 30 && diffMinutes >= 0;
+
+                    if (!isWithin30Minutes) {
+                      return isDarkMode ? "#9CA3AF" : "#6B7280";
+                    }
+
+                    return isRestricted
+                      ? isDarkMode
+                        ? "#9CA3AF"
+                        : "#6B7280"
+                      : isDarkMode
+                      ? "#000000"
+                      : "#FFFFFF";
+                  })(),
                 },
               ]}
             >
-              {isRestricted ? "Restricted" : "Select Seat"}
+              {(() => {
+                const now = new Date();
+                const departure = new Date();
+                const [time, period] = bus.departureTime.split(" ");
+                const [hours, minutes] = time.split(":").map(Number);
+
+                let hour24 = hours;
+                if (period === "PM" && hours !== 12) hour24 += 12;
+                if (period === "AM" && hours === 12) hour24 = 0;
+
+                departure.setHours(hour24, minutes, 0, 0);
+
+                const diffMinutes =
+                  (departure.getTime() - now.getTime()) / (1000 * 60);
+                const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
+
+                if (!isWithin30Minutes) {
+                  return "View Info";
+                }
+
+                return isRestricted ? "Restricted" : "Select Seat";
+              })()}
             </Text>
-            {!isRestricted && (
-              <ArrowRight
-                size={16}
-                color={isDarkMode ? "#000000" : "#FFFFFF"}
-              />
-            )}
+            {(() => {
+              const now = new Date();
+              const departure = new Date();
+              const [time, period] = bus.departureTime.split(" ");
+              const [hours, minutes] = time.split(":").map(Number);
+
+              let hour24 = hours;
+              if (period === "PM" && hours !== 12) hour24 += 12;
+              if (period === "AM" && hours === 12) hour24 = 0;
+
+              departure.setHours(hour24, minutes, 0, 0);
+
+              const diffMinutes =
+                (departure.getTime() - now.getTime()) / (1000 * 60);
+              const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
+
+              return isWithin30Minutes && !isRestricted ? (
+                <ArrowRight
+                  size={16}
+                  color={isDarkMode ? "#000000" : "#FFFFFF"}
+                />
+              ) : (
+                <Info size={16} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
+              );
+            })()}
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
