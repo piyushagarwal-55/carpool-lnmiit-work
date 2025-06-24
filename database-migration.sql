@@ -11,6 +11,101 @@ DROP VIEW IF EXISTS ride_summary CASCADE;
 -- Drop the old view to recreate it properly
 DROP VIEW IF EXISTS active_rides_with_expiry CASCADE;
 
+-- Add missing columns to user_profiles table if they don't exist
+ALTER TABLE user_profiles 
+ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+-- Create missing tables if they don't exist
+CREATE TABLE IF NOT EXISTS ride_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ride_id UUID NOT NULL REFERENCES carpool_rides(id) ON DELETE CASCADE,
+  passenger_id UUID NOT NULL,
+  passenger_name TEXT NOT NULL,
+  passenger_email TEXT NOT NULL,
+  seats_requested INTEGER NOT NULL DEFAULT 1,
+  message TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(ride_id, passenger_id)
+);
+
+CREATE TABLE IF NOT EXISTS ride_passengers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ride_id UUID NOT NULL REFERENCES carpool_rides(id) ON DELETE CASCADE,
+  passenger_id UUID NOT NULL,
+  passenger_name TEXT NOT NULL,
+  passenger_email TEXT NOT NULL,
+  seats_booked INTEGER NOT NULL DEFAULT 1,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(ride_id, passenger_id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT DEFAULT 'info' CHECK (type IN ('info', 'success', 'warning', 'error', 'ride_request', 'ride_update')),
+  read BOOLEAN DEFAULT FALSE,
+  data JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ride_id UUID NOT NULL REFERENCES carpool_rides(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL,
+  sender_name TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_participants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ride_id UUID NOT NULL REFERENCES carpool_rides(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  user_name TEXT NOT NULL,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(ride_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS bus_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  route_name TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  departure_time TIME NOT NULL,
+  arrival_time TIME NOT NULL,
+  days_of_week INTEGER[] NOT NULL, -- Array of day numbers (1=Monday, 7=Sunday)
+  bus_number TEXT NOT NULL,
+  total_seats INTEGER NOT NULL DEFAULT 40,
+  driver_name TEXT NOT NULL,
+  driver_phone TEXT NOT NULL,
+  fare DECIMAL(10,2) NOT NULL,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bus_bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  schedule_id UUID NOT NULL REFERENCES bus_schedules(id) ON DELETE CASCADE,
+  passenger_name TEXT NOT NULL,
+  passenger_email TEXT NOT NULL,
+  passenger_phone TEXT,
+  seat_number TEXT NOT NULL,
+  booking_date DATE NOT NULL,
+  fare_paid DECIMAL(10,2) NOT NULL,
+  status TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled', 'completed')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(schedule_id, seat_number, booking_date)
+);
+
 -- Now recreate the fixed views without the duplicate column issue
 CREATE OR REPLACE VIEW ride_summary AS
 SELECT 
@@ -50,7 +145,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create email parsing function if it doesn't exist
+-- Create email parsing function (drop first to avoid return type conflict)
+DROP FUNCTION IF EXISTS parse_email_info(TEXT);
 CREATE OR REPLACE FUNCTION parse_email_info(email TEXT)
 RETURNS TABLE(joining_year TEXT, branch_code TEXT, branch_full TEXT) AS $$
 BEGIN

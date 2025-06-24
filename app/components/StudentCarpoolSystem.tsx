@@ -188,6 +188,11 @@ const StudentCarpoolSystem = ({
     locations: { from: [], to: [] },
   });
 
+  // Legacy variables for compatibility
+  const selectedFilter = filters.dateFilter;
+  const currentFilters = filters;
+  const sectionLoading = loading;
+
   // Sidebar state
   const [notifications, setNotifications] = useState<any[]>([]);
   const [userRideHistory, setUserRideHistory] = useState<any[]>([]);
@@ -262,8 +267,12 @@ const StudentCarpoolSystem = ({
       // Apply current filters to new data
       const filtered = transformedRides.filter(
         (ride) =>
-          ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ride.to.toLowerCase().includes(searchQuery.toLowerCase())
+          (ride.from || "")
+            .toLowerCase()
+            .includes((searchQuery || "").toLowerCase()) ||
+          (ride.to || "")
+            .toLowerCase()
+            .includes((searchQuery || "").toLowerCase())
       );
       setFilteredRides(filtered);
     } catch (error) {
@@ -372,8 +381,12 @@ const StudentCarpoolSystem = ({
     // Apply simple search filter
     const filtered = rides.filter(
       (ride) =>
-        ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ride.to.toLowerCase().includes(searchQuery.toLowerCase())
+        (ride.from || "")
+          .toLowerCase()
+          .includes((searchQuery || "").toLowerCase()) ||
+        (ride.to || "")
+          .toLowerCase()
+          .includes((searchQuery || "").toLowerCase())
     );
     setFilteredRides(filtered);
   }, [searchQuery, rides]);
@@ -464,8 +477,12 @@ const StudentCarpoolSystem = ({
     // Apply filters to current rides
     const filtered = rides.filter(
       (ride) =>
-        ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ride.to.toLowerCase().includes(searchQuery.toLowerCase())
+        (ride.from || "")
+          .toLowerCase()
+          .includes((searchQuery || "").toLowerCase()) ||
+        (ride.to || "")
+          .toLowerCase()
+          .includes((searchQuery || "").toLowerCase())
     );
     setFilteredRides(filtered);
   };
@@ -671,7 +688,56 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCreated = (rideData: any) => {
-    setRides((prev) => [rideData, ...prev]);
+    // Transform database ride data to UI format
+    const transformedRide: CarpoolRide = {
+      id: rideData.id || `ride_${Date.now()}`,
+      driverId: rideData.driver_id || currentUser.id,
+      driverName: rideData.driver_name || currentUser.name,
+      driverRating: 4.5,
+      driverPhoto: currentUser.photo,
+      driverBranch: currentUser.branch,
+      driverYear: currentUser.year,
+      from: rideData.from_location || rideData.from,
+      to: rideData.to_location || rideData.to,
+      departureTime: rideData.departure_time || `${formatTime(rideData.time)}`,
+      date: rideData.departure_date || formatDate(rideData.date),
+      availableSeats: rideData.available_seats || rideData.availableSeats,
+      totalSeats: rideData.total_seats || rideData.availableSeats,
+      pricePerSeat: rideData.price_per_seat || rideData.pricePerSeat,
+      vehicleInfo: {
+        make: rideData.vehicle_make || "Car",
+        model: rideData.vehicle_model || "Model",
+        color: rideData.vehicle_color || "White",
+        isAC: rideData.is_ac !== undefined ? rideData.is_ac : true,
+      },
+      route: [
+        rideData.from_location || rideData.from,
+        rideData.to_location || rideData.to,
+      ],
+      preferences: {
+        smokingAllowed:
+          rideData.smoking_allowed !== undefined
+            ? rideData.smoking_allowed
+            : false,
+        musicAllowed:
+          rideData.music_allowed !== undefined ? rideData.music_allowed : true,
+        petsAllowed:
+          rideData.pets_allowed !== undefined ? rideData.pets_allowed : false,
+      },
+      status: rideData.status || "active",
+      passengers: [],
+      pendingRequests: [],
+      instantBooking:
+        rideData.instant_booking !== undefined
+          ? rideData.instant_booking
+          : false,
+      chatEnabled:
+        rideData.chat_enabled !== undefined ? rideData.chat_enabled : true,
+      createdAt: rideData.created_at || new Date().toISOString(),
+    };
+
+    setRides((prev) => [transformedRide, ...prev]);
+    setFilteredRides((prev) => [transformedRide, ...prev]);
     setShowCreateRide(false);
     handleRefresh(); // Refresh all data including ride history
   };
