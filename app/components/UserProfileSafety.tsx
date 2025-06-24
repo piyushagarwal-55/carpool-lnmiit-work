@@ -140,24 +140,9 @@ const UserProfileSafety = ({
     { key: "safety", title: "Safety", icon: Shield },
     { key: "bookings", title: "Bookings", icon: Bus },
   ];
-  const usernamePart = user?.email?.split("@")[0] || "";
-  const firstTwo = usernamePart.substring(0, 2).toUpperCase();
-
-  const branchCode = usernamePart.substring(2, 5).toUpperCase(); // e.g., "ECE", "CCE", etc.
-
-  let branchFullForm = "";
-
-  if (branchCode.startsWith("CSE")) {
-    branchFullForm = "Computer Science";
-  } else if (branchCode === "UEC") {
-    branchFullForm = "Electronics";
-  } else if (branchCode === "CCE") {
-    branchFullForm = "Communication";
-  } else if (branchCode === "ME") {
-    branchFullForm = "Mechanical";
-  } else {
-    branchFullForm = "Unknown Branch";
-  }
+const usernamePart = (user?.email?.split("@")[0]) || "";
+const firstTwo = usernamePart.substring(0, 2).toUpperCase();
+const nextThree = usernamePart.substring(2, 5).toUpperCase();
 
   return (
     <View
@@ -403,7 +388,7 @@ const UserProfileSafety = ({
                       },
                     ]}
                   >
-                    <Text>{branchFullForm}</Text>
+                    <Text>{nextThree}</Text>
                   </Text>
                 </View>
                 <View
