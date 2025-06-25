@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   Alert,
   StyleSheet,
   Dimensions,
+  Modal,
+  TextInput,
+  Linking,
 } from "react-native";
 import { Avatar } from "react-native-paper";
 import {
@@ -29,14 +32,17 @@ import {
   X,
   Lock,
   Unlock,
+  Plus,
+  Edit,
+  Trash2,
 } from "lucide-react-native";
+import { supabase } from "../lib/supabase";
 import {
   parseEmailInfo,
   calculateAcademicYear,
   isValidLNMIITEmail,
   generateAvatarFromName,
 } from "../lib/utils";
-import { supabase } from "../lib/supabase";
 
 interface UserProfileSafetyProps {
   user?: {
@@ -92,15 +98,7 @@ const UserProfileSafetyEnhanced = ({
     phone: "+91 99999 00000",
     ridesCompleted: 25,
   },
-  emergencyContacts = [
-    { id: "1", name: "Parent", phone: "+91 99887 76655", relation: "Father" },
-    {
-      id: "2",
-      name: "Emergency",
-      phone: "+91 88776 65544",
-      relation: "Mother",
-    },
-  ],
+  emergencyContacts: initialEmergencyContacts = [],
   rideHistory = [],
   busBookings = [],
   isDarkMode = false,
@@ -112,12 +110,186 @@ const UserProfileSafetyEnhanced = ({
   const [locationSharing, setLocationSharing] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
+  // Emergency contacts state
+  const [emergencyContacts, setEmergencyContacts] = useState<
+    Array<{
+      id: string;
+      name: string;
+      phone: string;
+      relation: string;
+    }>
+  >([]);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<any>(null);
+  const [contactForm, setContactForm] = useState({
+    name: "",
+    phone: "",
+    relation: "",
+  });
+
   const emailInfo = parseEmailInfo(user.email);
   const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
+  // Load emergency contacts from database
+  useEffect(() => {
+    fetchEmergencyContacts();
+  }, []);
+
+  const fetchEmergencyContacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("emergency_contacts")
+        .select("*")
+        .eq("user_id", user.email)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setEmergencyContacts(
+          data.map((contact) => ({
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            relation: contact.relation,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching emergency contacts:", error);
+    }
+  };
+
+  const saveEmergencyContact = async () => {
+    if (
+      !contactForm.name.trim() ||
+      !contactForm.phone.trim() ||
+      !contactForm.relation.trim()
+    ) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    try {
+      if (editingContact) {
+        // Update existing contact
+        const { error } = await supabase
+          .from("emergency_contacts")
+          .update({
+            name: contactForm.name.trim(),
+            phone: contactForm.phone.trim(),
+            relation: contactForm.relation.trim(),
+          })
+          .eq("id", editingContact.id);
+
+        if (error) throw error;
+
+        setEmergencyContacts((prev) =>
+          prev.map((contact) =>
+            contact.id === editingContact.id
+              ? { ...contact, ...contactForm }
+              : contact
+          )
+        );
+      } else {
+        // Add new contact
+        const { data, error } = await supabase
+          .from("emergency_contacts")
+          .insert([
+            {
+              user_id: user.email,
+              name: contactForm.name.trim(),
+              phone: contactForm.phone.trim(),
+              relation: contactForm.relation.trim(),
+            },
+          ])
+          .select();
+
+        if (error) throw error;
+
+        if (data && data[0]) {
+          setEmergencyContacts((prev) => [
+            ...prev,
+            {
+              id: data[0].id,
+              name: data[0].name,
+              phone: data[0].phone,
+              relation: data[0].relation,
+            },
+          ]);
+        }
+      }
+
+      closeContactModal();
+      Alert.alert(
+        "Success",
+        editingContact ? "Contact updated!" : "Contact added!"
+      );
+    } catch (error) {
+      console.error("Error saving emergency contact:", error);
+      Alert.alert("Error", "Failed to save contact. Please try again.");
+    }
+  };
+
+  const deleteEmergencyContact = async (contactId: string) => {
+    Alert.alert(
+      "Delete Contact",
+      "Are you sure you want to delete this emergency contact?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("emergency_contacts")
+                .delete()
+                .eq("id", contactId);
+
+              if (error) throw error;
+
+              setEmergencyContacts((prev) =>
+                prev.filter((contact) => contact.id !== contactId)
+              );
+              Alert.alert("Success", "Contact deleted!");
+            } catch (error) {
+              console.error("Error deleting emergency contact:", error);
+              Alert.alert(
+                "Error",
+                "Failed to delete contact. Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openContactModal = (contact?: any) => {
+    if (contact) {
+      setEditingContact(contact);
+      setContactForm({
+        name: contact.name,
+        phone: contact.phone,
+        relation: contact.relation,
+      });
+    } else {
+      setEditingContact(null);
+      setContactForm({ name: "", phone: "", relation: "" });
+    }
+    setShowContactModal(true);
+  };
+
+  const closeContactModal = () => {
+    setShowContactModal(false);
+    setEditingContact(null);
+    setContactForm({ name: "", phone: "", relation: "" });
+  };
+
   const handleSOS = () => {
     Alert.alert(
-      "Emergency SOS",
+      "🚨 Emergency SOS",
       "This will immediately notify your emergency contacts and campus security. Only use in real emergencies.",
       [
         { text: "Cancel", style: "cancel" },
@@ -125,12 +297,75 @@ const UserProfileSafetyEnhanced = ({
           text: "Send SOS",
           style: "destructive",
           onPress: () => {
-            // TODO: Implement actual SOS functionality
-            Alert.alert("SOS Sent", "Emergency contacts have been notified!");
+            // Show countdown alert
+            Alert.alert(
+              "🚨 SOS Activated",
+              "Emergency contacts notified! Automatically calling first contact in 8 seconds...\n\nPress OK to call immediately or Cancel to stop auto-call.",
+              [
+                {
+                  text: "Cancel Auto-Call",
+                  style: "cancel",
+                  onPress: () => {
+                    Alert.alert(
+                      "SOS Sent",
+                      "Emergency contacts have been notified!"
+                    );
+                  },
+                },
+                {
+                  text: "Call Now",
+                  style: "destructive",
+                  onPress: () => callFirstEmergencyContact(),
+                },
+                {
+                  text: "OK",
+                  onPress: () => {
+                    // Start 8-second countdown
+                    setTimeout(() => {
+                      callFirstEmergencyContact();
+                    }, 8000);
+                    Alert.alert(
+                      "SOS Sent",
+                      "Emergency contacts notified! Auto-calling in 8 seconds..."
+                    );
+                  },
+                },
+              ]
+            );
           },
         },
       ]
     );
+  };
+
+  const callFirstEmergencyContact = () => {
+    if (emergencyContacts.length > 0) {
+      const firstContact = emergencyContacts[0];
+      const phoneNumber = firstContact.phone.replace(/[^0-9+]/g, ""); // Clean phone number
+      const phoneUrl = `tel:${phoneNumber}`;
+
+      Alert.alert(
+        "📞 Calling Emergency Contact",
+        `Calling ${firstContact.name} (${firstContact.relation})\n${firstContact.phone}`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Call",
+            onPress: () => {
+              Linking.openURL(phoneUrl).catch((err) => {
+                Alert.alert("Error", "Unable to make phone call");
+                console.error("Call error:", err);
+              });
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "No Emergency Contacts",
+        "Please add emergency contacts first before using SOS feature."
+      );
+    }
   };
 
   const renderStars = (rating: number) => {
@@ -151,7 +386,7 @@ const UserProfileSafetyEnhanced = ({
   const tabs = [
     { key: "profile", title: "Profile", icon: User },
     { key: "safety", title: "Safety", icon: Shield },
-    { key: "bookings", title: "Bookings", icon: Bus },
+    { key: "bookings", title: "Bookings", icon: Car },
   ];
 
   return (
@@ -526,38 +761,80 @@ const UserProfileSafetyEnhanced = ({
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Emergency Contacts
-              </Text>
+              <View style={styles.sectionHeader}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                  ]}
+                >
+                  Emergency Contacts
+                </Text>
+                <TouchableOpacity
+                  style={styles.addContactButton}
+                  onPress={() => openContactModal()}
+                >
+                  <Plus size={20} color="#4CAF50" />
+                </TouchableOpacity>
+              </View>
 
-              {emergencyContacts.map((contact) => (
-                <View key={contact.id} style={styles.contactItem}>
-                  <Phone size={20} color="#6B7280" />
-                  <View style={styles.contactInfo}>
-                    <Text
-                      style={[
-                        styles.contactName,
-                        { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                      ]}
-                    >
-                      {contact.name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.contactPhone,
-                        { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                      ]}
-                    >
-                      {contact.phone} • {contact.relation}
-                    </Text>
+              {emergencyContacts.length > 0 ? (
+                emergencyContacts.map((contact) => (
+                  <View key={contact.id} style={styles.contactItem}>
+                    <Phone size={20} color="#6B7280" />
+                    <View style={styles.contactInfo}>
+                      <Text
+                        style={[
+                          styles.contactName,
+                          { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                        ]}
+                      >
+                        {contact.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.contactPhone,
+                          { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                        ]}
+                      >
+                        {contact.phone} • {contact.relation}
+                      </Text>
+                    </View>
+                    <View style={styles.contactActions}>
+                      <TouchableOpacity
+                        style={styles.contactActionButton}
+                        onPress={() => openContactModal(contact)}
+                      >
+                        <Edit size={16} color="#6B7280" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.contactActionButton}
+                        onPress={() => deleteEmergencyContact(contact.id)}
+                      >
+                        <Trash2 size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
+                ))
+              ) : (
+                <View style={styles.emptyContacts}>
+                  <Text
+                    style={[
+                      styles.emptyText,
+                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                    ]}
+                  >
+                    No emergency contacts added yet
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.addFirstContactButton}
+                    onPress={() => openContactModal()}
+                  >
+                    <Plus size={16} color="#FFFFFF" />
+                    <Text style={styles.addFirstContactText}>Add Contact</Text>
+                  </TouchableOpacity>
                 </View>
-              ))}
+              )}
             </View>
           </View>
         )}
@@ -605,24 +882,6 @@ const UserProfileSafetyEnhanced = ({
                         {ride.date} • {ride.driver}
                       </Text>
                     </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            ride.status === "completed"
-                              ? "#10B981"
-                              : ride.status === "cancelled"
-                              ? "#EF4444"
-                              : "#F59E0B",
-                        },
-                      ]}
-                    >
-                      <Text style={styles.statusText}>
-                        {ride.status.charAt(0).toUpperCase() +
-                          ride.status.slice(1)}
-                      </Text>
-                    </View>
                   </View>
                 ))
               ) : (
@@ -636,85 +895,158 @@ const UserProfileSafetyEnhanced = ({
                 </Text>
               )}
             </View>
-
-            {/* Bus Bookings */}
-            <View
-              style={[
-                styles.section,
-                {
-                  backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                  borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Bus Bookings
-              </Text>
-
-              {busBookings.length > 0 ? (
-                busBookings.slice(0, 3).map((booking) => (
-                  <View key={booking.id} style={styles.historyItem}>
-                    <Bus size={20} color="#6B7280" />
-                    <View style={styles.historyInfo}>
-                      <Text
-                        style={[
-                          styles.historyRoute,
-                          { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                        ]}
-                      >
-                        {booking.busRoute}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.historyDate,
-                          { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                        ]}
-                      >
-                        Seat {booking.seatNumber} • {booking.departureTime}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            booking.status === "active"
-                              ? "#10B981"
-                              : booking.status === "expired"
-                              ? "#EF4444"
-                              : "#F59E0B",
-                        },
-                      ]}
-                    >
-                      <Text style={styles.statusText}>
-                        {booking.status.charAt(0).toUpperCase() +
-                          booking.status.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text
-                  style={[
-                    styles.emptyText,
-                    { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                  ]}
-                >
-                  No bus bookings yet
-                </Text>
-              )}
-            </View>
           </View>
         )}
       </ScrollView>
 
+      {/* Emergency Contact Modal */}
+      <Modal
+        visible={showContactModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeContactModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF" },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text
+                style={[
+                  styles.modalTitle,
+                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                ]}
+              >
+                {editingContact ? "Edit Contact" : "Add Emergency Contact"}
+              </Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={closeContactModal}
+              >
+                <X size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formContainer}>
+              <View style={styles.inputGroup}>
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
+                  ]}
+                >
+                  Name
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
+                      borderColor: isDarkMode ? "#4B5563" : "#D1D5DB",
+                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                    },
+                  ]}
+                  value={contactForm.name}
+                  onChangeText={(text) =>
+                    setContactForm((prev) => ({ ...prev, name: text }))
+                  }
+                  placeholder="Enter contact name"
+                  placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
+                  ]}
+                >
+                  Phone Number
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
+                      borderColor: isDarkMode ? "#4B5563" : "#D1D5DB",
+                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                    },
+                  ]}
+                  value={contactForm.phone}
+                  onChangeText={(text) =>
+                    setContactForm((prev) => ({ ...prev, phone: text }))
+                  }
+                  placeholder="+91 XXXXX XXXXX"
+                  placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
+                  ]}
+                >
+                  Relationship
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
+                      borderColor: isDarkMode ? "#4B5563" : "#D1D5DB",
+                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                    },
+                  ]}
+                  value={contactForm.relation}
+                  onChangeText={(text) =>
+                    setContactForm((prev) => ({ ...prev, relation: text }))
+                  }
+                  placeholder="e.g., Father, Mother, Guardian"
+                  placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
+                />
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.cancelButton,
+                  { backgroundColor: isDarkMode ? "#374151" : "#F3F4F6" },
+                ]}
+                onPress={closeContactModal}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={saveEmergencyContact}
+              >
+                <Save size={16} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>
+                  {editingContact ? "Update" : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Edit Profile Modal */}
-     
     </View>
   );
 };
@@ -1031,10 +1363,71 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
+    backgroundColor: "#4CAF50",
     gap: 8,
   },
   saveButtonText: {
     color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Emergency Contact Styles
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  addContactButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+  },
+  contactActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  contactActionButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+  },
+  emptyContacts: {
+    alignItems: "center",
+    paddingVertical: 32,
+  },
+  addFirstContactButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#4CAF50",
+    borderRadius: 8,
+    gap: 8,
+  },
+  addFirstContactText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Modal Styles
+  formContainer: {
+    padding: 20,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+  },
+  modalButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  modalButtonText: {
     fontSize: 14,
     fontWeight: "600",
   },

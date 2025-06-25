@@ -34,6 +34,7 @@ import {
   Timer,
   AlertCircle,
   Bell,
+  Search,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -1212,38 +1213,70 @@ const StudentCarpoolSystem = ({
           { backgroundColor: isDarkMode ? "#000" : "#F5F7FA" },
         ]}
       >
-        {/* Search Bar with Menu and Notifications */}
+        {/* Enhanced Search Bar with Menu and Notifications */}
         <View style={styles.searchContainer}>
-          <TouchableOpacity onPress={onToggleSidebar} style={styles.menuBtn}>
-            <Menu size={24} color={isDarkMode ? "#FFF" : "#000"} />
-          </TouchableOpacity>
-          <Searchbar
-            placeholder="Search..."
-            onChangeText={setSearchQuery}
-            value={searchQuery}
+          <TouchableOpacity
+            onPress={onToggleSidebar}
             style={[
-              styles.searchBar,
+              styles.menuBtn,
               {
-                backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF",
-                borderWidth: 1,
-                borderColor: isDarkMode ? "#333" : "#E0E0E0",
-                elevation: 2,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 2,
+                backgroundColor: isDarkMode
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.05)",
               },
             ]}
-            inputStyle={{ color: isDarkMode ? "#FFF" : "#000" }}
-            iconColor={isDarkMode ? "#CCC" : "#666"}
-          />
+          >
+            <Menu size={22} color={isDarkMode ? "#FFF" : "#333"} />
+          </TouchableOpacity>
+
+          <View
+            style={[
+              styles.enhancedSearchWrapper,
+              {
+                backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF",
+                borderColor: isDarkMode ? "#333" : "#E5E7EB",
+                shadowColor: isDarkMode ? "#000" : "#000",
+              },
+            ]}
+          >
+            <Search
+              size={18}
+              color={isDarkMode ? "#9CA3AF" : "#6B7280"}
+              style={styles.searchIcon}
+            />
+            <TextInput
+              placeholder="Search..."
+              placeholderTextColor={isDarkMode ? "#6B7280" : "#9CA3AF"}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={[
+                styles.enhancedSearchInput,
+                { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+              ]}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                style={styles.clearButton}
+              >
+                <X size={16} color={isDarkMode ? "#6B7280" : "#9CA3AF"} />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Notification Bell */}
           <TouchableOpacity
-            style={styles.notificationIcon}
+            style={[
+              styles.notificationIcon,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.05)",
+              },
+            ]}
             onPress={() => setShowNotifications(true)}
           >
-            <Bell size={20} color={isDarkMode ? "#CCC" : "#666"} />
+            <Bell size={18} color={isDarkMode ? "#FFF" : "#333"} />
             {unreadNotifications > 0 && (
               <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText}>
@@ -1254,10 +1287,17 @@ const StudentCarpoolSystem = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.filterIcon}
+            style={[
+              styles.filterIcon,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.05)",
+              },
+            ]}
             onPress={() => setShowFilterModal(true)}
           >
-            <Filter size={20} color={isDarkMode ? "#CCC" : "#666"} />
+            <Filter size={18} color={isDarkMode ? "#FFF" : "#333"} />
           </TouchableOpacity>
         </View>
 
@@ -2375,14 +2415,58 @@ const styles = StyleSheet.create({
     maxWidth: 220, // Limit the maximum width
     borderRadius: 12,
   },
+  enhancedSearchWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    gap: 12,
+  },
+  searchIcon: {
+    opacity: 0.7,
+  },
+  enhancedSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
   menuBtn: {
-    padding: 8,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  notificationIcon: {
+    padding: 12,
+    borderRadius: 12,
+    position: "relative",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterIcon: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#F5F5F5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -2953,11 +3037,6 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  notificationIcon: {
-    padding: 8,
-    borderRadius: 12,
-    position: "relative",
   },
   notificationBadge: {
     position: "absolute",

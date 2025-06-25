@@ -27,6 +27,7 @@ import {
   Info,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { parseEmailInfo } from "../lib/utils";
 
 // Enhanced Interfaces
 interface BusSchedule {
@@ -101,24 +102,11 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
   onToggleSidebar,
   sidebarVisible = false,
 }) => {
-  // State Management
-  const [currentView, setCurrentView] = useState<"list" | "seats" | "bookings">(
-    "list"
-  );
+  // State Management (Schedule-only)
   const [scheduleType, setScheduleType] = useState<"weekday" | "weekend">(
     "weekday"
   );
-  const [selectedBus, setSelectedBus] = useState<BusSchedule | null>(null);
-  const [busSeats, setBusSeats] = useState<BusSeat[]>([]);
-  const [selectedSeat, setSelectedSeat] = useState<string>("");
-  const [bookings, setBookings] = useState<BusBooking[]>(busBookings);
-  const [showSeatUnavailableModal, setShowSeatUnavailableModal] =
-    useState(false);
-  const [globalBookedSeats, setGlobalBookedSeats] = useState<{
-    [busId: string]: string[];
-  }>(bookedSeats);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchVisible, setSearchVisible] = useState(false);
   const [timeFilter, setTimeFilter] = useState<
     "all" | "morning" | "afternoon" | "evening"
   >("all");
@@ -631,1487 +619,234 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
   const filteredBuses = getFilteredBuses();
   const isWeekend = scheduleType === "weekend";
 
-  // Generate bus seat layout with 2+2 configuration
-  const generateBusSeats = (busId: string): BusSeat[] => {
-    const seats: BusSeat[] = [];
-    const totalRows = 11; // 11 rows for 44 seats (2+2 configuration)
-    const bookedSeatsForBus = globalBookedSeats[busId] || [];
+  // Removed seat generation and bus selection functions - schedule-only view
 
-    for (let row = 1; row <= totalRows; row++) {
-      // Left side seats (A, B)
-      for (let pos = 1; pos <= 2; pos++) {
-        const seatId = `${row}${String.fromCharCode(64 + pos)}`;
-        const isBookedGlobally = bookedSeatsForBus.includes(seatId);
-        const isRandomBooked = Math.random() > 0.7;
-        const isFaculty = row <= 2 && Math.random() > 0.5;
-        const isBooked = isBookedGlobally || isRandomBooked;
+  // Removed booking restriction functions - schedule-only view
 
-        seats.push({
-          id: seatId,
-          row,
-          position: pos,
-          seatNumber: seatId,
-          isAvailable: !isBooked && !isFaculty,
-          isBooked,
-          isFaculty,
-          isSelected: false,
-        });
-      }
+  // Removed booking handler and seat styling functions - schedule-only view
 
-      // Right side seats (C, D)
-      for (let pos = 3; pos <= 4; pos++) {
-        const seatId = `${row}${String.fromCharCode(64 + pos)}`;
-        const isBookedGlobally = bookedSeatsForBus.includes(seatId);
-        const isRandomBooked = Math.random() > 0.7;
-        const isFaculty = row <= 2 && Math.random() > 0.5;
-        const isBooked = isBookedGlobally || isRandomBooked;
+  // Removed seat selection render function completely - schedule-only view
 
-        seats.push({
-          id: seatId,
-          row,
-          position: pos,
-          seatNumber: seatId,
-          isAvailable: !isBooked && !isFaculty,
-          isBooked,
-          isFaculty,
-          isSelected: false,
-        });
-      }
-    }
+  // Removed bookings render function completely - schedule-only view
 
-    return seats;
-  };
-
-  // Bus selection handler
-  const handleBusSelect = (bus: BusSchedule) => {
-    setSelectedBus(bus);
-    setBusSeats(generateBusSeats(bus.id));
-    setSelectedSeat("");
-    setCurrentView("seats");
-  };
-
-  // Helper function to check consecutive seat restriction
-  const isConsecutiveSeat = (targetSeat: BusSeat): boolean => {
-    const targetRow = targetSeat.row;
-    const targetPosition = targetSeat.position;
-
-    // Check if user has any existing booking on this bus
-    const userBookingsOnBus = bookings.filter(
-      (booking) =>
-        booking.status === "active" && booking.busId === selectedBus?.id
-    );
-
-    return userBookingsOnBus.some((booking) => {
-      const seatNumber = booking.seatNumber;
-      const seatMatch = seatNumber.match(/(\d+)([A-D])/);
-      if (!seatMatch) return false;
-
-      const bookedRow = parseInt(seatMatch[1]);
-      const bookedPosition = seatMatch[2].charCodeAt(0) - "A".charCodeAt(0) + 1;
-
-      // Check if it's the same row and adjacent position
-      return (
-        bookedRow === targetRow &&
-        Math.abs(bookedPosition - targetPosition) === 1
-      );
-    });
-  };
-
-  // Seat selection handler
-  const handleSeatSelect = (seat: BusSeat) => {
-    if (!seat.isAvailable) {
-      setShowSeatUnavailableModal(true);
-      return;
-    }
-
-    // Check for consecutive seat booking restriction
-    if (!seat.isSelected && isConsecutiveSeat(seat)) {
-      Alert.alert(
-        "⚠️ Consecutive Seat Restriction",
-        "You cannot book consecutive seats to ensure fair distribution among students.\n\nPlease select a non-adjacent seat.",
-        [{ text: "OK", style: "cancel" }]
-      );
-      return;
-    }
-
-    // Allow only single seat selection
-    const updatedSeats = busSeats.map((s) => ({
-      ...s,
-      isSelected: s.id === seat.id ? !s.isSelected : false,
-    }));
-
-    setBusSeats(updatedSeats);
-    setSelectedSeat(seat.isSelected ? "" : seat.id);
-  };
-
-  // Helper function to check if user can book within 2-hour time slot
-  const canBookInTimeSlot = (
-    targetDepartureTime: string
-  ): { canBook: boolean; conflictingBooking?: BusBooking } => {
-    const targetTime = new Date();
-    const [hours, minutes] = targetDepartureTime.split(":").map(Number);
-    targetTime.setHours(hours, minutes, 0, 0);
-
-    // Check existing active bookings for conflicts within 2-hour window
-    const conflictingBooking = bookings.find((booking) => {
-      if (booking.status !== "active") return false;
-
-      const bookingTime = new Date();
-      const [bookingHours, bookingMinutes] = booking.departureTime
-        .split(":")
-        .map(Number);
-      bookingTime.setHours(bookingHours, bookingMinutes, 0, 0);
-
-      // Check if the new booking is within 2 hours of existing booking
-      const timeDiff = Math.abs(targetTime.getTime() - bookingTime.getTime());
-      const twoHoursInMs = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
-
-      return timeDiff < twoHoursInMs;
-    });
-
-    return {
-      canBook: !conflictingBooking,
-      conflictingBooking,
-    };
-  };
-
-  // Book seat handler
-  const handleBookSeat = () => {
-    if (!selectedBus || !selectedSeat) {
-      Alert.alert("Error", "Please select a seat to book.");
-      return;
-    }
-
-    // Check if user can book within this time slot
-    const { canBook, conflictingBooking } = canBookInTimeSlot(
-      selectedBus.departureTime
-    );
-
-    if (!canBook && conflictingBooking) {
-      Alert.alert(
-        "⚠️ Booking Restriction",
-        `You already have a booking for ${conflictingBooking.busRoute} at ${conflictingBooking.departureTime}.\n\nTo ensure fair access for all students, you can only book one seat within a 2-hour time window.\n\nPlease cancel your existing booking or choose a bus departing at least 2 hours apart.`,
-        [
-          {
-            text: "View My Bookings",
-            onPress: () => setCurrentView("bookings"),
-          },
-          {
-            text: "Choose Different Time",
-            style: "cancel",
-            onPress: () => {
-              setSelectedBus(null);
-              setSelectedSeat("");
-              setCurrentView("list");
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    const newBooking: BusBooking = {
-      id: Date.now().toString(),
-      busId: selectedBus.id,
-      busRoute: selectedBus.routeName,
-      seatNumber: selectedSeat,
-      departureTime: selectedBus.departureTime,
-      bookingTime: new Date(),
-      status: "active",
-    };
-
-    const updatedBookings = [...bookings, newBooking];
-    setBookings(updatedBookings);
-    onUpdateBookings?.(updatedBookings);
-
-    // Update global booked seats
-    const updatedGlobalBookedSeats = {
-      ...globalBookedSeats,
-      [selectedBus.id]: [
-        ...(globalBookedSeats[selectedBus.id] || []),
-        selectedSeat,
-      ],
-    };
-    setGlobalBookedSeats(updatedGlobalBookedSeats);
-    onUpdateBookedSeats?.(updatedGlobalBookedSeats);
-
-    // Update bus available seats
-    const updatedSchedules = busSchedules.map((bus) =>
-      bus.id === selectedBus.id
-        ? { ...bus, availableSeats: bus.availableSeats - 1 }
-        : bus
-    );
-    setBusSchedules(updatedSchedules);
-
-    // Regenerate seats to show the booked seat
-    setBusSeats(generateBusSeats(selectedBus.id));
-    setSelectedSeat("");
-
-    Alert.alert(
-      "Success! 🎉",
-      `Seat ${selectedSeat} booked successfully for ${selectedBus.routeName}.\n\nDeparture: ${selectedBus.departureTime}\n\n⏰ Remember: You can book another seat only after 2 hours from this departure time to ensure fair access for all students.`,
-      [
-        {
-          text: "View Bookings",
-          onPress: () => setCurrentView("bookings"),
-        },
-        {
-          text: "Back to Buses",
-          onPress: () => setCurrentView("list"),
-        },
-      ]
-    );
-  };
-
-  // Utility functions for styling
-  const getSeatColor = (seat: BusSeat) => {
-    if (seat.isSelected) return "#4CAF50"; // Green for selected
-    if (seat.isBooked) return "#F44336"; // Red for booked
-    if (seat.isFaculty) return "#000000"; // Black for faculty
-    return "#E0E0E0"; // Gray for available
-  };
-
-  const getSeatBorderColor = (seat: BusSeat) => {
-    if (seat.isSelected) return "#2E7D32";
-    if (seat.isBooked) return "#C62828";
-    if (seat.isFaculty) return "#424242";
-    return "#BDBDBD";
-  };
-
-  // Render enhanced bus card with colorful themes
+  // Redesigned bus card with ride card inspiration - better spacing and hierarchy
   const renderBusCard = (bus: BusSchedule) => {
-    const getBorderColor = (color: string) => {
-      const colorMap: { [key: string]: string } = {
-        "#E3F2FD": "#1976D2", // Blue
-        "#F3E5F5": "#7B1FA2", // Purple
-        "#E8F5E8": "#388E3C", // Green
-        "#FFF3E0": "#F57C00", // Orange
-        "#FFEBEE": "#D32F2F", // Red
-      };
-      return colorMap[color] || "#000000";
+    // Enhanced departure status logic
+    const getDepartureStatus = () => {
+      const now = new Date();
+      const departure = new Date();
+      const [time, period] = bus.departureTime.split(" ");
+      const [hours, minutes] = time.split(":").map(Number);
+
+      let hour24 = hours;
+      if (period === "PM" && hours !== 12) hour24 += 12;
+      if (period === "AM" && hours === 12) hour24 = 0;
+
+      departure.setHours(hour24, minutes, 0, 0);
+      const diffMinutes = (departure.getTime() - now.getTime()) / (1000 * 60);
+
+      if (diffMinutes < 0) {
+        return {
+          status: "departed",
+          message: "Departed",
+          color: "#9CA3AF",
+          bgColor: "#F9FAFB",
+          borderColor: "#E5E7EB",
+        };
+      } else if (diffMinutes <= 30) {
+        return {
+          status: "boarding",
+          message: "Boarding Now",
+          color: "#F59E0B",
+          bgColor: "#FEF3C7",
+          borderColor: "#FCD34D",
+        };
+      } else if (diffMinutes <= 60) {
+        return {
+          status: "soon",
+          message: "Departing Soon",
+          color: "#10B981",
+          bgColor: "#D1FAE5",
+          borderColor: "#6EE7B7",
+        };
+      } else {
+        return {
+          status: "scheduled",
+          message: "Scheduled",
+          color: "#3B82F6",
+          bgColor: "#DBEAFE",
+          borderColor: "#93C5FD",
+        };
+      }
     };
 
-    // Check if user is restricted from booking this bus
-    const { canBook, conflictingBooking } = canBookInTimeSlot(
-      bus.departureTime
-    );
-    const isRestricted = !canBook;
+    const statusInfo = getDepartureStatus();
 
     return (
-      <TouchableOpacity
+      <View
         key={bus.id}
         style={[
           styles.busCard,
           {
-            backgroundColor: isDarkMode ? "#1F2937" : bus.color,
-            borderColor: getBorderColor(bus.color),
-            borderWidth: 2,
+            backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
+            borderLeftColor: statusInfo.color,
+            borderLeftWidth: 4,
+            opacity: statusInfo.status === "departed" ? 0.8 : 1,
+            shadowColor: statusInfo.color,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
           },
         ]}
-        onPress={() => handleBusSelect(bus)}
       >
-        <View style={styles.busCardHeader}>
-          <View style={styles.busIconContainer}>
-            <Bus size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
-          </View>
-          <View style={styles.busInfoContainer}>
-            <Text
+        {/* Header with bus info and status */}
+        <View style={styles.busHeader}>
+          <View style={styles.busIconSection}>
+            <View
               style={[
-                styles.routeName,
-                { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                styles.busIcon,
+                {
+                  backgroundColor: statusInfo.color,
+                },
               ]}
             >
-              {bus.routeName}
-            </Text>
-            <View style={styles.routeDetails}>
-              <MapPin size={14} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
+              <Bus size={20} color="#FFFFFF" />
+            </View>
+            <View style={styles.busTitleSection}>
               <Text
                 style={[
-                  styles.routeText,
-                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                  styles.busTitle,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                {bus.routeName}
+              </Text>
+              <Text
+                style={[
+                  styles.busRoute,
+                  { color: isDarkMode ? "#D1D5DB" : "#6B7280" },
                 ]}
               >
                 {bus.origin} → {bus.destination}
               </Text>
             </View>
           </View>
-        </View>
 
-        <View style={styles.busCardBody}>
-          <View style={styles.timeContainer}>
-            <Clock size={16} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
-            <Text
-              style={[
-                styles.timeText,
-                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-              ]}
-            >
-              {bus.departureTime} - {bus.arrivalTime}
-            </Text>
-          </View>
-
-          <View style={styles.seatsContainer}>
-            <Users size={16} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
-            <Text
-              style={[
-                styles.seatsText,
-                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-              ]}
-            >
-              {(() => {
-                const now = new Date();
-                const departure = new Date();
-                const [time, period] = bus.departureTime.split(" ");
-                const [hours, minutes] = time.split(":").map(Number);
-
-                let hour24 = hours;
-                if (period === "PM" && hours !== 12) hour24 += 12;
-                if (period === "AM" && hours === 12) hour24 = 0;
-
-                departure.setHours(hour24, minutes, 0, 0);
-
-                const diffMinutes =
-                  (departure.getTime() - now.getTime()) / (1000 * 60);
-                const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
-
-                return isWithin30Minutes
-                  ? `${bus.availableSeats}/${bus.totalSeats} seats`
-                  : "Schedule Info";
-              })()}
-            </Text>
-          </View>
-        </View>
-
-        {bus.driverNotification && (
           <View
             style={[
-              styles.notificationContainer,
-              { backgroundColor: isDarkMode ? "#FEF3C7" : "#FEF3C7" },
-            ]}
-          >
-            <AlertCircle size={14} color="#F59E0B" />
-            <Text style={styles.notificationText}>
-              {bus.driverNotification}
-            </Text>
-          </View>
-        )}
-
-        {isRestricted && conflictingBooking && (
-          <View
-            style={[
-              styles.restrictionContainer,
-              { backgroundColor: isDarkMode ? "#7C2D12" : "#FEF2F2" },
-            ]}
-          >
-            <AlertCircle size={14} color="#EF4444" />
-            <Text style={[styles.restrictionText, { color: "#EF4444" }]}>
-              Booking restricted due to existing booking at{" "}
-              {conflictingBooking.departureTime}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.busCardFooter}>
-          <Text
-            style={[
-              styles.readyToBookText,
+              styles.statusBadge,
               {
-                color: isRestricted
-                  ? isDarkMode
-                    ? "#6B7280"
-                    : "#9CA3AF"
-                  : isDarkMode
-                  ? "#9CA3AF"
-                  : "#6B7280",
+                backgroundColor: statusInfo.color,
               },
             ]}
           >
-            {isRestricted ? "Booking restricted" : "Ready to book"}
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.bookButton,
-              {
-                backgroundColor: (() => {
-                  const now = new Date();
-                  const departure = new Date();
-                  const [time, period] = bus.departureTime.split(" ");
-                  const [hours, minutes] = time.split(":").map(Number);
+            <Text style={styles.statusText}>{statusInfo.message}</Text>
+          </View>
+        </View>
 
-                  let hour24 = hours;
-                  if (period === "PM" && hours !== 12) hour24 += 12;
-                  if (period === "AM" && hours === 12) hour24 = 0;
+        {/* Time and seat information */}
+        <View
+          style={[
+            styles.busDetails,
+            {
+              backgroundColor: isDarkMode ? "#374151" : statusInfo.bgColor,
+            },
+          ]}
+        >
+          <View style={styles.busDetailItem}>
+            <View style={styles.detailIcon}>
+              <Clock size={16} color={statusInfo.color} />
+            </View>
+            <View>
+              <Text style={styles.detailLabel}>Departure</Text>
+              <Text
+                style={[
+                  styles.detailValue,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                {bus.departureTime}
+              </Text>
+            </View>
+          </View>
 
-                  departure.setHours(hour24, minutes, 0, 0);
+          <View style={styles.busDetailItem}>
+            <View style={styles.detailIcon}>
+              <MapPin size={16} color={statusInfo.color} />
+            </View>
+            <View>
+              <Text style={styles.detailLabel}>Arrival</Text>
+              <Text
+                style={[
+                  styles.detailValue,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                {bus.arrivalTime}
+              </Text>
+            </View>
+          </View>
 
-                  const diffMinutes =
-                    (departure.getTime() - now.getTime()) / (1000 * 60);
-                  const isWithin30Minutes =
-                    diffMinutes <= 30 && diffMinutes >= 0;
+          <View style={styles.busDetailItem}>
+            <View style={styles.detailIcon}>
+              <Users size={16} color={statusInfo.color} />
+            </View>
+            <View>
+              <Text style={styles.detailLabel}>Available</Text>
+              <Text
+                style={[
+                  styles.detailValue,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                {bus.availableSeats}/{bus.totalSeats}
+              </Text>
+            </View>
+          </View>
+        </View>
 
-                  if (!isWithin30Minutes) {
-                    return isDarkMode ? "#4B5563" : "#E5E7EB";
-                  }
-
-                  return isRestricted
-                    ? isDarkMode
-                      ? "#4B5563"
-                      : "#E5E7EB"
-                    : isDarkMode
-                    ? "#FFFFFF"
-                    : "#000000";
-                })(),
-                opacity: (() => {
-                  const now = new Date();
-                  const departure = new Date();
-                  const [time, period] = bus.departureTime.split(" ");
-                  const [hours, minutes] = time.split(":").map(Number);
-
-                  let hour24 = hours;
-                  if (period === "PM" && hours !== 12) hour24 += 12;
-                  if (period === "AM" && hours === 12) hour24 = 0;
-
-                  departure.setHours(hour24, minutes, 0, 0);
-
-                  const diffMinutes =
-                    (departure.getTime() - now.getTime()) / (1000 * 60);
-                  const isWithin30Minutes =
-                    diffMinutes <= 30 && diffMinutes >= 0;
-
-                  return !isWithin30Minutes || isRestricted ? 0.6 : 1;
-                })(),
-              },
-            ]}
-            onPress={() => {
-              const now = new Date();
-              const departure = new Date();
-              const [time, period] = bus.departureTime.split(" ");
-              const [hours, minutes] = time.split(":").map(Number);
-
-              let hour24 = hours;
-              if (period === "PM" && hours !== 12) hour24 += 12;
-              if (period === "AM" && hours === 12) hour24 = 0;
-
-              departure.setHours(hour24, minutes, 0, 0);
-
-              const diffMinutes =
-                (departure.getTime() - now.getTime()) / (1000 * 60);
-              const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
-
-              if (!isWithin30Minutes) {
+        {/* Action button */}
+        <View style={styles.busActions}>
+          {statusInfo.status === "departed" ? (
+            <View style={styles.departedIndicator}>
+              <Check size={16} color="#9CA3AF" />
+              <Text style={styles.departedText}>Departed</Text>
+            </View>
+          ) : statusInfo.status === "boarding" ? (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.boardingButton]}
+              onPress={() => {
                 Alert.alert(
-                  "ℹ️ Information Only",
-                  `Seat booking will be available 30 minutes before departure.\n\nDeparture Time: ${bus.departureTime}\n\nThis is currently showing schedule information only.`,
-                  [{ text: "OK", style: "default" }]
+                  "🚌 Boarding Alert",
+                  `Bus ${bus.routeName} is boarding now! Hurry to the boarding point.`,
+                  [{ text: "Got it!", style: "default" }]
                 );
-                return;
-              }
-
-              if (isRestricted) {
-                Alert.alert(
-                  "⚠️ Booking Restricted",
-                  `You cannot book this bus as you already have a booking for ${conflictingBooking?.busRoute} at ${conflictingBooking?.departureTime}.\n\nYou can only book one seat within a 2-hour time window.`,
-                  [
-                    {
-                      text: "View My Bookings",
-                      onPress: () => setCurrentView("bookings"),
-                    },
-                    { text: "OK", style: "cancel" },
-                  ]
-                );
-              } else {
-                handleBusSelect(bus);
-              }
-            }}
-          >
-            <Text
-              style={[
-                styles.bookButtonText,
-                {
-                  color: (() => {
-                    const now = new Date();
-                    const departure = new Date();
-                    const [time, period] = bus.departureTime.split(" ");
-                    const [hours, minutes] = time.split(":").map(Number);
-
-                    let hour24 = hours;
-                    if (period === "PM" && hours !== 12) hour24 += 12;
-                    if (period === "AM" && hours === 12) hour24 = 0;
-
-                    departure.setHours(hour24, minutes, 0, 0);
-
-                    const diffMinutes =
-                      (departure.getTime() - now.getTime()) / (1000 * 60);
-                    const isWithin30Minutes =
-                      diffMinutes <= 30 && diffMinutes >= 0;
-
-                    if (!isWithin30Minutes) {
-                      return isDarkMode ? "#9CA3AF" : "#6B7280";
-                    }
-
-                    return isRestricted
-                      ? isDarkMode
-                        ? "#9CA3AF"
-                        : "#6B7280"
-                      : isDarkMode
-                      ? "#000000"
-                      : "#FFFFFF";
-                  })(),
-                },
-              ]}
+              }}
             >
-              {(() => {
-                const now = new Date();
-                const departure = new Date();
-                const [time, period] = bus.departureTime.split(" ");
-                const [hours, minutes] = time.split(":").map(Number);
-
-                let hour24 = hours;
-                if (period === "PM" && hours !== 12) hour24 += 12;
-                if (period === "AM" && hours === 12) hour24 = 0;
-
-                departure.setHours(hour24, minutes, 0, 0);
-
-                const diffMinutes =
-                  (departure.getTime() - now.getTime()) / (1000 * 60);
-                const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
-
-                if (!isWithin30Minutes) {
-                  return "View Info";
-                }
-
-                return isRestricted ? "Restricted" : "Select Seat";
-              })()}
-            </Text>
-            {(() => {
-              const now = new Date();
-              const departure = new Date();
-              const [time, period] = bus.departureTime.split(" ");
-              const [hours, minutes] = time.split(":").map(Number);
-
-              let hour24 = hours;
-              if (period === "PM" && hours !== 12) hour24 += 12;
-              if (period === "AM" && hours === 12) hour24 = 0;
-
-              departure.setHours(hour24, minutes, 0, 0);
-
-              const diffMinutes =
-                (departure.getTime() - now.getTime()) / (1000 * 60);
-              const isWithin30Minutes = diffMinutes <= 30 && diffMinutes >= 0;
-
-              return isWithin30Minutes && !isRestricted ? (
-                <ArrowRight
-                  size={16}
-                  color={isDarkMode ? "#000000" : "#FFFFFF"}
-                />
-              ) : (
-                <Info size={16} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
-              );
-            })()}
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  // Render enhanced seat selection interface
-  const renderSeatSelection = () => (
-    <View
-      style={[
-        styles.seatContainer,
-        { backgroundColor: isDarkMode ? "#000000" : "#FFFFFF" },
-      ]}
-    >
-      {/* Professional Header */}
-      <View
-        style={[
-          styles.seatHeader,
-          {
-            backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-            borderBottomColor: isDarkMode ? "#374151" : "#E5E7EB",
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={[
-            styles.backButton,
-            {
-              backgroundColor: isDarkMode ? "#374151" : "#F3F4F6",
-              borderRadius: 12,
-              padding: 8,
-            },
-          ]}
-          onPress={() => setCurrentView("list")}
-        >
-          <ArrowLeft size={20} color={isDarkMode ? "#FFFFFF" : "#000000"} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text
-            style={[
-              styles.seatHeaderTitle,
-              { color: isDarkMode ? "#FFFFFF" : "#000000" },
-            ]}
-          >
-            Choose Your Seat
-          </Text>
-          <Text
-            style={[
-              styles.seatHeaderSubtitle,
-              { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-            ]}
-          >
-            Select your preferred seat for the journey
-          </Text>
-        </View>
-      </View>
-
-      {/* Enhanced Bus Info Card */}
-      {selectedBus && (
-        <View
-          style={[
-            styles.busInfoCardEnhanced,
-            {
-              backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-              borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-            },
-          ]}
-        >
-          <View style={styles.busInfoHeader}>
-            <Text
-              style={[
-                styles.busInfoRouteTitle,
-                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-              ]}
-            >
-              {selectedBus.routeName}
-            </Text>
-            <View
-              style={[styles.busStatusBadge, { backgroundColor: "#4CAF50" }]}
-            >
-              <Text style={styles.busStatusText}>ACTIVE</Text>
-            </View>
-          </View>
-
-          <View style={styles.busInfoGrid}>
-            <View style={styles.busInfoGridItem}>
-              <MapPin size={18} color="#4CAF50" />
-              <Text
-                style={[
-                  styles.busInfoLabel,
-                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                ]}
-              >
-                From
-              </Text>
-              <Text
-                style={[
-                  styles.busInfoValue,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                {selectedBus.origin}
-              </Text>
-            </View>
-            <View style={styles.busInfoGridDivider}>
-              <ArrowRight
-                size={16}
-                color={isDarkMode ? "#9CA3AF" : "#6B7280"}
-              />
-            </View>
-            <View style={styles.busInfoGridItem}>
-              <MapPin size={18} color="#FF9800" />
-              <Text
-                style={[
-                  styles.busInfoLabel,
-                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                ]}
-              >
-                To
-              </Text>
-              <Text
-                style={[
-                  styles.busInfoValue,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                {selectedBus.destination}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.busInfoFooterEnhanced}>
-            <View style={styles.busInfoTimeRow}>
-              <Clock size={16} color="#2196F3" />
-              <Text
-                style={[
-                  styles.busInfoTimeText,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                {selectedBus.departureTime}
-              </Text>
-            </View>
-            <View style={styles.busInfoSeatsRow}>
-              <Users size={16} color="#9C27B0" />
-              <Text
-                style={[
-                  styles.busInfoSeatsText,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                {selectedBus.availableSeats} available
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Enhanced Seat Legend */}
-      <View
-        style={[
-          styles.seatLegendEnhanced,
-          {
-            backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-            borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.legendTitle,
-            { color: isDarkMode ? "#FFFFFF" : "#000000" },
-          ]}
-        >
-          Seat Legend
-        </Text>
-        <View style={styles.legendGrid}>
-          <View style={styles.legendItemEnhanced}>
-            <View
-              style={[
-                styles.legendSeatEnhanced,
-                { backgroundColor: "#E0E0E0", borderColor: "#BDBDBD" },
-              ]}
-            />
-            <Text
-              style={[
-                styles.legendTextEnhanced,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              Available
-            </Text>
-          </View>
-          <View style={styles.legendItemEnhanced}>
-            <View
-              style={[
-                styles.legendSeatEnhanced,
-                { backgroundColor: "#4CAF50", borderColor: "#2E7D32" },
-              ]}
-            >
-              <Check size={12} color="#FFFFFF" />
-            </View>
-            <Text
-              style={[
-                styles.legendTextEnhanced,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              Selected
-            </Text>
-          </View>
-          <View style={styles.legendItemEnhanced}>
-            <View
-              style={[
-                styles.legendSeatEnhanced,
-                { backgroundColor: "#F44336", borderColor: "#C62828" },
-              ]}
-            />
-            <Text
-              style={[
-                styles.legendTextEnhanced,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              Booked
-            </Text>
-          </View>
-          <View style={styles.legendItemEnhanced}>
-            <View
-              style={[
-                styles.legendSeatEnhanced,
-                { backgroundColor: "#000000", borderColor: "#424242" },
-              ]}
-            />
-            <Text
-              style={[
-                styles.legendTextEnhanced,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              Faculty
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Enhanced Bus Layout */}
-      <ScrollView
-        style={styles.seatGridEnhanced}
-        contentContainerStyle={styles.seatScrollContent}
-      >
-        <View
-          style={[
-            styles.busLayoutEnhanced,
-            { backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF" },
-          ]}
-        >
-          {/* Driver Section */}
-          <View
-            style={[
-              styles.driverSection,
-              { backgroundColor: isDarkMode ? "#374151" : "#F3F4F6" },
-            ]}
-          >
-            <View style={styles.driverIcon}>
-              <Text style={styles.driverEmoji}>👨‍💼</Text>
-            </View>
-            <Text
-              style={[
-                styles.driverLabelEnhanced,
-                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-              ]}
-            >
-              Driver
-            </Text>
-          </View>
-
-          {/* Seat Grid */}
-          <View style={styles.seatRows}>
-            {Array.from({ length: 11 }, (_, rowIndex) => {
-              const row = rowIndex + 1;
-              const rowSeats = busSeats.filter((seat) => seat.row === row);
-              const leftSeats = rowSeats.filter((seat) => seat.position <= 2);
-              const rightSeats = rowSeats.filter((seat) => seat.position > 2);
-
-              return (
-                <View key={row} style={styles.seatRowEnhanced}>
-                  <Text
-                    style={[
-                      styles.rowNumber,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    {row}
-                  </Text>
-
-                  <View style={styles.seatGroupEnhanced}>
-                    {leftSeats.map((seat) => (
-                      <TouchableOpacity
-                        key={seat.id}
-                        style={[
-                          styles.seatEnhanced,
-                          {
-                            backgroundColor: getSeatColor(seat),
-                            borderColor: getSeatBorderColor(seat),
-                          },
-                        ]}
-                        onPress={() => handleSeatSelect(seat)}
-                        disabled={!seat.isAvailable}
-                      >
-                        <Text
-                          style={[
-                            styles.seatNumberEnhanced,
-                            {
-                              color:
-                                seat.isSelected || seat.isFaculty
-                                  ? "#FFFFFF"
-                                  : "#000000",
-                            },
-                          ]}
-                        >
-                          {seat.seatNumber}
-                        </Text>
-                        {seat.isSelected && (
-                          <View style={styles.selectedIcon}>
-                            <Check size={8} color="#FFFFFF" />
-                          </View>
-                        )}
-                        {seat.isBooked && !seat.isSelected && (
-                          <View style={styles.bookedIcon}>
-                            <X size={8} color="#FFFFFF" />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <View
-                    style={[
-                      styles.aisleEnhanced,
-                      { backgroundColor: isDarkMode ? "#374151" : "#E5E7EB" },
-                    ]}
-                  />
-
-                  <View style={styles.seatGroupEnhanced}>
-                    {rightSeats.map((seat) => (
-                      <TouchableOpacity
-                        key={seat.id}
-                        style={[
-                          styles.seatEnhanced,
-                          {
-                            backgroundColor: getSeatColor(seat),
-                            borderColor: getSeatBorderColor(seat),
-                          },
-                        ]}
-                        onPress={() => handleSeatSelect(seat)}
-                        disabled={!seat.isAvailable}
-                      >
-                        <Text
-                          style={[
-                            styles.seatNumberEnhanced,
-                            {
-                              color:
-                                seat.isSelected || seat.isFaculty
-                                  ? "#FFFFFF"
-                                  : "#000000",
-                            },
-                          ]}
-                        >
-                          {seat.seatNumber}
-                        </Text>
-                        {seat.isSelected && (
-                          <View style={styles.selectedIcon}>
-                            <Check size={8} color="#FFFFFF" />
-                          </View>
-                        )}
-                        {seat.isBooked && !seat.isSelected && (
-                          <View style={styles.bookedIcon}>
-                            <X size={8} color="#FFFFFF" />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.rowNumber,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    {row}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Enhanced Booking Footer */}
-      {selectedSeat && (
-        <View
-          style={[
-            styles.bookingFooterEnhanced,
-            {
-              backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-              borderTopColor: isDarkMode ? "#374151" : "#E5E7EB",
-            },
-          ]}
-        >
-          <View style={styles.selectedSeatInfoEnhanced}>
-            <View style={styles.selectedSeatHeader}>
-              <Check size={16} color="#4CAF50" />
-              <Text
-                style={[
-                  styles.selectedSeatTextEnhanced,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Seat {selectedSeat}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.selectedSeatSubtext,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              {selectedBus?.routeName} • {selectedBus?.departureTime}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.confirmButtonEnhanced,
-              { backgroundColor: "#4CAF50" },
-            ]}
-            onPress={handleBookSeat}
-          >
-            <Text style={styles.confirmButtonTextEnhanced}>
-              Confirm Booking
-            </Text>
-            <ArrowRight size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-
-  // Render enhanced bookings interface
-  const renderBookings = () => {
-    // Separate active and completed bookings
-    const activeBookings = bookings.filter(
-      (booking) => booking.status === "active"
-    );
-    const completedBookings = bookings.filter(
-      (booking) => booking.status !== "active"
-    );
-
-    const getBookingCardColor = (booking: BusBooking, index: number) => {
-      const colors = ["#E3F2FD", "#F3E5F5", "#E8F5E8", "#FFF3E0", "#FFEBEE"];
-      return colors[index % colors.length];
-    };
-
-    const getStatusColor = (status: string) => {
-      switch (status) {
-        case "active":
-          return "#4CAF50";
-        case "completed":
-          return "#2196F3";
-        case "expired":
-          return "#FF9800";
-        default:
-          return "#9CA3AF";
-      }
-    };
-
-    const getStatusIcon = (status: string) => {
-      switch (status) {
-        case "active":
-          return "🟢";
-        case "completed":
-          return "✅";
-        case "expired":
-          return "⏰";
-        default:
-          return "⚪";
-      }
-    };
-
-    return (
-      <View
-        style={[
-          styles.modernBookingsContainer,
-          { backgroundColor: isDarkMode ? "#000000" : "#F8FAFC" },
-        ]}
-      >
-        {/* Enhanced Header */}
-        <View
-          style={[
-            styles.modernBookingsHeader,
-            {
-              backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={[
-              styles.modernBackButton,
-              {
-                backgroundColor: isDarkMode ? "#374151" : "#F3F4F6",
-              },
-            ]}
-            onPress={() => setCurrentView("list")}
-          >
-            <ArrowLeft size={20} color={isDarkMode ? "#FFFFFF" : "#000000"} />
-          </TouchableOpacity>
-
-          <View style={styles.modernHeaderContent}>
-            <Text
-              style={[
-                styles.modernBookingsTitle,
-                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-              ]}
-            >
-              My Bookings
-            </Text>
-            <Text
-              style={[
-                styles.modernBookingsSubtitle,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              {bookings.length} total booking{bookings.length !== 1 ? "s" : ""}
-            </Text>
-          </View>
-
-          <View style={styles.modernHeaderStats}>
-            <View style={[styles.statBadge, { backgroundColor: "#4CAF50" }]}>
-              <Text style={styles.statBadgeText}>{activeBookings.length}</Text>
-            </View>
-          </View>
-        </View>
-
-        <ScrollView
-          style={styles.modernBookingsList}
-          showsVerticalScrollIndicator={false}
-        >
-          {bookings.length === 0 ? (
-            <View style={styles.modernEmptyState}>
-              <View style={styles.emptyStateIconContainer}>
-                <Text style={styles.emptyStateIcon}>🚌</Text>
-              </View>
-              <Text
-                style={[
-                  styles.modernEmptyStateTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                No bookings yet
-              </Text>
-              <Text
-                style={[
-                  styles.modernEmptyStateSubtext,
-                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                ]}
-              >
-                Book your first bus seat to get started with your campus
-                transportation
-              </Text>
-              <TouchableOpacity
-                style={styles.emptyStateButton}
-                onPress={() => setCurrentView("list")}
-              >
-                <Text style={styles.emptyStateButtonText}>Browse Buses</Text>
-                <ArrowRight size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+              <Bus size={16} color="#FFFFFF" />
+              <Text style={styles.boardingButtonText}>Board Now</Text>
+            </TouchableOpacity>
           ) : (
-            <>
-              {/* Active Bookings Section */}
-              {activeBookings.length > 0 && (
-                <View style={styles.bookingSection}>
-                  <View style={styles.sectionHeader}>
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                      ]}
-                    >
-                      🟢 Active Bookings
-                    </Text>
-                    <Text
-                      style={[
-                        styles.sectionCount,
-                        { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                      ]}
-                    >
-                      {activeBookings.length} booking
-                      {activeBookings.length !== 1 ? "s" : ""}
-                    </Text>
-                  </View>
-
-                  {activeBookings.map((booking, index) => (
-                    <View
-                      key={booking.id}
-                      style={[
-                        styles.modernBookingCard,
-                        {
-                          backgroundColor: isDarkMode
-                            ? "#1F2937"
-                            : getBookingCardColor(booking, index),
-                        },
-                      ]}
-                    >
-                      <View style={styles.modernBookingHeader}>
-                        <View style={styles.modernBookingIconSection}>
-                          <View
-                            style={[
-                              styles.modernBookingIcon,
-                              {
-                                backgroundColor: getStatusColor(booking.status),
-                              },
-                            ]}
-                          >
-                            <Bus size={20} color="#FFFFFF" />
-                          </View>
-                          <View style={styles.modernBookingTitleSection}>
-                            <Text
-                              style={[
-                                styles.modernBookingRoute,
-                                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                              ]}
-                            >
-                              {booking.busRoute}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.modernBookingTime,
-                                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                              ]}
-                            >
-                              Departure: {booking.departureTime}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.modernStatusBadge,
-                            { backgroundColor: getStatusColor(booking.status) },
-                          ]}
-                        >
-                          <Text style={styles.modernStatusText}>
-                            {getStatusIcon(booking.status)}{" "}
-                            {booking.status.toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.modernBookingDetails}>
-                        <View style={styles.detailRow}>
-                          <View style={styles.detailItem}>
-                            <Text style={styles.detailIcon}>🪑</Text>
-                            <Text
-                              style={[
-                                styles.detailLabel,
-                                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                              ]}
-                            >
-                              Seat Number
-                            </Text>
-                            <Text
-                              style={[
-                                styles.detailValue,
-                                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                              ]}
-                            >
-                              {booking.seatNumber}
-                            </Text>
-                          </View>
-
-                          <View style={styles.detailItem}>
-                            <Text style={styles.detailIcon}>📅</Text>
-                            <Text
-                              style={[
-                                styles.detailLabel,
-                                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                              ]}
-                            >
-                              Booked On
-                            </Text>
-                            <Text
-                              style={[
-                                styles.detailValue,
-                                { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                              ]}
-                            >
-                              {booking.bookingTime.toLocaleDateString()}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View style={styles.modernBookingActions}>
-                          <TouchableOpacity
-                            style={[
-                              styles.actionButton,
-                              { backgroundColor: "#EF4444" },
-                            ]}
-                            onPress={() => {
-                              Alert.alert(
-                                "Cancel Booking",
-                                `Are you sure you want to cancel your booking for seat ${booking.seatNumber} on ${booking.busRoute}?`,
-                                [
-                                  { text: "Keep Booking", style: "cancel" },
-                                  {
-                                    text: "Cancel Booking",
-                                    style: "destructive",
-                                    onPress: () => {
-                                      const updatedBookings = bookings.filter(
-                                        (b) => b.id !== booking.id
-                                      );
-                                      setBookings(updatedBookings);
-                                      onUpdateBookings?.(updatedBookings);
-
-                                      // Update global booked seats
-                                      const updatedGlobalBookedSeats = {
-                                        ...globalBookedSeats,
-                                      };
-                                      if (
-                                        updatedGlobalBookedSeats[booking.busId]
-                                      ) {
-                                        updatedGlobalBookedSeats[
-                                          booking.busId
-                                        ] = updatedGlobalBookedSeats[
-                                          booking.busId
-                                        ].filter(
-                                          (seat) => seat !== booking.seatNumber
-                                        );
-                                      }
-                                      setGlobalBookedSeats(
-                                        updatedGlobalBookedSeats
-                                      );
-                                      onUpdateBookedSeats?.(
-                                        updatedGlobalBookedSeats
-                                      );
-
-                                      Alert.alert(
-                                        "✅ Booking Cancelled",
-                                        "Your booking has been cancelled successfully."
-                                      );
-                                    },
-                                  },
-                                ]
-                              );
-                            }}
-                          >
-                            <X size={14} color="#FFFFFF" />
-                            <Text style={styles.actionButtonText}>Cancel</Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.actionButton,
-                              { backgroundColor: "#4CAF50" },
-                            ]}
-                            onPress={() => {
-                              Alert.alert(
-                                "🚌 Booking Details",
-                                `Route: ${booking.busRoute}\nSeat: ${
-                                  booking.seatNumber
-                                }\nDeparture: ${
-                                  booking.departureTime
-                                }\nStatus: ${
-                                  booking.status
-                                }\nBooked: ${booking.bookingTime.toLocaleDateString()}`,
-                                [{ text: "OK" }]
-                              );
-                            }}
-                          >
-                            <Info size={14} color="#FFFFFF" />
-                            <Text style={styles.actionButtonText}>Details</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Completed Bookings Section */}
-              {completedBookings.length > 0 && (
-                <View style={styles.bookingSection}>
-                  <View style={styles.sectionHeader}>
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                      ]}
-                    >
-                      📋 Booking History
-                    </Text>
-                    <Text
-                      style={[
-                        styles.sectionCount,
-                        { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                      ]}
-                    >
-                      {completedBookings.length} booking
-                      {completedBookings.length !== 1 ? "s" : ""}
-                    </Text>
-                  </View>
-
-                  {completedBookings.map((booking, index) => (
-                    <View
-                      key={booking.id}
-                      style={[
-                        styles.modernBookingCard,
-                        styles.completedBookingCard,
-                        {
-                          backgroundColor: isDarkMode ? "#111827" : "#F8F9FA",
-                          opacity: 0.8,
-                        },
-                      ]}
-                    >
-                      <View style={styles.modernBookingHeader}>
-                        <View style={styles.modernBookingIconSection}>
-                          <View
-                            style={[
-                              styles.modernBookingIcon,
-                              {
-                                backgroundColor: getStatusColor(booking.status),
-                              },
-                            ]}
-                          >
-                            <Bus size={20} color="#FFFFFF" />
-                          </View>
-                          <View style={styles.modernBookingTitleSection}>
-                            <Text
-                              style={[
-                                styles.modernBookingRoute,
-                                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                              ]}
-                            >
-                              {booking.busRoute}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.modernBookingTime,
-                                { color: isDarkMode ? "#6B7280" : "#9CA3AF" },
-                              ]}
-                            >
-                              Departure: {booking.departureTime}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.modernStatusBadge,
-                            { backgroundColor: getStatusColor(booking.status) },
-                          ]}
-                        >
-                          <Text style={styles.modernStatusText}>
-                            {getStatusIcon(booking.status)}{" "}
-                            {booking.status.toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.modernBookingDetails}>
-                        <View style={styles.detailRow}>
-                          <View style={styles.detailItem}>
-                            <Text style={styles.detailIcon}>🪑</Text>
-                            <Text
-                              style={[
-                                styles.detailLabel,
-                                { color: isDarkMode ? "#6B7280" : "#9CA3AF" },
-                              ]}
-                            >
-                              Seat: {booking.seatNumber}
-                            </Text>
-                          </View>
-
-                          <View style={styles.detailItem}>
-                            <Text style={styles.detailIcon}>📅</Text>
-                            <Text
-                              style={[
-                                styles.detailLabel,
-                                { color: isDarkMode ? "#6B7280" : "#9CA3AF" },
-                              ]}
-                            >
-                              Booked: {booking.bookingTime.toLocaleDateString()}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.notifyButton]}
+              onPress={() => {
+                Alert.alert(
+                  "🔔 Notification Set",
+                  `You'll be notified 30 minutes before ${bus.routeName} departure at ${bus.departureTime}`,
+                  [{ text: "Perfect!", style: "default" }]
+                );
+              }}
+            >
+              <AlertCircle size={16} color={statusInfo.color} />
+              <Text
+                style={[styles.notifyButtonText, { color: statusInfo.color }]}
+              >
+                Notify Me
+              </Text>
+            </TouchableOpacity>
           )}
-        </ScrollView>
+        </View>
       </View>
     );
   };
@@ -2163,17 +898,20 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
 
           <TouchableOpacity
             style={[
-              styles.modernBookingsButton,
+              styles.notificationButton,
               {
-                backgroundColor: isDarkMode ? "#4CAF50" : "#4CAF50",
+                backgroundColor: isDarkMode ? "#3B82F6" : "#3B82F6",
               },
             ]}
-            onPress={() => setCurrentView("bookings")}
+            onPress={() =>
+              Alert.alert(
+                "Notifications",
+                "Get notified 30 minutes before departure for selected routes"
+              )
+            }
           >
-            <Calendar size={16} color="#FFFFFF" />
-            <Text style={styles.modernBookingsText}>
-              My Bookings ({bookings.length})
-            </Text>
+            <Bus size={16} color="#FFFFFF" />
+            <Text style={styles.notificationButtonText}>Schedule</Text>
           </TouchableOpacity>
         </View>
 
@@ -2206,128 +944,68 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
         )}
       </View>
 
-      {/* Enhanced Simple Schedule Toggle */}
-      <View style={styles.scheduleToggleSection}>
-        <View
-          style={[
-            styles.toggleContainer,
-            {
-              backgroundColor: isDarkMode ? "#374151" : "#F3F4F6",
-              marginHorizontal: 20,
-              borderRadius: 16,
-              padding: 6,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
-            },
-          ]}
-        >
-          <TouchableOpacity
+      {/* Enhanced Time Filter Section */}
+      <View style={styles.enhancedTimeFilterSection}>
+        <View style={styles.filterHeader}>
+          <Text
             style={[
-              styles.toggleButton,
-              scheduleType === "weekday" && styles.activeToggle,
-              {
-                backgroundColor:
-                  scheduleType === "weekday" ? "#2196F3" : "transparent",
-                borderRadius: 12,
-                paddingVertical: 14,
-                shadowColor:
-                  scheduleType === "weekday" ? "#2196F3" : "transparent",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: scheduleType === "weekday" ? 0.3 : 0,
-                shadowRadius: 4,
-                elevation: scheduleType === "weekday" ? 3 : 0,
-              },
+              styles.filterTitle,
+              { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
             ]}
-            onPress={() => setScheduleType("weekday")}
           >
-            <Text
-              style={[
-                styles.toggleText,
-                scheduleType === "weekday" && styles.activeToggleText,
-                {
-                  color:
-                    scheduleType === "weekday"
-                      ? "#FFFFFF"
-                      : isDarkMode
-                      ? "#D1D5DB"
-                      : "#6B7280",
-                  fontWeight: scheduleType === "weekday" ? "700" : "600",
-                  fontSize: 15,
-                },
-              ]}
-            >
-              📚 Weekdays (Mon. to Fri.)
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
+            ⏰ Filter by Time
+          </Text>
+          <Text
             style={[
-              styles.toggleButton,
-              scheduleType === "weekend" && styles.activeToggle,
-              {
-                backgroundColor:
-                  scheduleType === "weekend" ? "#9C27B0" : "transparent",
-                borderRadius: 12,
-                paddingVertical: 14,
-                shadowColor:
-                  scheduleType === "weekend" ? "#9C27B0" : "transparent",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: scheduleType === "weekend" ? 0.3 : 0,
-                shadowRadius: 4,
-                elevation: scheduleType === "weekend" ? 3 : 0,
-              },
+              styles.filterDescription,
+              { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
             ]}
-            onPress={() => setScheduleType("weekend")}
           >
-            <Text
-              style={[
-                styles.toggleText,
-                scheduleType === "weekend" && styles.activeToggleText,
-                {
-                  color:
-                    scheduleType === "weekend"
-                      ? "#FFFFFF"
-                      : isDarkMode
-                      ? "#D1D5DB"
-                      : "#6B7280",
-                  fontWeight: scheduleType === "weekend" ? "700" : "600",
-                  fontSize: 15,
-                },
-              ]}
-            >
-              🎉 Weekends & Holidays
-            </Text>
-          </TouchableOpacity>
+            Select your preferred travel time
+          </Text>
         </View>
-      </View>
-
-      {/* Time Filter Tabs */}
-      <View style={styles.timeFilterSection}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.filterScrollHorizontal}
-          contentContainerStyle={styles.filterScrollContent}
+          contentContainerStyle={styles.enhancedFilterScrollContent}
         >
           {[
-            { key: "all", label: "All", emoji: "🚌", color: "#4CAF50" },
-            { key: "morning", label: "Morning", emoji: "🌅", color: "#FF9800" },
+            {
+              key: "all",
+              label: "All Times",
+              emoji: "🚌",
+              color: "#4CAF50",
+              description: "View all",
+            },
+            {
+              key: "morning",
+              label: "Morning",
+              emoji: "🌅",
+              color: "#FF9800",
+              description: "6AM - 12PM",
+            },
             {
               key: "afternoon",
               label: "Afternoon",
               emoji: "☀️",
               color: "#2196F3",
+              description: "12PM - 6PM",
             },
-            { key: "evening", label: "Evening", emoji: "🌆", color: "#9C27B0" },
-          ].map((filter) => (
+            {
+              key: "evening",
+              label: "Evening",
+              emoji: "🌆",
+              color: "#9C27B0",
+              description: "6PM - 10PM",
+            },
+          ].map((filter, index) => (
             <TouchableOpacity
               key={filter.key}
               style={[
-                styles.modernFilterChip,
-                timeFilter === filter.key && styles.activeFilterChip,
+                styles.enhancedFilterChip,
+                timeFilter === filter.key && styles.enhancedActiveFilterChip,
+                index === 0 && { marginLeft: -8 },
                 {
                   backgroundColor:
                     timeFilter === filter.key
@@ -2341,35 +1019,54 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
                       : isDarkMode
                       ? "#4B5563"
                       : "#E5E7EB",
-                  shadowColor:
-                    timeFilter === filter.key ? filter.color : "#000",
+                  shadowColor: filter.color,
+                  shadowOpacity: timeFilter === filter.key ? 0.3 : 0.1,
+                  shadowRadius: timeFilter === filter.key ? 8 : 4,
+                  elevation: timeFilter === filter.key ? 6 : 2,
                 },
               ]}
               onPress={() => setTimeFilter(filter.key as any)}
             >
-              <Text style={styles.filterEmoji}>{filter.emoji}</Text>
-              <Text
-                style={[
-                  styles.modernFilterText,
-                  {
-                    color:
-                      timeFilter === filter.key
-                        ? "#FFFFFF"
-                        : isDarkMode
-                        ? "#FFFFFF"
-                        : "#000000",
-                  },
-                ]}
-              >
-                {filter.label}
-              </Text>
-              {timeFilter === filter.key && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>
-                    {filteredBuses.length}
-                  </Text>
-                </View>
-              )}
+              <View style={styles.filterChipContent}>
+                <Text style={styles.enhancedFilterEmoji}>{filter.emoji}</Text>
+                <Text
+                  style={[
+                    styles.enhancedFilterLabel,
+                    {
+                      color:
+                        timeFilter === filter.key
+                          ? "#FFFFFF"
+                          : isDarkMode
+                          ? "#FFFFFF"
+                          : "#1F2937",
+                    },
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.enhancedFilterDescription,
+                    {
+                      color:
+                        timeFilter === filter.key
+                          ? "#FFFFFF"
+                          : isDarkMode
+                          ? "#9CA3AF"
+                          : "#6B7280",
+                    },
+                  ]}
+                >
+                  {filter.description}
+                </Text>
+                {timeFilter === filter.key && (
+                  <View style={styles.enhancedFilterBadge}>
+                    <Text style={styles.enhancedFilterBadgeText}>
+                      {filteredBuses.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -2377,16 +1074,107 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
 
       {/* Bus Cards */}
       <ScrollView style={styles.busListScroll}>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: isDarkMode ? "#FFFFFF" : "#000000" },
-          ]}
-        >
-          {scheduleType === "weekend"
-            ? "🎉 Weekends & Holidays Schedule"
-            : "📚 Weekdays Schedule (Monday to Friday)"}
-        </Text>
+        <View style={styles.enhancedSectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionIconContainer}>
+              <Bus size={28} color="#3B82F6" />
+            </View>
+            <View style={styles.sectionTitleContent}>
+              <Text
+                style={[
+                  styles.enhancedSectionTitle,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                Live Bus Schedule
+              </Text>
+              <Text
+                style={[
+                  styles.enhancedSectionSubtitle,
+                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                ]}
+              >
+                Real-time departure & arrival information
+              </Text>
+            </View>
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          </View>
+          <View style={styles.scheduleStats}>
+            <View style={styles.statItem}>
+              <Text
+                style={[
+                  styles.statNumber,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                {filteredBuses.length}
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                ]}
+              >
+                Available
+              </Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text
+                style={[
+                  styles.statNumber,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                {
+                  filteredBuses.filter((bus) => {
+                    const now = new Date();
+                    const departure = new Date();
+                    const [time, period] = bus.departureTime.split(" ");
+                    const [hours, minutes] = time.split(":").map(Number);
+                    let hour24 = hours;
+                    if (period === "PM" && hours !== 12) hour24 += 12;
+                    if (period === "AM" && hours === 12) hour24 = 0;
+                    departure.setHours(hour24, minutes, 0, 0);
+                    const diffMinutes =
+                      (departure.getTime() - now.getTime()) / (1000 * 60);
+                    return diffMinutes <= 30 && diffMinutes > 0;
+                  }).length
+                }
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                ]}
+              >
+                Boarding
+              </Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text
+                style={[
+                  styles.statNumber,
+                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+                ]}
+              >
+                4
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                ]}
+              >
+                Routes
+              </Text>
+            </View>
+          </View>
+        </View>
         <Text
           style={[
             styles.busCount,
@@ -2561,7 +1349,7 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
     {
       key: "bookings",
       label: "My Bookings",
-      count: `${bookings.length}`,
+      count: "0",
       color: "#2196F3",
       icon: "🎫",
     },
@@ -2707,7 +1495,13 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
                       { color: isDarkMode ? "#CCCCCC" : "#666666" },
                     ]}
                   >
-                    {currentUser?.branch} • {currentUser?.year}
+                    {(() => {
+                      if (currentUser?.email) {
+                        const emailInfo = parseEmailInfo(currentUser.email);
+                        return emailInfo.branchFull;
+                      }
+                      return currentUser?.branch || "Unknown Branch";
+                    })()}
                   </Text>
                   <View style={styles.userRating}>
                     {renderStars(Math.floor(currentUser?.rating || 4.5))}
@@ -2867,11 +1661,14 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
                     {
                       icon: "🎫",
                       label: "Recent Bookings",
-                      count: bookings.length,
+                      count: busBookings.length,
                       color: "#9C27B0",
                       action: () => {
                         onToggleSidebar?.();
-                        setCurrentView("bookings");
+                        Alert.alert(
+                          "Recent Bookings",
+                          "This feature shows your booking history and is coming soon!"
+                        );
                       },
                     },
                   ].map((item, index) => (
@@ -2962,53 +1759,9 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
           { backgroundColor: isDarkMode ? "#000000" : "#FFFFFF" },
         ]}
       >
-        <View style={styles.container}>
-          {currentView === "list" && renderBusList()}
-          {currentView === "seats" && renderSeatSelection()}
-          {currentView === "bookings" && renderBookings()}
-        </View>
+        <View style={styles.container}>{renderBusList()}</View>
 
-        {/* Seat Unavailable Modal */}
-        <Modal
-          visible={showSeatUnavailableModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowSeatUnavailableModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View
-              style={[
-                styles.modalContent,
-                { backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF" },
-              ]}
-            >
-              <AlertCircle size={48} color="#F44336" />
-              <Text
-                style={[
-                  styles.modalTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Seat Unavailable
-              </Text>
-              <Text
-                style={[
-                  styles.modalMessage,
-                  { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                ]}
-              >
-                This seat is already booked or reserved for faculty. Please
-                select a different seat.
-              </Text>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setShowSeatUnavailableModal(false)}
-              >
-                <Text style={styles.modalButtonText}>Got it!</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        {/* Removed seat unavailable modal - schedule-only view */}
       </SafeAreaView>
     </>
   );
@@ -3450,15 +2203,130 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   busCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2,
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  busHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  busIconSection: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flex: 1,
+  },
+  busIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  busTitleSection: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  busTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  busRoute: {
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textTransform: "capitalize",
+  },
+  busDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  busDetailItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  detailIcon: {
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  busActions: {
+    alignItems: "center",
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 6,
+  },
+  boardingButton: {
+    backgroundColor: "#F59E0B",
+  },
+  boardingButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  notifyButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: "#3B82F6",
+  },
+  notifyButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  departedIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  departedText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
   busCardHeader: {
     flexDirection: "row",
@@ -3675,6 +2543,159 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
     textAlign: "center",
+  },
+
+  // Enhanced Time Filter Styles
+  enhancedTimeFilterSection: {
+    paddingLeft: 20,
+    paddingRight: 0,
+    paddingVertical: 16,
+    backgroundColor: "transparent",
+  },
+  filterHeader: {
+    marginBottom: 16,
+  },
+  filterTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  filterDescription: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  enhancedFilterScrollContent: {
+    paddingLeft: 0,
+    paddingRight: 20,
+    gap: 12,
+  },
+  enhancedFilterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    marginRight: 12,
+    minWidth: 120,
+    alignItems: "center",
+  },
+  enhancedActiveFilterChip: {
+    transform: [{ scale: 1.02 }],
+  },
+  filterChipContent: {
+    alignItems: "center",
+    gap: 2,
+  },
+  enhancedFilterEmoji: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  enhancedFilterLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  enhancedFilterDescription: {
+    fontSize: 11,
+    fontWeight: "400",
+    textAlign: "center",
+  },
+  enhancedFilterBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    minWidth: 24,
+    alignItems: "center",
+  },
+  enhancedFilterBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+
+  // Enhanced Section Header Styles
+  enhancedSectionHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: "transparent",
+    marginBottom: 16,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  sectionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  sectionTitleContent: {
+    flex: 1,
+  },
+  enhancedSectionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  enhancedSectionSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  liveIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FFFFFF",
+    marginRight: 4,
+  },
+  liveText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  scheduleStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: 8,
   },
 
   // Legacy Departed Bus Styles (keeping for compatibility)
@@ -4636,6 +3657,445 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
+  },
+
+  // New Schedule-focused styles
+  notificationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  notificationButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  statusText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  notifyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    minWidth: 140,
+  },
+  notifyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  departedText: {
+    fontSize: 14,
+    fontWeight: "500",
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 12,
+  },
+
+  // Section Header Styles
+  sectionHeaderContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginBottom: 8,
+  },
+  modernSectionTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  scheduleInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  scheduleSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    opacity: 0.8,
+  },
+
+  // Compact Bus Card Styles - Optimized for Space
+  compactBusCard: {
+    borderRadius: 16,
+    marginBottom: 12,
+    marginHorizontal: 16,
+    borderLeftWidth: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  compactHeader: {
+    padding: 16,
+    paddingBottom: 12,
+  },
+  compactMainInfo: {
+    gap: 8,
+  },
+  compactRouteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  compactBusIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  compactRouteName: {
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    letterSpacing: 0.3,
+  },
+  compactStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  compactStatusIcon: {
+    fontSize: 12,
+  },
+  compactStatusText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  compactRouteDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: 48,
+  },
+  compactLocationText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  compactInfoGrid: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  compactTimeSection: {
+    flexDirection: "row",
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+  },
+  compactTimeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  compactTimeIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compactTimeDetails: {
+    flex: 1,
+  },
+  compactTimeLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  compactTimeValue: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  compactSeatsSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 50,
+  },
+  compactSeatsValue: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  compactDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: "rgba(0,0,0,0.1)",
+    marginHorizontal: 4,
+  },
+  compactActionSection: {
+    justifyContent: "center",
+    minWidth: 80,
+  },
+  compactActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 4,
+    minWidth: 70,
+  },
+  urgentAction: {
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  compactActionIcon: {
+    fontSize: 12,
+  },
+  compactActionText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  compactDepartedIndicator: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  compactDepartedText: {
+    fontSize: 11,
+    fontWeight: "600",
+    fontStyle: "italic",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  compactBottomAccent: {
+    height: 3,
+    width: "100%",
+  },
+
+  // Modern Bus Card Styles (Legacy)
+  modernBusCard: {
+    borderRadius: 20,
+    marginBottom: 16,
+    marginHorizontal: 20,
+    borderLeftWidth: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: "hidden",
+  },
+  modernBusHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    padding: 20,
+    paddingBottom: 16,
+  },
+  busRouteSection: {
+    flexDirection: "row",
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  busIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  routeInfo: {
+    flex: 1,
+  },
+  modernRouteName: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  modernRouteDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modernLocationText: {
+    fontSize: 14,
+    fontWeight: "600",
+    maxWidth: 80,
+  },
+  arrowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  arrowLine: {
+    width: 20,
+    height: 1,
+    marginRight: 4,
+  },
+  arrowIcon: {
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  modernStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusEmoji: {
+    fontSize: 14,
+  },
+  modernStatusText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  modernInfoGrid: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  timeInfoCard: {
+    flex: 1,
+  },
+  seatsInfoCard: {
+    flex: 1,
+  },
+  timeInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  timeIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  timeInfoText: {
+    flex: 1,
+  },
+  timeLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  timeValue: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  seatsValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  modernActionSection: {
+    padding: 20,
+    paddingTop: 8,
+  },
+  modernActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    gap: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+    position: "relative",
+  },
+  actionButtonIcon: {
+    fontSize: 16,
+  },
+  modernActionText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  urgentPulse: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    opacity: 0.6,
+  },
+  departedIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 8,
+  },
+  departedIcon: {
+    fontSize: 18,
+    color: "#10B981",
+  },
+  departedMessage: {
+    fontSize: 16,
+    fontWeight: "600",
+    fontStyle: "italic",
+  },
+  cardAccent: {
+    height: 4,
+    width: "100%",
+    marginTop: "auto",
   },
 });
 
