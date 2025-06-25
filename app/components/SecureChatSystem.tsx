@@ -78,10 +78,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
   onBack,
   isDarkMode = false,
 }) => {
-  console.log("SecureChatSystem component rendered with:", {
-    rideId,
-    currentUser: currentUser.name,
-  });
+  // SecureChatSystem initialized
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [participants, setParticipants] = useState<ChatParticipant[]>([]);
   const [inputText, setInputText] = useState("");
@@ -109,12 +106,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
 
   const initializeChat = async () => {
     try {
-      console.log(
-        "Initializing chat for ride:",
-        rideId,
-        "user:",
-        currentUser.name
-      );
+      // Initializing chat
       setLoading(true);
 
       // Join chat as participant
@@ -126,7 +118,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
       // Load participants
       await loadParticipants();
 
-      console.log("Chat initialized successfully");
+      // Chat initialized successfully
       setLoading(false);
     } catch (error) {
       console.error("Error initializing chat:", error);
@@ -137,12 +129,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
 
   const joinChatAsParticipant = async () => {
     try {
-      console.log(
-        "Attempting to join chat for user:",
-        currentUser.name,
-        "ride:",
-        rideId
-      );
+      // Joining chat as participant
       const { error } = await supabase.from("chat_participants").upsert(
         {
           ride_id: rideId,
@@ -160,7 +147,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
         console.error("Database error joining chat:", error);
         throw error;
       }
-      console.log("Successfully joined chat as participant");
+      // Successfully joined chat
     } catch (error) {
       console.error("Error joining chat:", error);
       Alert.alert(
@@ -172,7 +159,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
 
   const loadMessages = async () => {
     try {
-      console.log("Loading messages for ride:", rideId);
+      // Loading messages
       const { data, error } = await supabase
         .from("chat_messages")
         .select("*")
@@ -184,7 +171,7 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
         throw error;
       }
 
-      console.log("Loaded", data?.length || 0, "messages");
+      // Messages loaded successfully
       setMessages(data || []);
 
       // Scroll to bottom after loading
@@ -577,10 +564,14 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
   if (loading) {
     return (
       <View
-        style={[
-          styles.loadingContainer,
-          { backgroundColor: isDarkMode ? "#1A202C" : "#FFFFFF" },
-        ]}
+        style={{
+          flex: 1,
+          backgroundColor: isDarkMode ? "#1A202C" : "#FFFFFF",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingTop: Platform.OS === "ios" ? 50 : 30,
+          paddingBottom: Platform.OS === "ios" ? 34 : 20,
+        }}
       >
         <ActivityIndicator size="large" color="#007AFF" />
         <Text
@@ -596,218 +587,188 @@ const SecureChatSystem: React.FC<SecureChatSystemProps> = ({
   }
 
   return (
-    <Modal
-      visible={true}
-      animationType="slide"
-      presentationStyle="overFullScreen"
-      transparent={true}
-      onRequestClose={onBack}
-      statusBarTranslucent={false}
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: isDarkMode ? "#1A202C" : "#FFFFFF",
+        paddingTop: Platform.OS === "ios" ? 50 : 30, // Safe area padding
+        paddingBottom: Platform.OS === "ios" ? 34 : 20, // Bottom safe area
+      }}
     >
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={onBack}
+      {/* Header */}
+      <View
         style={[
-          StyleSheet.absoluteFillObject,
+          styles.header,
           {
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
+            backgroundColor: isDarkMode ? "#2D3748" : "#F7FAFC",
+            borderBottomColor: isDarkMode ? "#4A5568" : "#E2E8F0",
           },
         ]}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={(e) => e.stopPropagation()}
-          style={{ flex: 0 }}
-        >
-          <View
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <ArrowLeft size={24} color={isDarkMode ? "#E2E8F0" : "#2D3748"} />
+        </TouchableOpacity>
+
+        <View style={styles.headerInfo}>
+          <Text
             style={[
-              styles.container,
+              styles.headerTitle,
+              { color: isDarkMode ? "#E2E8F0" : "#2D3748" },
+            ]}
+          >
+            {rideDetails.from} → {rideDetails.to}
+          </Text>
+          <Text
+            style={[
+              styles.headerSubtitle,
+              { color: isDarkMode ? "#A0AEC0" : "#718096" },
+            ]}
+          >
+            {participants.length} participants • {rideDetails.departureTime}
+          </Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => setShowParticipants(true)}
+            style={styles.headerAction}
+          >
+            <Users size={20} color={isDarkMode ? "#E2E8F0" : "#2D3748"} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.headerAction}>
+            <MoreHorizontal
+              size={20}
+              color={isDarkMode ? "#E2E8F0" : "#2D3748"}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Security Notice */}
+      <View
+        style={[
+          styles.securityNotice,
+          { backgroundColor: isDarkMode ? "#2A4A3A" : "#F0FDF4" },
+        ]}
+      >
+        <Shield size={16} color="#10B981" />
+        <Text
+          style={[
+            styles.securityNoticeText,
+            { color: isDarkMode ? "#6EE7B7" : "#047857" },
+          ]}
+        >
+          This chat is secured with end-to-end encryption
+        </Text>
+      </View>
+
+      {/* Reply Banner */}
+      {replyingTo && (
+        <View
+          style={[
+            styles.replyBanner,
+            { backgroundColor: isDarkMode ? "#374151" : "#F3F4F6" },
+          ]}
+        >
+          <View style={styles.replyInfo}>
+            <Text
+              style={[
+                styles.replyingToText,
+                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+              ]}
+            >
+              Replying to {replyingTo.sender_name}
+            </Text>
+            <Text
+              style={[
+                styles.replyPreview,
+                { color: isDarkMode ? "#D1D5DB" : "#374151" },
+              ]}
+              numberOfLines={1}
+            >
+              {replyingTo.message}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={cancelReply}>
+            <X size={20} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Messages - Fixed height container */}
+      <View style={[styles.messagesList, { flex: 1, minHeight: 0 }]}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={[
+            styles.messagesContent,
+            { flexGrow: 1, paddingBottom: 20 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+          keyboardShouldPersistTaps="handled"
+        />
+      </View>
+
+      {/* Input - Fixed at bottom */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+        style={{ backgroundColor: "transparent" }}
+      >
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              backgroundColor: isDarkMode ? "#2D3748" : "#F7FAFC",
+              borderTopColor: isDarkMode ? "#4A5568" : "#E2E8F0",
+            },
+          ]}
+        >
+          <TextInput
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type a message..."
+            placeholderTextColor={isDarkMode ? "#A0AEC0" : "#718096"}
+            style={[
+              styles.textInput,
               {
-                backgroundColor: isDarkMode ? "#1A202C" : "#FFFFFF",
-                height: "90%",
-                borderTopLeftRadius: 20,
-                borderTopRightRadius: 20,
+                backgroundColor: isDarkMode ? "#4A5568" : "#FFFFFF",
+                color: isDarkMode ? "#E2E8F0" : "#2D3748",
+                borderColor: isDarkMode ? "#718096" : "#E2E8F0",
+              },
+            ]}
+            multiline
+            maxLength={1000}
+          />
+          <TouchableOpacity
+            onPress={sendMessage}
+            disabled={!inputText.trim() || sending}
+            style={[
+              styles.sendButton,
+              {
+                backgroundColor:
+                  !inputText.trim() || sending ? "#A0AEC0" : "#007AFF",
+                opacity: !inputText.trim() || sending ? 0.5 : 1,
               },
             ]}
           >
-            {/* Header */}
-            <View
-              style={[
-                styles.header,
-                {
-                  backgroundColor: isDarkMode ? "#2D3748" : "#F7FAFC",
-                  borderBottomColor: isDarkMode ? "#4A5568" : "#E2E8F0",
-                },
-              ]}
-            >
-              <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                <ArrowLeft
-                  size={24}
-                  color={isDarkMode ? "#E2E8F0" : "#2D3748"}
-                />
-              </TouchableOpacity>
-
-              <View style={styles.headerInfo}>
-                <Text
-                  style={[
-                    styles.headerTitle,
-                    { color: isDarkMode ? "#E2E8F0" : "#2D3748" },
-                  ]}
-                >
-                  {rideDetails.from} → {rideDetails.to}
-                </Text>
-                <Text
-                  style={[
-                    styles.headerSubtitle,
-                    { color: isDarkMode ? "#A0AEC0" : "#718096" },
-                  ]}
-                >
-                  {participants.length} participants •{" "}
-                  {rideDetails.departureTime}
-                </Text>
-              </View>
-
-              <View style={styles.headerActions}>
-                <TouchableOpacity
-                  onPress={() => setShowParticipants(true)}
-                  style={styles.headerAction}
-                >
-                  <Users size={20} color={isDarkMode ? "#E2E8F0" : "#2D3748"} />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.headerAction}>
-                  <MoreHorizontal
-                    size={20}
-                    color={isDarkMode ? "#E2E8F0" : "#2D3748"}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Security Notice */}
-            <View
-              style={[
-                styles.securityNotice,
-                { backgroundColor: isDarkMode ? "#2A4A3A" : "#F0FDF4" },
-              ]}
-            >
-              <Shield size={16} color="#10B981" />
-              <Text
-                style={[
-                  styles.securityNoticeText,
-                  { color: isDarkMode ? "#6EE7B7" : "#047857" },
-                ]}
-              >
-                This chat is secured with end-to-end encryption
-              </Text>
-            </View>
-
-            {/* Reply Banner */}
-            {replyingTo && (
-              <View
-                style={[
-                  styles.replyBanner,
-                  { backgroundColor: isDarkMode ? "#374151" : "#F3F4F6" },
-                ]}
-              >
-                <View style={styles.replyInfo}>
-                  <Text
-                    style={[
-                      styles.replyingToText,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    Replying to {replyingTo.sender_name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.replyPreview,
-                      { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {replyingTo.message}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={cancelReply}>
-                  <X size={20} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
-                </TouchableOpacity>
-              </View>
+            {sending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Send size={20} color="#FFFFFF" />
             )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
-            {/* Messages */}
-            <View style={styles.messagesList}>
-              <FlatList
-                ref={flatListRef}
-                data={messages}
-                keyExtractor={(item) => item.id}
-                renderItem={renderMessage}
-                contentContainerStyle={styles.messagesContent}
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={() =>
-                  flatListRef.current?.scrollToEnd({ animated: true })
-                }
-              />
-            </View>
-
-            {/* Input */}
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 20}
-              style={{ backgroundColor: "transparent" }}
-            >
-              <View
-                style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: isDarkMode ? "#2D3748" : "#F7FAFC",
-                    borderTopColor: isDarkMode ? "#4A5568" : "#E2E8F0",
-                  },
-                ]}
-              >
-                <TextInput
-                  value={inputText}
-                  onChangeText={setInputText}
-                  placeholder="Type a message..."
-                  placeholderTextColor={isDarkMode ? "#A0AEC0" : "#718096"}
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: isDarkMode ? "#4A5568" : "#FFFFFF",
-                      color: isDarkMode ? "#E2E8F0" : "#2D3748",
-                      borderColor: isDarkMode ? "#718096" : "#E2E8F0",
-                    },
-                  ]}
-                  multiline
-                  maxLength={1000}
-                />
-                <TouchableOpacity
-                  onPress={sendMessage}
-                  disabled={!inputText.trim() || sending}
-                  style={[
-                    styles.sendButton,
-                    {
-                      backgroundColor:
-                        !inputText.trim() || sending ? "#A0AEC0" : "#007AFF",
-                      opacity: !inputText.trim() || sending ? 0.5 : 1,
-                    },
-                  ]}
-                >
-                  {sending ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Send size={20} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
-
-            {renderParticipantsModal()}
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
+      {renderParticipantsModal()}
+    </View>
   );
 };
 
@@ -828,8 +789,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
+    minHeight: 70,
+    backgroundColor: "transparent",
   },
   backButton: {
     padding: 8,
@@ -966,9 +929,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderTopWidth: 1,
     gap: 12,
+    minHeight: 70,
+    maxHeight: 120,
   },
   textInput: {
     flex: 1,

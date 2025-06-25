@@ -35,6 +35,7 @@ import {
   AlertCircle,
   Bell,
   Search,
+  UserCheck,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -43,7 +44,7 @@ import { Image } from "react-native";
 // Removed Button import - using TouchableOpacity instead
 import RideDetailsScreen from "./RideDetailsScreen";
 import CreateRideScreen from "./CreateRideScreen";
-import ChatScreen from "./ChatScreen";
+import SecureChatSystem from "./SecureChatSystem";
 import RequestAcceptanceModal from "./RequestAcceptanceModal";
 import LoadingOverlay from "./LoadingOverlay";
 import NotificationScreen from "./NotificationScreen";
@@ -226,10 +227,58 @@ const StudentCarpoolSystem = ({
         return;
       }
 
+      // Fetch passengers and requests for all rides
+      const rideIds = ridesData.map((ride) => ride.id);
+
+      // Fetch passengers for all rides
+      const { data: passengersData, error: passengersError } = await supabase
+        .from("ride_passengers")
+        .select("*")
+        .in("ride_id", rideIds);
+
+      // Fetch requests for all rides
+      const { data: requestsData, error: requestsError } = await supabase
+        .from("join_requests")
+        .select("*")
+        .in("ride_id", rideIds);
+
+      if (passengersError) {
+        console.error("Error fetching passengers:", passengersError);
+      }
+      if (requestsError) {
+        console.error("Error fetching requests:", requestsError);
+      }
+
       // Transform database data to frontend format
       const transformedRides: CarpoolRide[] = ridesData.map((ride) => {
         const emailInfo = parseEmailInfo(ride.driver_email);
         const academicYear = calculateAcademicYear(emailInfo.joiningYear);
+
+        // Get passengers for this ride
+        const ridePassengers = (passengersData || [])
+          .filter((p) => p.ride_id === ride.id)
+          .map((p) => ({
+            id: p.passenger_id,
+            name: p.passenger_name,
+            photo: generateAvatarFromName(p.passenger_name),
+            joinedAt: p.joined_at || p.created_at,
+            status: p.status as "pending" | "accepted" | "confirmed",
+            seatsBooked: p.seats_booked || 1,
+          }));
+
+        // Get pending requests for this ride
+        const ridePendingRequests = (requestsData || [])
+          .filter((r) => r.ride_id === ride.id)
+          .map((r) => ({
+            id: r.id,
+            passengerId: r.passenger_id,
+            passengerName: r.passenger_name,
+            passengerPhoto: generateAvatarFromName(r.passenger_name),
+            seatsRequested: r.seats_requested || 1,
+            message: r.message,
+            requestedAt: r.created_at,
+            status: r.status as "pending" | "accepted" | "rejected",
+          }));
 
         return {
           id: ride.id,
@@ -260,8 +309,8 @@ const StudentCarpoolSystem = ({
             musicAllowed: ride.music_allowed,
           },
           status: ride.status as "active" | "full" | "completed" | "cancelled",
-          passengers: [], // TODO: Fetch from passengers table
-          pendingRequests: [], // Will fetch separately if needed
+          passengers: ridePassengers,
+          pendingRequests: ridePendingRequests,
           instantBooking: ride.instant_booking,
           chatEnabled: ride.chat_enabled,
           createdAt: ride.created_at,
@@ -754,10 +803,12 @@ const StudentCarpoolSystem = ({
   };
 
   const handleStartChat = (rideId: string, rideTitle: string) => {
-    console.log("Chat triggered for ride:", rideId, "title:", rideTitle);
-    // Open the ride details screen where the actual chat functionality exists
+    // Opening chat for ride
+    // Open chat directly instead of ride details
     setSelectedRideId(rideId);
-    setShowRideDetails(true);
+    setChatRideId(rideId);
+    setChatRideTitle(rideTitle);
+    setShowChat(true);
   };
 
   const handleCreateRide = () => {
@@ -856,7 +907,7 @@ const StudentCarpoolSystem = ({
   ) => {
     try {
       setLoading(true);
-      console.log(`Attempting ${deleteType} delete for ride:`, rideId);
+      // Attempting ride deletion
 
       let result;
       if (deleteType === "hard") {
@@ -1030,6 +1081,8 @@ const StudentCarpoolSystem = ({
       currentPassenger?.status === "accepted" ||
       currentRequest?.status === "accepted";
 
+    // Status tracking for debugging when needed
+
     // Calculate expiry information
     const expiryInfo = calculateRideExpiry(ride.departureTime);
 
@@ -1144,6 +1197,16 @@ const StudentCarpoolSystem = ({
               </Text>
             </View>
           )}
+          {hasJoined && (
+            <View style={[styles.statusBadge, { backgroundColor: "#4CAF50" }]}>
+              <Text style={styles.statusBadgeText}>✓ Joined</Text>
+            </View>
+          )}
+          {isPending && (
+            <View style={[styles.statusBadge, { backgroundColor: "#FF9800" }]}>
+              <Text style={styles.statusBadgeText}>⏳ Pending</Text>
+            </View>
+          )}
         </View>
 
         {/* Expiry and availability section */}
@@ -1153,6 +1216,8 @@ const StudentCarpoolSystem = ({
             {ride.availableSeats > 0
               ? `${ride.availableSeats} seats available`
               : "Ride is full"}
+            {ride.passengers.length > 0 &&
+              ` • ${ride.passengers.length} joined`}
           </Text>
         </View>
 
@@ -1214,22 +1279,32 @@ const StudentCarpoolSystem = ({
             ride.availableSeats > 0 && (
               <>
                 <TouchableOpacity
-                  style={[styles.contactBtn, { borderColor: colors.accent }]}
+                  style={[
+                    styles.modernContactBtn,
+                    { borderColor: colors.accent },
+                  ]}
                   onPress={() => handleContactDriver(ride)}
                 >
                   <Phone size={16} color={colors.accent} />
                   <Text
-                    style={[styles.contactBtnText, { color: colors.accent }]}
+                    style={[
+                      styles.modernContactBtnText,
+                      { color: colors.accent },
+                    ]}
                   >
                     Contact
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.joinBtn, { backgroundColor: colors.accent }]}
+                  style={[
+                    styles.modernJoinBtn,
+                    { backgroundColor: colors.accent },
+                  ]}
                   onPress={() => handleJoinRide(ride.id)}
                 >
-                  <Text style={styles.joinBtnText}>
+                  <UserCheck size={18} color="#FFFFFF" />
+                  <Text style={styles.modernJoinBtnText}>
                     {ride.instantBooking ? "Book Now" : "Request Join"}
                   </Text>
                 </TouchableOpacity>
@@ -1238,46 +1313,46 @@ const StudentCarpoolSystem = ({
 
           {(hasJoined || isDriverCurrentUser) && ride.chatEnabled && (
             <TouchableOpacity
-              style={[styles.contactBtn, { borderColor: "#2196F3" }]}
+              style={[styles.chatBtn, { backgroundColor: "#2196F3" }]}
               onPress={() =>
                 handleStartChat(ride.id, `${ride.from} → ${ride.to}`)
               }
             >
-              <MessageCircle size={16} color="#2196F3" />
-              <Text style={[styles.contactBtnText, { color: "#2196F3" }]}>
-                Chat
-              </Text>
+              <MessageCircle size={16} color="#FFFFFF" />
+              <Text style={styles.chatBtnText}>Chat with Group</Text>
             </TouchableOpacity>
           )}
 
-          {isAccepted && (
+          {isAccepted && !hasJoined && (
             <View
               style={[
-                styles.joinedBtn,
-                { backgroundColor: colors.accent + "20" },
+                styles.fullWidthStatusBtn,
+                { backgroundColor: colors.accent },
               ]}
             >
-              <Text style={[styles.joinedBtnText, { color: colors.accent }]}>
-                ✓ Request Accepted
-              </Text>
+              <Text style={styles.fullWidthStatusText}>✓ Request Accepted</Text>
             </View>
           )}
 
           {hasJoined && currentPassenger?.status === "confirmed" && (
             <View
-              style={[styles.joinedBtn, { backgroundColor: "#4CAF50" + "20" }]}
+              style={[
+                styles.fullWidthStatusBtn,
+                { backgroundColor: "#4CAF50" },
+              ]}
             >
-              <Text style={[styles.joinedBtnText, { color: "#4CAF50" }]}>
-                ✓ Joined Ride
-              </Text>
+              <Text style={styles.fullWidthStatusText}>✓ Joined Ride</Text>
             </View>
           )}
 
           {isPending && !isAccepted && (
             <View
-              style={[styles.joinedBtn, { backgroundColor: "#FFA726" + "20" }]}
+              style={[
+                styles.fullWidthStatusBtn,
+                { backgroundColor: "#FF9800" },
+              ]}
             >
-              <Text style={[styles.joinedBtnText, { color: "#FFA726" }]}>
+              <Text style={styles.fullWidthStatusText}>
                 ⏳ Pending Approval
               </Text>
             </View>
@@ -1623,27 +1698,25 @@ const StudentCarpoolSystem = ({
       />
 
       {showChat && (
-        <ChatScreen
-          rideId={chatRideId}
-          currentUserId={currentUser.id}
-          currentUserName={currentUser.name}
-          rideTitle={chatRideTitle}
-          onBack={() => setShowChat(false)}
-          isDarkMode={isDarkMode}
-          rideDetails={{
-            from: "LNMIIT Campus",
-            to: "Jaipur Railway Station",
-            departureTime: "2:30 PM",
-            date: "Today",
-            driverName: "Ride Creator",
-            driverPhone: "+91 98765 43210",
-            driverRating: 4.8,
-            driverPhoto:
-              "https://api.dicebear.com/7.x/avataaars/svg?seed=driver",
-            pricePerSeat: 120,
-            availableSeats: 2,
-          }}
-        />
+        <Modal
+          visible={showChat}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={() => setShowChat(false)}
+        >
+          <SecureChatSystem
+            rideId={chatRideId}
+            currentUser={currentUser}
+            rideDetails={{
+              from: "LNMIIT Campus",
+              to: "Jaipur Railway Station",
+              driverName: "Ride Creator",
+              departureTime: "2:30 PM",
+            }}
+            onBack={() => setShowChat(false)}
+            isDarkMode={isDarkMode}
+          />
+        </Modal>
       )}
 
       {/* Join Verification Modal */}
@@ -2302,15 +2375,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
-  },
+
   statusDot: {
     width: 8,
     height: 8,
@@ -2767,7 +2832,10 @@ const styles = StyleSheet.create({
   },
   jobActionButtons: {
     flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 12,
+    paddingHorizontal: 16,
   },
   contactBtn: {
     flex: 1,
@@ -3166,6 +3234,115 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 10,
     fontWeight: "600",
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statusBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  chatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+    gap: 8,
+  },
+  chatBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modernStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    marginHorizontal: 4,
+  },
+  modernStatusText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  modernJoinBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    gap: 8,
+  },
+  modernJoinBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  modernContactBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 2,
+    gap: 8,
+  },
+  modernContactBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  fullWidthStatusBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+    minWidth: 160,
+  },
+  fullWidthStatusText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
 

@@ -144,7 +144,7 @@ export default function RideDetailsScreen({
         driverId: rideData.driver_id,
         driverName: rideData.driver_name,
         driverPhone: rideData.driver_phone || "",
-        driverRating: 4.5, // Default rating
+        driverRating: 0, // No rating display
         driverPhoto: generateAvatarFomName(rideData.driver_name),
         driverBranch: emailInfo.branchFull,
         driverYear: academicYear,
@@ -663,7 +663,7 @@ export default function RideDetailsScreen({
             left: 0,
             right: 0,
             height: SCREEN_HEIGHT * 0.85,
-            backgroundColor: "#FFF",
+            backgroundColor: "#F5F7FA",
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
             transform: [{ translateY: slideAnim }],
@@ -689,57 +689,51 @@ export default function RideDetailsScreen({
               alignItems: "center",
               justifyContent: "space-between",
               paddingHorizontal: 20,
-              paddingVertical: 16,
+              paddingVertical: 20,
+              backgroundColor: "#F8F9FA",
               borderBottomWidth: 1,
-              borderBottomColor: "#E0E0E0",
+              borderBottomColor: "#E8F4FD",
             }}
           >
-            <Text style={{ fontSize: 20, fontWeight: "600", color: "#000" }}>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "#1565C0" }}>
               Ride Details
             </Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <TouchableOpacity
-                onPress={() => setIsFavorited(!isFavorited)}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#F5F5F5",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons
-                  name={isFavorited ? "heart" : "heart-outline"}
-                  size={20}
-                  color={isFavorited ? "#FF0000" : "#666"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
                 onPress={handleShare}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#F5F5F5",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "#E3F2FD",
                   alignItems: "center",
                   justifyContent: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                  elevation: 2,
                 }}
               >
-                <Ionicons name="share-outline" size={20} color="#666" />
+                <Ionicons name="share-outline" size={22} color="#1565C0" />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={onBack}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#F5F5F5",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "#FFEBEE",
                   alignItems: "center",
                   justifyContent: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                  elevation: 2,
                 }}
               >
-                <Ionicons name="close" size={20} color="#666" />
+                <Ionicons name="close" size={22} color="#D32F2F" />
               </TouchableOpacity>
             </View>
           </View>
@@ -797,19 +791,26 @@ export default function RideDetailsScreen({
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      backgroundColor: "#F8F9FA",
-                      padding: 16,
-                      borderRadius: 16,
+                      backgroundColor: "#E3F2FD",
+                      padding: 20,
+                      borderRadius: 20,
                       marginBottom: 20,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 3,
                     }}
                   >
                     <Image
                       source={{ uri: ride?.driverPhoto }}
                       style={{
-                        width: 60,
-                        height: 60,
-                        borderRadius: 30,
+                        width: 70,
+                        height: 70,
+                        borderRadius: 35,
                         marginRight: 16,
+                        borderWidth: 3,
+                        borderColor: "#1565C0",
                       }}
                     />
                     <View style={{ flex: 1 }}>
@@ -818,75 +819,73 @@ export default function RideDetailsScreen({
                       >
                         <Text
                           style={{
-                            fontSize: 18,
-                            fontWeight: "600",
-                            color: "#000",
+                            fontSize: 20,
+                            fontWeight: "700",
+                            color: "#1565C0",
                           }}
                         >
                           {ride?.driverName}
                         </Text>
-                        <View
-                          style={{
-                            backgroundColor: "#4CAF50",
-                            borderRadius: 8,
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            marginLeft: 8,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 10,
-                              color: "#FFF",
-                              fontWeight: "600",
-                            }}
-                          >
-                            VERIFIED
-                          </Text>
-                        </View>
                       </View>
                       <View
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          marginTop: 4,
+                          marginTop: 6,
                         }}
                       >
-                        <Ionicons name="star" size={16} color="#FFD700" />
+                        <Ionicons name="school" size={18} color="#1565C0" />
                         <Text
-                          style={{ fontSize: 14, color: "#666", marginLeft: 4 }}
+                          style={{
+                            fontSize: 16,
+                            color: "#1565C0",
+                            marginLeft: 6,
+                            fontWeight: "600",
+                          }}
                         >
-                          {ride?.driverRating} • {ride?.driverBranch} •{" "}
-                          {ride?.driverYear}
+                          {ride?.driverBranch &&
+                          !ride.driverBranch.includes("Unknown")
+                            ? ride.driverBranch
+                            : "LNM Student"}
                         </Text>
                       </View>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
                       <TouchableOpacity
                         onPress={handleCallDriver}
                         style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          backgroundColor: "#000",
+                          width: 46,
+                          height: 46,
+                          borderRadius: 23,
+                          backgroundColor: "#4CAF50",
                           alignItems: "center",
                           justifyContent: "center",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 3,
+                          elevation: 3,
                         }}
                       >
-                        <Ionicons name="call" size={18} color="#FFF" />
+                        <Ionicons name="call" size={22} color="#FFF" />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={handleStartChat}
                         style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          backgroundColor: "#000",
+                          width: 46,
+                          height: 46,
+                          borderRadius: 23,
+                          backgroundColor: "#2196F3",
                           alignItems: "center",
                           justifyContent: "center",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 3,
+                          elevation: 3,
                         }}
                       >
-                        <Ionicons name="chatbubble" size={18} color="#FFF" />
+                        <Ionicons name="chatbubble" size={20} color="#FFF" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -894,80 +893,151 @@ export default function RideDetailsScreen({
                   {/* Route Info */}
                   <View
                     style={{
-                      backgroundColor: "#F8F9FA",
-                      padding: 16,
-                      borderRadius: 16,
+                      backgroundColor: "#E8F5E8",
+                      padding: 20,
+                      borderRadius: 20,
                       marginBottom: 20,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 3,
                     }}
                   >
                     <Text
                       style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: "#000",
-                        marginBottom: 12,
+                        fontSize: 18,
+                        fontWeight: "700",
+                        color: "#2E7D32",
+                        marginBottom: 16,
                       }}
                     >
-                      Route Details
+                      🚗 Route Details
                     </Text>
 
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginBottom: 12,
+                        marginBottom: 16,
+                        backgroundColor: "#FFF",
+                        padding: 12,
+                        borderRadius: 12,
                       }}
                     >
                       <View
                         style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 6,
+                          width: 16,
+                          height: 16,
+                          borderRadius: 8,
                           backgroundColor: "#4CAF50",
                           marginRight: 12,
+                          alignItems: "center",
+                          justifyContent: "center",
                         }}
-                      />
+                      >
+                        <View
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: "#FFF",
+                          }}
+                        />
+                      </View>
                       <Text
                         style={{
-                          fontSize: 16,
-                          color: "#000",
-                          fontWeight: "500",
+                          fontSize: 17,
+                          color: "#2E7D32",
+                          fontWeight: "600",
+                          flex: 1,
                         }}
                       >
                         {ride?.from}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: "#4CAF50",
+                          fontWeight: "600",
+                          backgroundColor: "#E8F5E8",
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 8,
+                        }}
+                      >
+                        FROM
                       </Text>
                     </View>
 
                     <View
                       style={{
-                        width: 2,
-                        height: 30,
-                        backgroundColor: "#DDD",
-                        marginLeft: 5,
-                        marginVertical: 4,
+                        alignItems: "center",
+                        marginVertical: 8,
                       }}
-                    />
-
-                    <View
-                      style={{ flexDirection: "row", alignItems: "center" }}
                     >
                       <View
                         style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 6,
-                          backgroundColor: "#FF5722",
-                          marginRight: 12,
+                          width: 3,
+                          height: 24,
+                          backgroundColor: "#81C784",
+                          borderRadius: 2,
                         }}
                       />
+                      <Ionicons name="arrow-down" size={20} color="#4CAF50" />
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: "#FFF",
+                        padding: 12,
+                        borderRadius: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: 8,
+                          backgroundColor: "#FF5722",
+                          marginRight: 12,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: "#FFF",
+                          }}
+                        />
+                      </View>
                       <Text
                         style={{
-                          fontSize: 16,
-                          color: "#000",
-                          fontWeight: "500",
+                          fontSize: 17,
+                          color: "#2E7D32",
+                          fontWeight: "600",
+                          flex: 1,
                         }}
                       >
                         {ride?.to}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: "#FF5722",
+                          fontWeight: "600",
+                          backgroundColor: "#FFEBEE",
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 8,
+                        }}
+                      >
+                        TO
                       </Text>
                     </View>
 
@@ -1019,45 +1089,119 @@ export default function RideDetailsScreen({
                   {/* Vehicle Info */}
                   <View
                     style={{
-                      backgroundColor: "#F8F9FA",
-                      padding: 16,
-                      borderRadius: 16,
+                      backgroundColor: "#FFF3E0",
+                      padding: 20,
+                      borderRadius: 20,
                       marginBottom: 20,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 3,
                     }}
                   >
                     <Text
                       style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: "#000",
-                        marginBottom: 12,
+                        fontSize: 18,
+                        fontWeight: "700",
+                        color: "#E65100",
+                        marginBottom: 16,
                       }}
                     >
-                      Vehicle Information
+                      🚗 Vehicle Information
                     </Text>
                     <View
-                      style={{ flexDirection: "row", alignItems: "center" }}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: "#FFF",
+                        padding: 16,
+                        borderRadius: 16,
+                      }}
                     >
-                      <Ionicons
-                        name="car"
-                        size={24}
-                        color="#666"
-                        style={{ marginRight: 12 }}
-                      />
-                      <View>
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 24,
+                          backgroundColor: "#FF9800",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginRight: 16,
+                        }}
+                      >
+                        <Ionicons name="car" size={24} color="#FFF" />
+                      </View>
+                      <View style={{ flex: 1 }}>
                         <Text
                           style={{
-                            fontSize: 16,
-                            color: "#000",
-                            fontWeight: "500",
+                            fontSize: 17,
+                            color: "#E65100",
+                            fontWeight: "600",
+                            marginBottom: 4,
                           }}
                         >
                           {ride?.vehicleInfo.make} {ride?.vehicleInfo.model}
                         </Text>
-                        <Text style={{ fontSize: 14, color: "#666" }}>
-                          {ride?.vehicleInfo.color} •{" "}
-                          {ride?.vehicleInfo.isAC ? "AC Available" : "Non-AC"}
-                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: 6,
+                                backgroundColor: "#FF9800",
+                                marginRight: 6,
+                              }}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                color: "#E65100",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {ride?.vehicleInfo.color}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Ionicons
+                              name={
+                                ride?.vehicleInfo.isAC ? "snow" : "thermometer"
+                              }
+                              size={14}
+                              color="#E65100"
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                color: "#E65100",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {ride?.vehicleInfo.isAC
+                                ? "AC Available"
+                                : "Non-AC"}
+                            </Text>
+                          </View>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -1065,25 +1209,28 @@ export default function RideDetailsScreen({
                   {/* Preferences */}
                   <View
                     style={{
-                      backgroundColor: "#F8F9FA",
-                      padding: 16,
-                      borderRadius: 16,
+                      backgroundColor: "#F3E5F5",
+                      padding: 20,
+                      borderRadius: 20,
                       marginBottom: 20,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 3,
                     }}
                   >
                     <Text
                       style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: "#000",
-                        marginBottom: 12,
+                        fontSize: 18,
+                        fontWeight: "700",
+                        color: "#7B1FA2",
+                        marginBottom: 16,
                       }}
                     >
-                      Ride Preferences
+                      ⚙️ Ride Preferences
                     </Text>
-                    <View
-                      style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                    >
+                    <View style={{ gap: 12 }}>
                       {[
                         {
                           key: "music",
@@ -1109,29 +1256,102 @@ export default function RideDetailsScreen({
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            backgroundColor: pref.allowed
-                              ? "#E8F5E8"
-                              : "#FFE8E8",
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 20,
+                            backgroundColor: "#FFFFFF",
+                            paddingHorizontal: 20,
+                            paddingVertical: 16,
+                            borderRadius: 16,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 3,
+                            elevation: 3,
+                            borderWidth: 2,
+                            borderColor: pref.allowed ? "#E8F5E8" : "#FFEBEE",
                           }}
                         >
-                          <Ionicons
-                            name={pref.icon as any}
-                            size={16}
-                            color={pref.allowed ? "#4CAF50" : "#F44336"}
-                            style={{ marginRight: 6 }}
-                          />
-                          <Text
+                          <View
                             style={{
-                              fontSize: 14,
-                              color: pref.allowed ? "#4CAF50" : "#F44336",
-                              fontWeight: "500",
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              backgroundColor: pref.allowed
+                                ? "#4CAF50"
+                                : "#F44336",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginRight: 16,
+                              shadowColor: pref.allowed ? "#4CAF50" : "#F44336",
+                              shadowOffset: { width: 0, height: 2 },
+                              shadowOpacity: 0.25,
+                              shadowRadius: 4,
+                              elevation: 4,
                             }}
                           >
-                            {pref.label} {pref.allowed ? "OK" : "Not OK"}
-                          </Text>
+                            <Ionicons
+                              name={pref.icon as any}
+                              size={22}
+                              color="#FFFFFF"
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                color: "#7B1FA2",
+                                fontWeight: "700",
+                                marginBottom: 4,
+                              }}
+                            >
+                              {pref.label}
+                            </Text>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: 4,
+                                  backgroundColor: pref.allowed
+                                    ? "#4CAF50"
+                                    : "#F44336",
+                                  marginRight: 8,
+                                }}
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  color: pref.allowed ? "#4CAF50" : "#F44336",
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {pref.allowed ? "Allowed" : "Not Allowed"}
+                              </Text>
+                            </View>
+                          </View>
+                          <View
+                            style={{
+                              paddingHorizontal: 12,
+                              paddingVertical: 6,
+                              borderRadius: 12,
+                              backgroundColor: pref.allowed
+                                ? "#4CAF50"
+                                : "#F44336",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                color: "#FFFFFF",
+                                fontWeight: "700",
+                              }}
+                            >
+                              {pref.allowed ? "✓" : "✗"}
+                            </Text>
+                          </View>
                         </View>
                       ))}
                     </View>
@@ -1141,21 +1361,26 @@ export default function RideDetailsScreen({
                   {passengers.length > 0 && (
                     <View
                       style={{
-                        backgroundColor: "#F8F9FA",
-                        padding: 16,
-                        borderRadius: 16,
+                        backgroundColor: "#E8F5E8",
+                        padding: 20,
+                        borderRadius: 20,
                         marginBottom: 20,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 3,
                       }}
                     >
                       <Text
                         style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: "#000",
-                          marginBottom: 12,
+                          fontSize: 18,
+                          fontWeight: "700",
+                          color: "#2E7D32",
+                          marginBottom: 16,
                         }}
                       >
-                        Current Passengers ({passengers.length})
+                        👥 Current Passengers ({passengers.length})
                       </Text>
                       {passengers.map((passenger) => (
                         <View
@@ -1163,30 +1388,47 @@ export default function RideDetailsScreen({
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            paddingVertical: 8,
+                            backgroundColor: "#FFF",
+                            padding: 12,
+                            borderRadius: 16,
+                            marginBottom: 8,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 2,
+                            elevation: 2,
                           }}
                         >
                           <Image
                             source={{ uri: passenger.photo }}
                             style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 20,
+                              width: 48,
+                              height: 48,
+                              borderRadius: 24,
                               marginRight: 12,
+                              borderWidth: 2,
+                              borderColor: "#4CAF50",
                             }}
                           />
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{
                                 fontSize: 16,
-                                color: "#000",
-                                fontWeight: "500",
+                                color: "#2E7D32",
+                                fontWeight: "600",
+                                marginBottom: 2,
                               }}
                             >
                               {passenger.name}
                             </Text>
-                            <Text style={{ fontSize: 12, color: "#666" }}>
-                              Joined{" "}
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: "#4CAF50",
+                                fontWeight: "500",
+                              }}
+                            >
+                              ✓ Joined{" "}
                               {new Date(
                                 passenger.joinedAt
                               ).toLocaleDateString()}
@@ -1391,21 +1633,28 @@ export default function RideDetailsScreen({
 
       {/* Floating Chat Window */}
       {showChat && ride && (
-        <SecureChatSystem
-          rideId={rideId}
-          currentUser={currentUser}
-          rideDetails={{
-            from: ride.from,
-            to: ride.to,
-            driverName: ride.driverName,
-            departureTime: ride.departureTime,
-          }}
-          onBack={() => {
-            console.log("Chat back button pressed");
-            setShowChat(false);
-          }}
-          isDarkMode={false}
-        />
+        <Modal
+          visible={showChat}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={() => setShowChat(false)}
+        >
+          <SecureChatSystem
+            rideId={rideId}
+            currentUser={currentUser}
+            rideDetails={{
+              from: ride.from,
+              to: ride.to,
+              driverName: ride.driverName,
+              departureTime: ride.departureTime,
+            }}
+            onBack={() => {
+              // Chat back button pressed
+              setShowChat(false);
+            }}
+            isDarkMode={false}
+          />
+        </Modal>
       )}
     </Modal>
   );
