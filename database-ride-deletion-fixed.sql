@@ -1,7 +1,7 @@
--- FIXED Ride Deletion Functionality
+-- Fixed Ride Deletion Functionality
 -- Run this SQL in Supabase SQL Editor
 
--- Function to delete a ride and all related data (FIXED FOR UUID/TEXT ISSUES)
+-- Function to delete a ride and all related data (FIXED VERSION)
 CREATE OR REPLACE FUNCTION delete_ride_with_cleanup(ride_id_param TEXT)
 RETURNS JSON
 LANGUAGE plpgsql
@@ -16,7 +16,7 @@ DECLARE
   affected_chat_participants INTEGER := 0;
 BEGIN
   -- Check if ride exists and user is the driver
-  -- Handle both UUID and TEXT types by casting to TEXT
+  -- Handle both UUID and TEXT types by using explicit casting
   SELECT * INTO ride_record
   FROM carpool_rides 
   WHERE id::TEXT = ride_id_param AND driver_id = auth.uid()::TEXT;
@@ -41,8 +41,6 @@ BEGIN
   -- Start transaction-like operations
   BEGIN
     -- Delete chat messages first (foreign key dependencies)
-
-    -- Use TEXT comparison for chat tables (they store ride_id as TEXT)
     DELETE FROM chat_messages 
     WHERE ride_id = ride_id_param;
     GET DIAGNOSTICS affected_chat_messages = ROW_COUNT;
@@ -52,12 +50,12 @@ BEGIN
     WHERE ride_id = ride_id_param;
     GET DIAGNOSTICS affected_chat_participants = ROW_COUNT;
 
-    -- Delete ride passengers - cast to TEXT for comparison
+    -- Delete ride passengers - handle both UUID and TEXT
     DELETE FROM ride_passengers 
     WHERE ride_id::TEXT = ride_id_param;
     GET DIAGNOSTICS affected_passengers = ROW_COUNT;
 
-    -- Delete pending requests - cast to TEXT for comparison
+    -- Delete pending requests - handle both UUID and TEXT
     DELETE FROM ride_requests 
     WHERE ride_id::TEXT = ride_id_param;
     GET DIAGNOSTICS affected_requests = ROW_COUNT;
@@ -97,10 +95,7 @@ BEGIN
 END;
 $$;
 
--- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION delete_ride_with_cleanup(TEXT) TO authenticated;
-
--- Function to soft delete ride (mark as cancelled instead of hard delete) - FIXED
+-- Function to soft delete ride (mark as cancelled instead of hard delete) - FIXED VERSION
 CREATE OR REPLACE FUNCTION cancel_ride_soft_delete(ride_id_param TEXT, cancellation_reason TEXT DEFAULT 'Cancelled by driver')
 RETURNS JSON
 LANGUAGE plpgsql
@@ -131,8 +126,6 @@ BEGIN
     cancellation_reason = cancellation_reason
   WHERE id::TEXT = ride_id_param AND driver_id = auth.uid()::TEXT;
 
-  -- Notify passengers about cancellation (optional - add notification system here)
-  
   result_json := json_build_object(
     'success', true,
     'message', 'Ride cancelled successfully',
@@ -149,9 +142,6 @@ BEGIN
 END;
 $$;
 
--- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION cancel_ride_soft_delete(TEXT, TEXT) TO authenticated;
-
 -- Add cancellation_reason column if it doesn't exist
 DO $$ 
 BEGIN
@@ -162,6 +152,14 @@ BEGIN
     ALTER TABLE carpool_rides ADD COLUMN cancellation_reason TEXT;
   END IF;
 END $$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION delete_ride_with_cleanup(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION cancel_ride_soft_delete(TEXT, TEXT) TO authenticated;
+
+-- Test the function (uncomment to test)
+-- SELECT delete_ride_with_cleanup('your-test-ride-id-here');
+-- SELECT cancel_ride_soft_delete('your-test-ride-id-here', 'Testing cancellation');
 
 -- Example usage:
 -- Hard delete (removes all data):

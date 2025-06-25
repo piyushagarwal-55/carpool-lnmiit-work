@@ -754,9 +754,10 @@ const StudentCarpoolSystem = ({
   };
 
   const handleStartChat = (rideId: string, rideTitle: string) => {
-    // Chat is handled in RideDetailsScreen - this is just a placeholder
-    // The actual chat opening happens in the RideDetailsScreen component
     console.log("Chat triggered for ride:", rideId, "title:", rideTitle);
+    // Open the ride details screen where the actual chat functionality exists
+    setSelectedRideId(rideId);
+    setShowRideDetails(true);
   };
 
   const handleCreateRide = () => {
