@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -91,6 +91,13 @@ export default function CreateRideScreen({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Reset step when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      setCurrentStep(0);
+    }
+  }, [visible]);
 
   // Popular LNMIIT locations
   const popularLocations = [

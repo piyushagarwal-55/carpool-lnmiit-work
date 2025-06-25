@@ -5,21 +5,16 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  Platform,
-  StatusBar,
-  SafeAreaView,
   TouchableOpacity,
   Modal,
   Dimensions,
 } from "react-native";
-import { Car, ArrowLeft, Clock, MapPin, Users, X } from "lucide-react-native";
-import { useColorScheme } from "react-native";
-import { supabase } from "./lib/supabase";
-import * as SystemUI from "expo-system-ui";
+import { Car, Clock, MapPin, X } from "lucide-react-native";
+import { supabase } from "../lib/supabase";
 
 const { width } = Dimensions.get("window");
 
-type UserRideHistoryScreenProps = {
+interface UserRideHistoryScreenProps {
   visible: boolean;
   onClose: () => void;
   user: {
@@ -32,14 +27,10 @@ type UserRideHistoryScreenProps = {
     photo: string;
   };
   isDarkMode?: boolean;
-};
+}
 
 const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
-  const visible = props.visible;
-  const onClose = props.onClose;
-  const user = props.user;
-  const isDarkMode = props.isDarkMode || false;
-  const currUser = user;
+  const { visible, onClose, user, isDarkMode = false } = props;
   const [userRideHistory, setUserRideHistory] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -48,13 +39,13 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
       const { data: driverRides, error: driverError } = await supabase
         .from("carpool_rides")
         .select("*")
-        .eq("driver_id", currUser.id)
+        .eq("driver_id", user.id)
         .order("created_at", { ascending: false });
 
       const { data: passengerRides, error: passengerError } = await supabase
         .from("ride_passengers")
-        .select(`*, carpool_rides (*)`)
-        .eq("passenger_id", currUser.id);
+        .select("*, carpool_rides (*)")
+        .eq("passenger_id", user.id);
 
       let allRides: any[] = [];
 
@@ -92,7 +83,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
 
   useEffect(() => {
     if (visible) {
-    fetchUserRideHistory();
+      fetchUserRideHistory();
     }
   }, [visible]);
 
@@ -102,13 +93,14 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
     setRefreshing(false);
   };
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleString("en-IN", {
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString("en-IN", {
       dateStyle: "medium",
       timeStyle: "short",
     });
+  };
 
-  const getCardColor = (ride: any, index: number) => {
+  const getCardColor = (index: number) => {
     const colors = ["#F8FAFC", "#F1F5F9", "#F0F9FF", "#F7FEE7", "#FEF7F0"];
     return colors[index % colors.length];
   };
@@ -130,7 +122,6 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
     }
   };
 
-  // Separate active and completed rides
   const activeRides = userRideHistory.filter(
     (ride) => ride.status === "active"
   );
@@ -142,7 +133,6 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <Car size={22} color="#1F2937" />
@@ -153,20 +143,20 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
             </TouchableOpacity>
           </View>
 
-    <ScrollView
+          <ScrollView
             style={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
                 colors={["#4CAF50"]}
                 tintColor="#000"
-        />
-      }
+              />
+            }
             showsVerticalScrollIndicator={false}
-    >
-      {userRideHistory.length === 0 ? (
-        <View style={styles.emptyState}>
+          >
+            {userRideHistory.length === 0 ? (
+              <View style={styles.emptyState}>
                 <View style={styles.emptyStateIconContainer}>
                   <Car size={48} color="#9CA3AF" />
                 </View>
@@ -174,11 +164,10 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                 <Text style={styles.emptyStateSubtext}>
                   Your completed or joined rides will appear here when you start
                   carpooling
-          </Text>
-        </View>
-      ) : (
+                </Text>
+              </View>
+            ) : (
               <>
-                {/* Active Rides Section */}
                 {activeRides.length > 0 && (
                   <View style={styles.rideSection}>
                     <View style={styles.sectionHeader}>
@@ -190,20 +179,20 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                       </View>
                       <View style={styles.sectionBadge}>
                         <Text style={styles.sectionBadgeText}>
-                          {activeRides.length.toString()}
+                          {activeRides.length}
                         </Text>
                       </View>
                     </View>
 
                     {activeRides.map((ride, index) => (
                       <View
-                        key={`${ride.id ?? ride.carpool_ride_id}-${
-                          ride.userRole
-                        }-${ride.joinedAt ?? ""}`}
+                        key={`active-${
+                          ride.id || ride.carpool_ride_id
+                        }-${index}`}
                         style={[
                           styles.rideCard,
                           {
-                            backgroundColor: getCardColor(ride, index),
+                            backgroundColor: getCardColor(index),
                             borderLeftColor: getRoleColor(ride.userRole),
                             borderLeftWidth: 4,
                           },
@@ -224,8 +213,8 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                             <View style={styles.rideTitleSection}>
                               <Text style={styles.rideTitle}>
                                 {ride.userRole === "driver"
-                                  ? "🚗 Driver"
-                                  : "🧍 Passenger"}
+                                  ? "Driving"
+                                  : "Riding"}
                               </Text>
                               <Text style={styles.rideLocation}>
                                 {ride.from_location || "Unknown"} →{" "}
@@ -233,23 +222,15 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                               </Text>
                             </View>
                           </View>
-
                           <View
                             style={[
                               styles.statusBadge,
-                              {
-                                backgroundColor: getStatusColor(
-                                  ride.status || "completed"
-                                ),
-                              },
+                              { backgroundColor: getStatusColor(ride.status) },
                             ]}
                           >
-                            <Text style={styles.statusText}>
-                              {(ride.status || "completed").toString()}
-                            </Text>
+                            <Text style={styles.statusText}>{ride.status}</Text>
                           </View>
                         </View>
-
                         <View style={styles.rideDetails}>
                           <View style={styles.rideDetailItem}>
                             <MapPin size={12} color="#6B7280" />
@@ -268,7 +249,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                           {ride.price_per_seat && (
                             <View style={styles.rideDetailItem}>
                               <Text style={styles.ridePrice}>
-                                ₹{ride.price_per_seat || 0}
+                                ₹{ride.price_per_seat}
                               </Text>
                             </View>
                           )}
@@ -278,129 +259,90 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                   </View>
                 )}
 
-                {/* Completed Rides Section */}
                 {completedRides.length > 0 && (
                   <View style={styles.rideSection}>
                     <View style={styles.sectionHeader}>
                       <View style={styles.sectionHeaderContent}>
-                        <Car size={18} color="#6B7280" />
+                        <Clock size={18} color="#6B7280" />
                         <Text style={styles.sectionHeaderTitle}>
                           Completed Rides
                         </Text>
                       </View>
-                      <View
-                        style={[
-                          styles.sectionBadge,
-                          { backgroundColor: "#E5E7EB" },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.sectionBadgeText,
-                            { color: "#6B7280" },
-                          ]}
-                        >
-                          {completedRides.length.toString()}
+                      <View style={styles.sectionBadge}>
+                        <Text style={styles.sectionBadgeText}>
+                          {completedRides.length}
                         </Text>
                       </View>
                     </View>
 
                     {completedRides.map((ride, index) => (
                       <View
-                        key={`${ride.id ?? ride.carpool_ride_id}-${
-                          ride.userRole
-                        }-${ride.joinedAt ?? ""}`}
+                        key={`completed-${
+                          ride.id || ride.carpool_ride_id
+                        }-${index}`}
                         style={[
                           styles.rideCard,
                           {
-                            backgroundColor: "#F9FAFB",
-                            opacity: 0.8,
-                            borderLeftColor: "#E5E7EB",
-                            borderLeftWidth: 2,
+                            backgroundColor: getCardColor(index),
+                            borderLeftColor: getRoleColor(ride.userRole),
+                            borderLeftWidth: 4,
                           },
                         ]}
                       >
                         <View style={styles.rideHeader}>
                           <View style={styles.rideIconSection}>
-          <View
-            style={[
+                            <View
+                              style={[
                                 styles.rideIcon,
-              {
-                                  backgroundColor: "#E5E7EB",
-              },
-            ]}
-          >
-                              <Car size={16} color="#6B7280" />
+                                {
+                                  backgroundColor: getRoleColor(ride.userRole),
+                                },
+                              ]}
+                            >
+                              <Car size={16} color="#FFFFFF" />
                             </View>
                             <View style={styles.rideTitleSection}>
-                              <Text
-                                style={[styles.rideTitle, { color: "#6B7280" }]}
-                              >
+                              <Text style={styles.rideTitle}>
                                 {ride.userRole === "driver"
-                                  ? "🚗 Driver"
-                                  : "🧍 Passenger"}
+                                  ? "Driving"
+                                  : "Riding"}
                               </Text>
-                              <Text
-                                style={[
-                                  styles.rideLocation,
-                                  { color: "#9CA3AF" },
-                                ]}
-                              >
+                              <Text style={styles.rideLocation}>
                                 {ride.from_location || "Unknown"} →{" "}
                                 {ride.to_location || "Unknown"}
-            </Text>
+                              </Text>
                             </View>
                           </View>
-
                           <View
                             style={[
                               styles.statusBadge,
-                              {
-                                backgroundColor: "#E5E7EB",
-                              },
+                              { backgroundColor: getStatusColor(ride.status) },
                             ]}
                           >
-                            <Text
-                              style={[styles.statusText, { color: "#6B7280" }]}
-                            >
-                              {(ride.status || "completed").toString()}
-            </Text>
+                            <Text style={styles.statusText}>{ride.status}</Text>
                           </View>
                         </View>
-
                         <View style={styles.rideDetails}>
                           <View style={styles.rideDetailItem}>
-                            <MapPin size={12} color="#9CA3AF" />
-                            <Text
-                              style={[
-                                styles.rideDetailText,
-                                { color: "#9CA3AF" },
-                              ]}
-                            >
+                            <MapPin size={12} color="#6B7280" />
+                            <Text style={styles.rideDetailText}>
                               Driver: {ride.driver_name || "Unknown"}
-            </Text>
+                            </Text>
                           </View>
                           <View style={styles.rideDetailItem}>
-                            <Clock size={12} color="#9CA3AF" />
-                            <Text
-                              style={[
-                                styles.rideDetailText,
-                                { color: "#9CA3AF" },
-                              ]}
-                            >
+                            <Clock size={12} color="#6B7280" />
+                            <Text style={styles.rideDetailText}>
                               {ride.departure_time
                                 ? formatDate(ride.departure_time)
                                 : "Time not set"}
-              </Text>
+                            </Text>
                           </View>
                           {ride.price_per_seat && (
                             <View style={styles.rideDetailItem}>
-                              <Text
-                                style={[styles.ridePrice, { color: "#9CA3AF" }]}
-                              >
-                                ₹{ride.price_per_seat || 0}
-            </Text>
-          </View>
+                              <Text style={styles.ridePrice}>
+                                ₹{ride.price_per_seat}
+                              </Text>
+                            </View>
                           )}
                         </View>
                       </View>
@@ -409,9 +351,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                 )}
               </>
             )}
-
-            <View style={styles.bottomPadding} />
-    </ScrollView>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -421,34 +361,26 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modal: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "85%",
+    width: width * 0.95,
+    height: "80%",
     backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 12,
+    borderRadius: 20,
+    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
   },
   headerContent: {
     flexDirection: "row",
@@ -456,30 +388,48 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#1F2937",
-    letterSpacing: 0.3,
   },
   closeButton: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: "#F9FAFB",
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
   },
   content: {
+    flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 4,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  emptyStateIconContainer: {
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    maxWidth: 280,
   },
   rideSection: {
-    marginBottom: 28,
+    marginVertical: 16,
   },
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 8,
-    marginBottom: 16,
+    alignItems: "center",
+    marginBottom: 12,
   },
   sectionHeaderContent: {
     flexDirection: "row",
@@ -489,59 +439,50 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#374151",
-    letterSpacing: 0.2,
+    color: "#1F2937",
   },
   sectionBadge: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#E5E7EB",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    minWidth: 24,
-    alignItems: "center",
   },
   sectionBadgeText: {
-    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
+    color: "#6B7280",
   },
   rideCard: {
     borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   rideHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 10,
+    alignItems: "center",
+    marginBottom: 12,
   },
   rideIconSection: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     flex: 1,
   },
   rideIcon: {
     width: 32,
     height: 32,
-    borderRadius: 8,
-    alignItems: "center",
+    borderRadius: 16,
     justifyContent: "center",
-    marginRight: 10,
+    alignItems: "center",
+    marginRight: 12,
   },
   rideTitleSection: {
     flex: 1,
-    paddingRight: 8,
   },
   rideTitle: {
     fontSize: 14,
@@ -552,14 +493,11 @@ const styles = StyleSheet.create({
   rideLocation: {
     fontSize: 13,
     color: "#6B7280",
-    lineHeight: 16,
   },
   statusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
     fontSize: 10,
@@ -568,53 +506,21 @@ const styles = StyleSheet.create({
     textTransform: "capitalize",
   },
   rideDetails: {
-    gap: 6,
+    gap: 8,
   },
   rideDetailItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   rideDetailText: {
     fontSize: 12,
     color: "#6B7280",
-    fontWeight: "500",
   },
   ridePrice: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#059669",
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyStateIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  emptyStateSubtext: {
     fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  bottomPadding: {
-    height: 20,
+    fontWeight: "600",
+    color: "#16A34A",
   },
 });
 

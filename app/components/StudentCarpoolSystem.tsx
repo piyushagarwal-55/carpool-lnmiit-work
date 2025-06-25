@@ -51,7 +51,8 @@ import FilterModal, { FilterOptions } from "./FilterModal";
 import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import NotificationService from "../services/NotificationService";
-import UserRideHistoryScreen from "../userRideHistory";
+import UserRideHistoryScreen from "./UserRideHistoryScreen";
+import { rideManagementAPI } from "../api/carpool";
 
 import {
   parseEmailInfo,
@@ -640,40 +641,30 @@ const StudentCarpoolSystem = ({
       }
 
       if (selectedRideForJoin.instantBooking) {
-        // For instant booking, directly add to passengers
-        const { error: passengerError } = await supabase
-          .from("ride_passengers")
-          .insert([
-            {
-              ride_id: selectedRideForJoin.id,
-              passenger_id: user.id,
-              passenger_name:
-                user.user_metadata?.full_name ||
-                user.email?.split("@")[0] ||
-                "Passenger",
-              passenger_email: user.email,
-              seats_booked: seatsToBook,
-              status: "confirmed",
-              joined_at: new Date().toISOString(),
-            },
-          ]);
+        // Use the new instant booking API function
+        const { data: bookingResult, error: bookingError } = await supabase.rpc(
+          "handle_instant_booking",
+          {
+            p_ride_id: selectedRideForJoin.id,
+            p_passenger_id: user.id,
+            p_passenger_name:
+              user.user_metadata?.full_name ||
+              user.email?.split("@")[0] ||
+              "Passenger",
+            p_passenger_email: user.email,
+            p_seats_requested: seatsToBook,
+            p_pickup_location: null,
+            p_dropoff_location: null,
+          }
+        );
 
-        if (passengerError) {
-          console.error("Error adding passenger:", passengerError);
-          Alert.alert("Error", "Failed to join ride. Please try again.");
+        if (bookingError || !bookingResult?.success) {
+          console.error("Error with instant booking:", bookingError);
+          Alert.alert(
+            "Error",
+            bookingResult?.error || "Failed to join ride. Please try again."
+          );
           return;
-        }
-
-        // Update available seats
-        const { error: updateError } = await supabase
-          .from("carpool_rides")
-          .update({
-            available_seats: selectedRideForJoin.availableSeats - seatsToBook,
-          })
-          .eq("id", selectedRideForJoin.id);
-
-        if (updateError) {
-          console.error("Error updating seats:", updateError);
         }
 
         Alert.alert("Success", "You have successfully joined the ride!");
@@ -729,6 +720,7 @@ const StudentCarpoolSystem = ({
       await handleRefresh();
 
       setShowJoinRequestModal(false);
+      setShowJoinVerification(false);
       setSelectedRideForJoin(null);
       setJoinMessage("");
       setSeatsToBook(1);
@@ -762,10 +754,9 @@ const StudentCarpoolSystem = ({
   };
 
   const handleStartChat = (rideId: string, rideTitle: string) => {
-    setChatRideId(rideId);
-    setChatRideTitle(rideTitle);
-    setShowChat(true);
-    setShowRideDetails(false);
+    // Chat is handled in RideDetailsScreen - this is just a placeholder
+    // The actual chat opening happens in the RideDetailsScreen component
+    console.log("Chat triggered for ride:", rideId, "title:", rideTitle);
   };
 
   const handleCreateRide = () => {
@@ -833,6 +824,74 @@ const StudentCarpoolSystem = ({
   const handleBackFromDetails = () => {
     setShowRideDetails(false);
     setSelectedRideId(null);
+  };
+
+  const handleDeleteRide = (ride: CarpoolRide) => {
+    Alert.alert(
+      "Delete Ride",
+      `Are you sure you want to delete the ride from ${ride.from} to ${ride.to}?\n\nThis action cannot be undone. All passengers will be notified.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Cancel Ride",
+          style: "default",
+          onPress: () => confirmDeleteRide(ride.id, "soft"),
+        },
+        {
+          text: "Delete Permanently",
+          style: "destructive",
+          onPress: () => confirmDeleteRide(ride.id, "hard"),
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteRide = async (
+    rideId: string,
+    deleteType: "soft" | "hard"
+  ) => {
+    try {
+      setLoading(true);
+      console.log(`Attempting ${deleteType} delete for ride:`, rideId);
+
+      let result;
+      if (deleteType === "hard") {
+        result = await rideManagementAPI.deleteRideWithCleanup(rideId);
+      } else {
+        result = await rideManagementAPI.cancelRideWithReason(
+          rideId,
+          "Cancelled by driver"
+        );
+      }
+
+      if (result.error) {
+        Alert.alert("Error", result.error);
+        return;
+      }
+
+      // Show success message
+      Alert.alert(
+        "Success",
+        deleteType === "hard"
+          ? "Ride deleted permanently!"
+          : "Ride cancelled successfully!"
+      );
+
+      // Remove ride from local state
+      setRides((prev) => prev.filter((r) => r.id !== rideId));
+      setFilteredRides((prev) => prev.filter((r) => r.id !== rideId));
+
+      // Refresh data to ensure consistency
+      await handleRefresh();
+    } catch (error: any) {
+      console.error("Error deleting ride:", error);
+      Alert.alert("Error", error.message || "Failed to delete ride");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderExpiredRideCard = (ride: CarpoolRide) => {
@@ -955,8 +1014,20 @@ const StudentCarpoolSystem = ({
     const currentPassenger = ride.passengers.find(
       (p) => p.id === currentUser.id
     );
-    const hasJoined = !!currentPassenger;
-    const isPending = currentPassenger?.status === "pending";
+
+    // Check if user has a pending or accepted request
+    const currentRequest = ride.pendingRequests?.find(
+      (r) => r.passengerId === currentUser.id
+    );
+
+    const hasJoined =
+      !!currentPassenger || currentRequest?.status === "accepted";
+    const isPending =
+      currentPassenger?.status === "pending" ||
+      currentRequest?.status === "pending";
+    const isAccepted =
+      currentPassenger?.status === "accepted" ||
+      currentRequest?.status === "accepted";
 
     // Calculate expiry information
     const expiryInfo = calculateRideExpiry(ride.departureTime);
@@ -1001,6 +1072,36 @@ const StudentCarpoolSystem = ({
             </Text>
           </View>
           <View style={styles.toggleContainer}>
+            {/* Delete button - only show for driver */}
+            {isDriverCurrentUser && (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation(); // Prevent card press
+                  handleDeleteRide(ride);
+                }}
+                style={{
+                  backgroundColor: "#FF4444",
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  marginRight: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <X size={14} color="#FFF" />
+                <Text
+                  style={{
+                    color: "#FFF",
+                    fontSize: 10,
+                    fontWeight: "600",
+                  }}
+                >
+                  Delete
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={[styles.toggle, { backgroundColor: colors.accent }]}>
               <View style={styles.toggleButton} />
             </View>
@@ -1106,28 +1207,33 @@ const StudentCarpoolSystem = ({
 
         {/* Action buttons */}
         <View style={styles.jobActionButtons}>
-          {!isDriverCurrentUser && !hasJoined && ride.availableSeats > 0 && (
-            <>
-              <TouchableOpacity
-                style={[styles.contactBtn, { borderColor: colors.accent }]}
-                onPress={() => handleContactDriver(ride)}
-              >
-                <Phone size={16} color={colors.accent} />
-                <Text style={[styles.contactBtnText, { color: colors.accent }]}>
-                  Contact
-                </Text>
-              </TouchableOpacity>
+          {!isDriverCurrentUser &&
+            !hasJoined &&
+            !isPending &&
+            ride.availableSeats > 0 && (
+              <>
+                <TouchableOpacity
+                  style={[styles.contactBtn, { borderColor: colors.accent }]}
+                  onPress={() => handleContactDriver(ride)}
+                >
+                  <Phone size={16} color={colors.accent} />
+                  <Text
+                    style={[styles.contactBtnText, { color: colors.accent }]}
+                  >
+                    Contact
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.joinBtn, { backgroundColor: colors.accent }]}
-                onPress={() => handleJoinRide(ride.id)}
-              >
-                <Text style={styles.joinBtnText}>
-                  {ride.instantBooking ? "Book Now" : "Request Join"}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+                <TouchableOpacity
+                  style={[styles.joinBtn, { backgroundColor: colors.accent }]}
+                  onPress={() => handleJoinRide(ride.id)}
+                >
+                  <Text style={styles.joinBtnText}>
+                    {ride.instantBooking ? "Book Now" : "Request Join"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
 
           {(hasJoined || isDriverCurrentUser) && ride.chatEnabled && (
             <TouchableOpacity
@@ -1143,7 +1249,7 @@ const StudentCarpoolSystem = ({
             </TouchableOpacity>
           )}
 
-          {hasJoined && !isPending && (
+          {isAccepted && (
             <View
               style={[
                 styles.joinedBtn,
@@ -1151,12 +1257,22 @@ const StudentCarpoolSystem = ({
               ]}
             >
               <Text style={[styles.joinedBtnText, { color: colors.accent }]}>
-                ✓ Joined
+                ✓ Request Accepted
               </Text>
             </View>
           )}
 
-          {isPending && (
+          {hasJoined && currentPassenger?.status === "confirmed" && (
+            <View
+              style={[styles.joinedBtn, { backgroundColor: "#4CAF50" + "20" }]}
+            >
+              <Text style={[styles.joinedBtnText, { color: "#4CAF50" }]}>
+                ✓ Joined Ride
+              </Text>
+            </View>
+          )}
+
+          {isPending && !isAccepted && (
             <View
               style={[styles.joinedBtn, { backgroundColor: "#FFA726" + "20" }]}
             >
@@ -1181,11 +1297,11 @@ const StudentCarpoolSystem = ({
       icon: "🔔",
     },
     {
-      key: "search",
-      label: "Search Rides",
-      count: `${filteredRides.length}`,
+      key: "bus_schedule",
+      label: "Bus Schedule",
+      count: "Live",
       color: "#4CAF50",
-      icon: "🔍",
+      icon: "🚌",
     },
     {
       key: "create",
@@ -1453,13 +1569,9 @@ const StudentCarpoolSystem = ({
                     setShowNotifications(true);
                   } else if (category.key === "history") {
                     setShowRideHistory(true);
-                  } else if (category.key === "search") {
-                    // Focus on search bar or show search tips
-                    Alert.alert(
-                      "Search Tips",
-                      "Try searching for popular destinations like:\n\n• Jaipur Railway Station\n• Jaipur Airport\n• City Mall\n• World Trade Park\n• C-Scheme\n• Vaishali Nagar",
-                      [{ text: "Got it!" }]
-                    );
+                  } else if (category.key === "bus_schedule") {
+                    // Show bus booking system
+                    onShowBusBooking();
                   }
                 }}
               >

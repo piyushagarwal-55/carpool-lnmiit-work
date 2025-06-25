@@ -46,30 +46,74 @@ export const carpoolAPI = {
   async getAllRides() {
     try {
       const { data, error } = await supabase
-        .from("carpool_rides")
-        .select(
-          `
-          *,
-          profiles:driver_id (
-            full_name,
-            avatar_url,
-            rating,
-            phone,
-            student_id,
-            branch,
-            year
-          )
-        `
-        )
+        .from("rides_with_full_data")
+        .select("*")
         .eq("status", "active")
         .gte("departure_time", new Date().toISOString())
         .order("departure_time", { ascending: true });
 
       if (error) throw error;
-      return { data, error: null };
+
+      // Transform the data to match the expected format
+      const transformedData = data?.map((ride) => ({
+        ...ride,
+        passengers: ride.passengers || [],
+        pendingRequests: ride.pending_requests || [],
+      }));
+
+      return { data: transformedData, error: null };
     } catch (error) {
       console.error("Error fetching rides:", error);
-      return { data: null, error };
+      // Fallback to original query if view doesn't exist
+      try {
+        const { data, error } = await supabase
+          .from("carpool_rides")
+          .select(
+            `
+            *,
+            profiles:driver_id (
+              full_name,
+              avatar_url,
+              rating,
+              phone,
+              student_id,
+              branch,
+              year
+            ),
+            ride_passengers (
+              passenger_id,
+              passenger_name,
+              seats_booked,
+              status,
+              created_at,
+              passenger_profiles:passenger_id (
+                avatar_url
+              )
+            ),
+            ride_requests (
+              id,
+              passenger_id,
+              passenger_name,
+              seats_requested,
+              message,
+              status,
+              created_at,
+              passenger_profiles:passenger_id (
+                avatar_url
+              )
+            )
+          `
+          )
+          .eq("status", "active")
+          .gte("departure_time", new Date().toISOString())
+          .order("departure_time", { ascending: true });
+
+        if (error) throw error;
+        return { data, error: null };
+      } catch (fallbackError) {
+        console.error("Fallback query also failed:", fallbackError);
+        return { data: null, error: fallbackError };
+      }
     }
   },
 
@@ -507,24 +551,46 @@ export const rideRequestsAPI = {
 
       if (error) throw error;
 
-      // Create notification for passenger
-      await supabase.from("notifications").insert([
-        {
-          user_id: data.passenger_id,
-          type: "request_accepted",
-          title: "Request Accepted!",
-          message: `${data.carpool_rides.driver_name} accepted your request to join the ride from ${data.carpool_rides.from_location} to ${data.carpool_rides.to_location}`,
-          data: {
-            ride_id: data.ride_id,
-            request_id: requestId,
-            driver_message: driverMessage,
-          },
-        },
-      ]);
+      // The database trigger will handle:
+      // 1. Adding passenger to ride_passengers table
+      // 2. Updating available seats
+      // 3. Creating notifications
 
       return { data, error: null };
     } catch (error) {
       console.error("Error accepting ride request:", error);
+      return { data: null, error };
+    }
+  },
+
+  // Handle instant booking
+  async bookRideInstantly(
+    rideId: string,
+    passengerData: {
+      id: string;
+      name: string;
+      email: string;
+      seatsRequested: number;
+      pickupLocation?: string;
+      dropoffLocation?: string;
+    }
+  ) {
+    try {
+      const { data, error } = await supabase.rpc("handle_instant_booking", {
+        p_ride_id: rideId,
+        p_passenger_id: passengerData.id,
+        p_passenger_name: passengerData.name,
+        p_passenger_email: passengerData.email,
+        p_seats_requested: passengerData.seatsRequested,
+        p_pickup_location: passengerData.pickupLocation,
+        p_dropoff_location: passengerData.dropoffLocation,
+      });
+
+      if (error) throw error;
+
+      return { data, error: null };
+    } catch (error) {
+      console.error("Error booking ride instantly:", error);
       return { data: null, error };
     }
   },
@@ -877,10 +943,124 @@ export const carpoolUtils = {
   },
 };
 
+// Enhanced ride deletion API
+export const rideManagementAPI = {
+  // Delete ride with cleanup (hard delete)
+  async deleteRideWithCleanup(rideId: string) {
+    try {
+      console.log("Attempting hard delete for ride:", rideId);
+
+      const { data, error } = await supabase.rpc("delete_ride_with_cleanup", {
+        ride_id_param: rideId,
+      });
+
+      if (error) {
+        console.error("Database error in deleteRideWithCleanup:", error);
+        throw error;
+      }
+
+      if (!data?.success) {
+        throw new Error(
+          data?.error || "Unknown error occurred during deletion"
+        );
+      }
+
+      console.log("Hard delete successful:", data);
+      return { data, error: null };
+    } catch (error: any) {
+      console.error("Error in deleteRideWithCleanup:", error);
+      return {
+        data: null,
+        error: error.message || "Failed to delete ride",
+      };
+    }
+  },
+
+  // Cancel ride (soft delete)
+  async cancelRideWithReason(
+    rideId: string,
+    reason: string = "Cancelled by driver"
+  ) {
+    try {
+      console.log("Attempting soft delete (cancel) for ride:", rideId);
+
+      const { data, error } = await supabase.rpc("cancel_ride_soft_delete", {
+        ride_id_param: rideId,
+        cancellation_reason: reason,
+      });
+
+      if (error) {
+        console.error("Database error in cancelRideWithReason:", error);
+        throw error;
+      }
+
+      if (!data?.success) {
+        throw new Error(
+          data?.error || "Unknown error occurred during cancellation"
+        );
+      }
+
+      console.log("Soft delete (cancel) successful:", data);
+      return { data, error: null };
+    } catch (error: any) {
+      console.error("Error in cancelRideWithReason:", error);
+      return {
+        data: null,
+        error: error.message || "Failed to cancel ride",
+      };
+    }
+  },
+
+  // Check if user can delete ride
+  async canDeleteRide(rideId: string, userId: string) {
+    try {
+      const { data: ride, error } = await supabase
+        .from("carpool_rides")
+        .select("driver_id, status, departure_time")
+        .eq("id", rideId)
+        .single();
+
+      if (error || !ride) {
+        return { canDelete: false, reason: "Ride not found" };
+      }
+
+      if (ride.driver_id !== userId) {
+        return {
+          canDelete: false,
+          reason: "Only the driver can delete the ride",
+        };
+      }
+
+      const now = new Date();
+      const departureTime = new Date(ride.departure_time);
+
+      if (departureTime <= now) {
+        return {
+          canDelete: false,
+          reason: "Cannot delete ride that has already started",
+        };
+      }
+
+      if (ride.status === "completed" || ride.status === "cancelled") {
+        return {
+          canDelete: false,
+          reason: "Cannot delete completed or cancelled rides",
+        };
+      }
+
+      return { canDelete: true };
+    } catch (error) {
+      console.error("Error checking delete permission:", error);
+      return { canDelete: false, reason: "Error checking permissions" };
+    }
+  },
+};
+
 export default {
   carpoolAPI,
   rideRequestsAPI,
   chatAPI,
   analyticsAPI,
   carpoolUtils,
+  rideManagementAPI,
 };

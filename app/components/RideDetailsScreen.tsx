@@ -28,6 +28,7 @@ import {
   calculateRideExpiry,
   generateAvatarFromName,
 } from "../lib/utils";
+import SecureChatSystem from "./SecureChatSystem";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -99,6 +100,7 @@ export default function RideDetailsScreen({
   const [isFavorited, setIsFavorited] = useState(false);
   const [rideRequests, setRideRequests] = useState<RideRequest[]>([]);
   const [joinRequestSent, setJoinRequestSent] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -566,9 +568,12 @@ export default function RideDetailsScreen({
   };
 
   const handleStartChat = () => {
-    if (!ride) return;
-    const rideTitle = `${ride.from} → ${ride.to}`;
-    onStartChat(ride.id, rideTitle);
+    if (!ride) {
+      console.log("No ride data available for chat");
+      return;
+    }
+    console.log("Opening chat for ride:", ride.id);
+    setShowChat(true);
   };
 
   const handleCallDriver = async () => {
@@ -1383,6 +1388,25 @@ export default function RideDetailsScreen({
           </View>
         </Animated.View>
       </View>
+
+      {/* Floating Chat Window */}
+      {showChat && ride && (
+        <SecureChatSystem
+          rideId={rideId}
+          currentUser={currentUser}
+          rideDetails={{
+            from: ride.from,
+            to: ride.to,
+            driverName: ride.driverName,
+            departureTime: ride.departureTime,
+          }}
+          onBack={() => {
+            console.log("Chat back button pressed");
+            setShowChat(false);
+          }}
+          isDarkMode={false}
+        />
+      )}
     </Modal>
   );
 }

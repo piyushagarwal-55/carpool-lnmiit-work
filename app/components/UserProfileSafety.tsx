@@ -377,29 +377,14 @@ const UserProfileSafety = ({
     }
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <Star
-          key={i}
-          size={14}
-          fill={i <= rating ? "#FFD700" : "none"}
-          color={i <= rating ? "#FFD700" : isDarkMode ? "#666666" : "#CCCCCC"}
-        />
-      );
-    }
-    return stars;
-  };
-
   const tabs = [
     { key: "profile", title: "Profile", icon: User },
     { key: "safety", title: "Safety", icon: Shield },
     { key: "bookings", title: "Bookings", icon: Car },
   ];
-const usernamePart = (user?.email?.split("@")[0]) || "";
-const firstTwo = usernamePart.substring(0, 2).toUpperCase();
-const nextThree = usernamePart.substring(2, 5).toUpperCase();
+  const usernamePart = user?.email?.split("@")[0] || "";
+  const firstTwo = usernamePart.substring(0, 2).toUpperCase();
+  const nextThree = usernamePart.substring(2, 5).toUpperCase();
 
   return (
     <View
@@ -426,7 +411,7 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
         >
           Profile
         </Text>
-     
+
         <View
           style={[
             styles.tabContainer,
@@ -547,24 +532,22 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                   >
                     {user.email}
                   </Text>
-                  <View style={styles.ratingContainer}>
-                    <View style={styles.stars}>{renderStars(user.rating)}</View>
-                    <Text
-                      style={[
-                        styles.ratingText,
-                        {
-                          color: isDarkMode ? "#B8C5D1" : "#5A6C7D",
-                          fontSize: 13,
-                          fontWeight: "500",
-                        },
-                      ]}
-                    >
-                      {user.rating} ⭐ ({user.ridesCompleted} rides)
-                    </Text>
-                  </View>
+                  <Text
+                    style={[
+                      styles.userEmail,
+                      {
+                        color: isDarkMode ? "#B8C5D1" : "#5A6C7D",
+                        fontSize: 13,
+                        fontWeight: "500",
+                        marginTop: 4,
+                      },
+                    ]}
+                  >
+                    {user.ridesCompleted} rides completed
+                  </Text>
                 </View>
               </View>
-         
+
               <View style={styles.userDetails}>
                 <View
                   style={[
@@ -603,7 +586,7 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                       },
                     ]}
                   >
-                   Student
+                    Student
                   </Text>
                 </View>
                 <View
@@ -1397,8 +1380,8 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                   ))}
               </View>
             )}
-              </View>
-            )}
+          </View>
+        )}
 
         {/* Bottom spacing */}
         <View style={{ height: 20 }} />
@@ -1411,43 +1394,43 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
         presentationStyle="pageSheet"
         onRequestClose={closeContactModal}
       >
-                    <View
-                      style={[
+        <View
+          style={[
             styles.modalContainer,
             { backgroundColor: isDarkMode ? "#0F0F23" : "#FFFFFF" },
-                      ]}
-                    >
+          ]}
+        >
           <View style={styles.modalHeader}>
-                    <Text
-                      style={[
+            <Text
+              style={[
                 styles.modalTitle,
                 { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                      ]}
-                    >
+              ]}
+            >
               {editingContact
                 ? "Edit Emergency Contact"
                 : "Add Emergency Contact"}
-                    </Text>
+            </Text>
             <TouchableOpacity
               style={styles.modalCloseButton}
               onPress={closeContactModal}
             >
               <X size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
             </TouchableOpacity>
-                  </View>
+          </View>
 
           <ScrollView style={styles.modalContent}>
             <View style={styles.formGroup}>
-                  <Text
-                    style={[
+              <Text
+                style={[
                   styles.formLabel,
                   { color: isDarkMode ? "#CCCCCC" : "#333333" },
-                    ]}
-                  >
+                ]}
+              >
                 Full Name *
-                  </Text>
+              </Text>
               <TextInput
-                    style={[
+                style={[
                   styles.formInput,
                   {
                     backgroundColor: isDarkMode ? "#1A1A2E" : "#F8F9FA",
@@ -1462,19 +1445,19 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                 placeholder="Enter contact's full name"
                 placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
               />
-                    </View>
+            </View>
 
             <View style={styles.formGroup}>
-                    <Text
-                      style={[
+              <Text
+                style={[
                   styles.formLabel,
                   { color: isDarkMode ? "#CCCCCC" : "#333333" },
-                      ]}
-                    >
+                ]}
+              >
                 Phone Number *
-                    </Text>
+              </Text>
               <TextInput
-                    style={[
+                style={[
                   styles.formInput,
                   {
                     backgroundColor: isDarkMode ? "#1A1A2E" : "#F8F9FA",
@@ -1490,19 +1473,19 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                 placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
                 keyboardType="phone-pad"
               />
-                  </View>
+            </View>
 
             <View style={styles.formGroup}>
-                  <Text
-                    style={[
+              <Text
+                style={[
                   styles.formLabel,
                   { color: isDarkMode ? "#CCCCCC" : "#333333" },
-                    ]}
-                  >
+                ]}
+              >
                 Relationship *
-                  </Text>
+              </Text>
               <TextInput
-                    style={[
+                style={[
                   styles.formInput,
                   {
                     backgroundColor: isDarkMode ? "#1A1A2E" : "#F8F9FA",
@@ -1517,7 +1500,7 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                 placeholder="e.g., Father, Mother, Guardian"
                 placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
               />
-                    </View>
+            </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -1527,7 +1510,7 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                 <Save size={20} color="#FFFFFF" />
                 <Text style={styles.saveButtonText}>
                   {editingContact ? "Update Contact" : "Save Contact"}
-                    </Text>
+                </Text>
               </TouchableOpacity>
 
               {editingContact && (
@@ -1553,8 +1536,8 @@ const nextThree = usernamePart.substring(2, 5).toUpperCase();
                   Cancel
                 </Text>
               </TouchableOpacity>
-                  </View>
-      </ScrollView>
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -1641,18 +1624,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  stars: {
-    flexDirection: "row",
-    gap: 2,
-  },
-  ratingText: {
-    fontSize: 12,
-  },
+
   editButton: {
     width: 40,
     height: 40,
