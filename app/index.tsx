@@ -922,8 +922,6 @@ const AppContent = ({ session }: { session: Session }) => {
                             }}
                           >
                             <Text style={{ fontSize: 22 }}>🚗</Text>
-                          </View>
-                          <View>
                             <Text
                               style={{
                                 fontSize: 20,
