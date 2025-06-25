@@ -901,7 +901,11 @@ const AppContent = ({ session }: { session: Session }) => {
                         }}
                       >
                         <View
-                          style={{ flexDirection: "row", alignItems: "center" }}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            flex: 1,
+                          }}
                         >
                           <View
                             style={{
@@ -922,6 +926,8 @@ const AppContent = ({ session }: { session: Session }) => {
                             }}
                           >
                             <Text style={{ fontSize: 22 }}>🚗</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
                             <Text
                               style={{
                                 fontSize: 20,
