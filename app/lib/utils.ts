@@ -466,6 +466,175 @@ export function applyAdvancedFilters(rides: any[], filters: any): any[] {
   return filtered;
 }
 
+/**
+ * Delete expired rides from the database
+ */
+export async function deleteExpiredRides(supabase: any): Promise<number> {
+  try {
+    // First, get all expired rides
+    const { data: expiredRides, error: fetchError } = await supabase
+      .from("carpool_rides")
+      .select("id, departure_time, departure_date")
+      .in("status", ["active", "full"]);
+
+    if (fetchError) {
+      console.error("Error fetching rides for expiry check:", fetchError);
+      return 0;
+    }
+
+    if (!expiredRides || expiredRides.length === 0) {
+      return 0;
+    }
+
+    // Filter to find truly expired rides
+    const expiredRideIds = expiredRides
+      .filter((ride) => isRideExpired(ride))
+      .map((ride) => ride.id);
+
+    if (expiredRideIds.length === 0) {
+      return 0;
+    }
+
+    // Delete expired rides and related data
+    const { error: deleteError } = await supabase
+      .from("carpool_rides")
+      .delete()
+      .in("id", expiredRideIds);
+
+    if (deleteError) {
+      console.error("Error deleting expired rides:", deleteError);
+      return 0;
+    }
+
+    console.log(`Successfully deleted ${expiredRideIds.length} expired rides`);
+    return expiredRideIds.length;
+  } catch (error) {
+    console.error("Error in deleteExpiredRides:", error);
+    return 0;
+  }
+}
+
+/**
+ * Cleanup old data from the database (expired rides, old notifications, etc.)
+ */
+export async function cleanupOldData(supabase: any): Promise<{
+  deletedRides: number;
+  deletedNotifications: number;
+  deletedMessages: number;
+}> {
+  try {
+    const results = {
+      deletedRides: 0,
+      deletedNotifications: 0,
+      deletedMessages: 0,
+    };
+
+    // 1. Delete expired rides
+    results.deletedRides = await deleteExpiredRides(supabase);
+
+    // 2. Delete old notifications (older than 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { error: notificationError } = await supabase
+      .from("notifications")
+      .delete()
+      .lt("created_at", thirtyDaysAgo.toISOString());
+
+    if (!notificationError) {
+      console.log("Old notifications cleaned up");
+    }
+
+    // 3. Delete old chat messages (older than 30 days)
+    const { error: messageError } = await supabase
+      .from("chat_messages")
+      .delete()
+      .lt("created_at", thirtyDaysAgo.toISOString());
+
+    if (!messageError) {
+      console.log("Old chat messages cleaned up");
+    }
+
+    // 4. Delete rejected/cancelled ride requests (older than 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { error: requestError } = await supabase
+      .from("ride_requests")
+      .delete()
+      .in("status", ["rejected", "cancelled"])
+      .lt("created_at", sevenDaysAgo.toISOString());
+
+    if (!requestError) {
+      console.log("Old ride requests cleaned up");
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Error in cleanupOldData:", error);
+    return {
+      deletedRides: 0,
+      deletedNotifications: 0,
+      deletedMessages: 0,
+    };
+  }
+}
+
+/**
+ * Mark expired rides as completed instead of deleting (alternative approach)
+ */
+export async function markExpiredRidesAsCompleted(
+  supabase: any
+): Promise<number> {
+  try {
+    // Get all active/full rides
+    const { data: activeRides, error: fetchError } = await supabase
+      .from("carpool_rides")
+      .select("id, departure_time, departure_date")
+      .in("status", ["active", "full"]);
+
+    if (fetchError) {
+      console.error("Error fetching rides for expiry check:", fetchError);
+      return 0;
+    }
+
+    if (!activeRides || activeRides.length === 0) {
+      return 0;
+    }
+
+    // Filter to find expired rides
+    const expiredRideIds = activeRides
+      .filter((ride) => isRideExpired(ride))
+      .map((ride) => ride.id);
+
+    if (expiredRideIds.length === 0) {
+      return 0;
+    }
+
+    // Mark as completed instead of deleting
+    const { error: updateError } = await supabase
+      .from("carpool_rides")
+      .update({
+        status: "completed",
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", expiredRideIds);
+
+    if (updateError) {
+      console.error("Error marking expired rides as completed:", updateError);
+      return 0;
+    }
+
+    console.log(
+      `Successfully marked ${expiredRideIds.length} expired rides as completed`
+    );
+    return expiredRideIds.length;
+  } catch (error) {
+    console.error("Error in markExpiredRidesAsCompleted:", error);
+    return 0;
+  }
+}
+
 // Default export for compatibility
 const utils = {
   parseEmailInfo,
@@ -479,6 +648,9 @@ const utils = {
   isRideExpired,
   filterRides,
   applyAdvancedFilters,
+  deleteExpiredRides,
+  cleanupOldData,
+  markExpiredRidesAsCompleted,
 };
 
 export default utils;

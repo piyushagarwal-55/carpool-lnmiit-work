@@ -109,6 +109,10 @@ export class NotificationService {
     }
   }
 
+  static async fetchNotifications(userId: string, limit: number = 20) {
+    return this.getUserNotifications(userId, limit);
+  }
+
   static async getUnreadCount(userId: string): Promise<number> {
     try {
       const { count, error } = await supabase

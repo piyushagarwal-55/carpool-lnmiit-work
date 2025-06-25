@@ -34,6 +34,7 @@ import {
   Timer,
   AlertCircle,
   Bell,
+  Search,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -51,7 +52,7 @@ import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import NotificationService from "../services/NotificationService";
 import UserRideHistoryScreen from "../userRideHistory";
-import { router } from "expo-router";
+
 import {
   parseEmailInfo,
   calculateAcademicYear,
@@ -62,6 +63,9 @@ import {
   generateAvatarFromName,
   applyAdvancedFilters,
   isRideExpired,
+  deleteExpiredRides,
+  cleanupOldData,
+  markExpiredRidesAsCompleted,
 } from "../lib/utils";
 
 interface CarpoolRide {
@@ -91,7 +95,6 @@ interface CarpoolRide {
     gender?: "male" | "female" | "any";
     smokingAllowed: boolean;
     musicAllowed: boolean;
-    petsAllowed: boolean;
   };
   status: "active" | "full" | "completed" | "cancelled";
   passengers: Array<{
@@ -153,6 +156,8 @@ const StudentCarpoolSystem = ({
 }: StudentCarpoolSystemProps) => {
   const [rides, setRides] = useState<CarpoolRide[]>([]);
   const [filteredRides, setFilteredRides] = useState<CarpoolRide[]>([]);
+  const [expiredRides, setExpiredRides] = useState<CarpoolRide[]>([]);
+  const [allExpiredRides, setAllExpiredRides] = useState<CarpoolRide[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -206,8 +211,8 @@ const StudentCarpoolSystem = ({
     try {
       setLoading(true);
 
-      // Auto-expire rides first
-      await supabase.rpc("auto_expire_rides");
+      // Auto-cleanup expired rides before fetching
+      await deleteExpiredRides(supabase);
 
       const { data: ridesData, error } = await supabase
         .from("carpool_rides")
@@ -252,7 +257,6 @@ const StudentCarpoolSystem = ({
             gender: "any" as const,
             smokingAllowed: ride.smoking_allowed,
             musicAllowed: ride.music_allowed,
-            petsAllowed: ride.pets_allowed,
           },
           status: ride.status as "active" | "full" | "completed" | "cancelled",
           passengers: [], // TODO: Fetch from passengers table
@@ -263,9 +267,20 @@ const StudentCarpoolSystem = ({
         };
       });
 
-      setRides(transformedRides);
-      // Apply current filters to new data
-      const filtered = transformedRides.filter(
+      // Separate available and expired rides
+      const availableRides = transformedRides.filter(
+        (ride) => !isRideExpired(ride)
+      );
+      const expiredRidesList = transformedRides.filter((ride) =>
+        isRideExpired(ride)
+      );
+
+      setRides(availableRides);
+      setExpiredRides(expiredRidesList);
+      setAllExpiredRides(expiredRidesList);
+
+      // Apply current filters to available rides only
+      const filtered = availableRides.filter(
         (ride) =>
           (ride.from || "")
             .toLowerCase()
@@ -378,8 +393,8 @@ const StudentCarpoolSystem = ({
   }, []);
 
   useEffect(() => {
-    // Apply simple search filter
-    const filtered = rides.filter(
+    // Apply search filter to available rides
+    const searchFiltered = rides.filter(
       (ride) =>
         (ride.from || "")
           .toLowerCase()
@@ -388,8 +403,23 @@ const StudentCarpoolSystem = ({
           .toLowerCase()
           .includes((searchQuery || "").toLowerCase())
     );
-    setFilteredRides(filtered);
-  }, [searchQuery, rides]);
+
+    // Apply advanced filters using the utility function
+    const advancedFiltered = applyAdvancedFilters(searchFiltered, filters);
+    setFilteredRides(advancedFiltered);
+
+    // Also filter expired rides
+    const filteredExpired = allExpiredRides.filter(
+      (ride) =>
+        (ride.from || "")
+          .toLowerCase()
+          .includes((searchQuery || "").toLowerCase()) ||
+        (ride.to || "")
+          .toLowerCase()
+          .includes((searchQuery || "").toLowerCase())
+    );
+    setExpiredRides(filteredExpired);
+  }, [searchQuery, rides, allExpiredRides, filters]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -408,6 +438,58 @@ const StudentCarpoolSystem = ({
     setNotifications([]);
     setUserRideHistory([]);
     await handleRefresh();
+  };
+
+  // Manual cleanup function for expired rides and old data
+  const handleManualCleanup = async () => {
+    try {
+      setLoading(true);
+      const results = await cleanupOldData(supabase);
+
+      Alert.alert(
+        "Cleanup Complete! 🧹",
+        `Deleted:\n• ${results.deletedRides} expired rides\n• Old notifications and messages\n• Rejected ride requests`,
+        [
+          {
+            text: "OK",
+            onPress: () => handleRefresh(),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error during manual cleanup:", error);
+      Alert.alert("Error", "Failed to cleanup data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Alternative: Mark expired rides as completed instead of deleting
+  const handleMarkExpiredAsCompleted = async () => {
+    try {
+      setLoading(true);
+      const count = await markExpiredRidesAsCompleted(supabase);
+
+      if (count > 0) {
+        Alert.alert(
+          "Rides Updated! ✅",
+          `Marked ${count} expired rides as completed`,
+          [
+            {
+              text: "OK",
+              onPress: () => handleRefresh(),
+            },
+          ]
+        );
+      } else {
+        Alert.alert("Info", "No expired rides found to update");
+      }
+    } catch (error) {
+      console.error("Error marking expired rides:", error);
+      Alert.alert("Error", "Failed to update expired rides. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle notification clicks
@@ -474,8 +556,8 @@ const StudentCarpoolSystem = ({
 
   const handleApplyFilters = (newFilters: FilterOptions) => {
     setFilters(newFilters);
-    // Apply filters to current rides
-    const filtered = rides.filter(
+    // Apply both search and advanced filters to rides
+    const searchFiltered = rides.filter(
       (ride) =>
         (ride.from || "")
           .toLowerCase()
@@ -484,7 +566,10 @@ const StudentCarpoolSystem = ({
           .toLowerCase()
           .includes((searchQuery || "").toLowerCase())
     );
-    setFilteredRides(filtered);
+
+    // Apply advanced filters using the utility function
+    const advancedFiltered = applyAdvancedFilters(searchFiltered, newFilters);
+    setFilteredRides(advancedFiltered);
   };
 
   const handleJoinRide = (rideId: string) => {
@@ -721,8 +806,6 @@ const StudentCarpoolSystem = ({
             : false,
         musicAllowed:
           rideData.music_allowed !== undefined ? rideData.music_allowed : true,
-        petsAllowed:
-          rideData.pets_allowed !== undefined ? rideData.pets_allowed : false,
       },
       status: rideData.status || "active",
       passengers: [],
@@ -752,6 +835,121 @@ const StudentCarpoolSystem = ({
     setSelectedRideId(null);
   };
 
+  const renderExpiredRideCard = (ride: CarpoolRide) => {
+    const isDriverCurrentUser = ride.driverId === currentUser.id;
+
+    return (
+      <TouchableOpacity
+        key={ride.id}
+        style={[
+          styles.jobCard,
+          {
+            backgroundColor: isDarkMode ? "#2A2A2A" : "#F9F9F9",
+            borderWidth: 2,
+            borderColor: isDarkMode ? "#444" : "#E5E5E5",
+            opacity: 0.8,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
+          },
+        ]}
+        onPress={() => handleRideCardPress(ride)}
+      >
+        {/* Header with toggle and company name */}
+        <View style={styles.jobHeader}>
+          <View style={styles.companyInfo}>
+            <Text
+              style={[
+                styles.companyName,
+                { color: isDarkMode ? "#888" : "#666" },
+              ]}
+            >
+              LNMIIT Carpool
+            </Text>
+            <Text
+              style={[styles.jobTitle, { color: isDarkMode ? "#666" : "#999" }]}
+            >
+              {ride.from} → {ride.to}
+            </Text>
+          </View>
+          <View style={styles.toggleContainer}>
+            <View style={[styles.toggle, { backgroundColor: "#888" }]}>
+              <View style={styles.toggleButton} />
+            </View>
+          </View>
+        </View>
+
+        {/* Job tags/skills - Expired style */}
+        <View style={styles.tagsContainer}>
+          <View style={[styles.tag, { backgroundColor: "#FF5722" + "20" }]}>
+            <Text style={[styles.tagText, { color: "#FF5722" }]}>
+              ⏰ EXPIRED
+            </Text>
+          </View>
+          <View style={[styles.tag, { backgroundColor: "#888" + "20" }]}>
+            <Text style={[styles.tagText, { color: "#888" }]}>
+              ₹{ride.pricePerSeat}
+            </Text>
+          </View>
+          <View style={[styles.tag, { backgroundColor: "#888" + "20" }]}>
+            <Text style={[styles.tagText, { color: "#888" }]}>
+              {formatTime(ride.departureTime)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Driver avatars and time */}
+        <View style={styles.bottomSection}>
+          <View style={styles.avatarsContainer}>
+            <Avatar.Image
+              size={32}
+              source={{ uri: ride.driverPhoto }}
+              style={[styles.driverAvatar, { opacity: 0.7 }]}
+            />
+            {ride.passengers.slice(0, 2).map((passenger, index) => (
+              <Avatar.Image
+                key={passenger.id}
+                size={32}
+                source={{ uri: passenger.photo }}
+                style={[
+                  styles.passengerAvatar,
+                  { marginLeft: -8, opacity: 0.7 },
+                ]}
+              />
+            ))}
+            {ride.passengers.length > 2 && (
+              <View style={[styles.morePassengers, { opacity: 0.7 }]}>
+                <Text style={styles.morePassengersText}>
+                  +{ride.passengers.length - 2}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={[styles.timeAgo, { color: "#888" }]}>
+            {new Date(ride.createdAt).toLocaleDateString()}
+          </Text>
+        </View>
+
+        {/* Expired status */}
+        <View style={styles.jobActionButtons}>
+          <View
+            style={[
+              styles.joinedBtn,
+              { backgroundColor: "#FF5722" + "20", flex: 1 },
+            ]}
+          >
+            <Text style={[styles.joinedBtnText, { color: "#FF5722" }]}>
+              🚫 Ride Expired
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const renderJobStyleCard = (ride: CarpoolRide) => {
     const isDriverCurrentUser = ride.driverId === currentUser.id;
     const currentPassenger = ride.passengers.find(
@@ -764,11 +962,12 @@ const StudentCarpoolSystem = ({
     const expiryInfo = calculateRideExpiry(ride.departureTime);
 
     const cardColors = [
-      { bg: "#F8F9FA", accent: "#4CAF50" }, // Light background with Green accent
-      { bg: "#F8F9FA", accent: "#FF9800" }, // Light background with Orange accent
-      { bg: "#F8F9FA", accent: "#2196F3" }, // Light background with Blue accent
-      { bg: "#F8F9FA", accent: "#9C27B0" }, // Light background with Purple accent
-      { bg: "#F8F9FA", accent: "#E91E63" }, // Light background with Pink accent
+      { bg: "#E8F5E9", accent: "#4CAF50", border: "#C8E6C9" }, // Light green theme
+      { bg: "#FFF3E0", accent: "#FF9800", border: "#FFE0B2" }, // Light orange theme
+      { bg: "#E3F2FD", accent: "#2196F3", border: "#BBDEFB" }, // Light blue theme
+      { bg: "#F3E5F5", accent: "#9C27B0", border: "#E1BEE7" }, // Light purple theme
+      { bg: "#FCE4EC", accent: "#E91E63", border: "#F8BBD9" }, // Light pink theme
+      { bg: "#FFF8E1", accent: "#FFC107", border: "#FFECB3" }, // Light amber theme
     ];
     const colorIndex = ride.id
       ? (parseInt(ride.id.slice(-1)) || 0) % cardColors.length
@@ -783,7 +982,12 @@ const StudentCarpoolSystem = ({
           {
             backgroundColor: colors.bg,
             borderWidth: 2,
-            borderColor: "#2A2A2A",
+            borderColor: colors.border,
+            shadowColor: colors.accent,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
           },
         ]}
         onPress={() => handleRideCardPress(ride)}
@@ -999,50 +1203,80 @@ const StudentCarpoolSystem = ({
     },
   ];
 
-  // Filter options
-  const filterOptions = [
-    { key: "all", label: "All Rides" },
-    { key: "today", label: "Today" },
-    { key: "tomorrow", label: "Tomorrow" },
-    { key: "this_week", label: "This Week" },
-  ];
-
-  const [activeScreen, setActiveScreen] = useState<"home" | "history">("home");
-  if (activeScreen === "history") {
-    return <UserRideHistoryScreen user={currentUser} />;
-  }
+  const [showRideHistory, setShowRideHistory] = useState(false);
   return (
     <>
       {/* Main Container */}
       <View
         style={[
           styles.container,
-          { backgroundColor: isDarkMode ? "#000" : "#F8F9FA" },
+          { backgroundColor: isDarkMode ? "#000" : "#F5F7FA" },
         ]}
       >
-        {/* Search Bar with Menu and Notifications */}
+        {/* Enhanced Search Bar with Menu and Notifications */}
         <View style={styles.searchContainer}>
-          <TouchableOpacity onPress={onToggleSidebar} style={styles.menuBtn}>
-            <Menu size={24} color={isDarkMode ? "#FFF" : "#000"} />
-          </TouchableOpacity>
-          <Searchbar
-            placeholder="Search by destination..."
-            onChangeText={setSearchQuery}
-            value={searchQuery}
+          <TouchableOpacity
+            onPress={onToggleSidebar}
             style={[
-              styles.searchBar,
-              { backgroundColor: isDarkMode ? "#1A1A1A" : "#F5F5F5" },
+              styles.menuBtn,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.05)",
+              },
             ]}
-            inputStyle={{ color: isDarkMode ? "#FFF" : "#000" }}
-            iconColor={isDarkMode ? "#CCC" : "#666"}
-          />
+          >
+            <Menu size={22} color={isDarkMode ? "#FFF" : "#333"} />
+          </TouchableOpacity>
+
+          <View
+            style={[
+              styles.enhancedSearchWrapper,
+              {
+                backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF",
+                borderColor: isDarkMode ? "#333" : "#E5E7EB",
+                shadowColor: isDarkMode ? "#000" : "#000",
+              },
+            ]}
+          >
+            <Search
+              size={18}
+              color={isDarkMode ? "#9CA3AF" : "#6B7280"}
+              style={styles.searchIcon}
+            />
+            <TextInput
+              placeholder="Search..."
+              placeholderTextColor={isDarkMode ? "#6B7280" : "#9CA3AF"}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={[
+                styles.enhancedSearchInput,
+                { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
+              ]}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                style={styles.clearButton}
+              >
+                <X size={16} color={isDarkMode ? "#6B7280" : "#9CA3AF"} />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Notification Bell */}
           <TouchableOpacity
-            style={styles.notificationIcon}
+            style={[
+              styles.notificationIcon,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.05)",
+              },
+            ]}
             onPress={() => setShowNotifications(true)}
           >
-            <Bell size={20} color={isDarkMode ? "#CCC" : "#666"} />
+            <Bell size={18} color={isDarkMode ? "#FFF" : "#333"} />
             {unreadNotifications > 0 && (
               <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText}>
@@ -1053,10 +1287,17 @@ const StudentCarpoolSystem = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.filterIcon}
+            style={[
+              styles.filterIcon,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.05)",
+              },
+            ]}
             onPress={() => setShowFilterModal(true)}
           >
-            <Filter size={20} color={isDarkMode ? "#CCC" : "#666"} />
+            <Filter size={18} color={isDarkMode ? "#FFF" : "#333"} />
           </TouchableOpacity>
         </View>
 
@@ -1157,6 +1398,31 @@ const StudentCarpoolSystem = ({
             </View>
           )}
 
+          {/* Expired Rides Section */}
+          {expiredRides.length > 0 && (
+            <>
+              <View style={[styles.sectionHeader, { marginTop: 32 }]}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: isDarkMode ? "#FFF" : "#000" },
+                  ]}
+                >
+                  Expired Rides
+                </Text>
+                <Text
+                  style={[
+                    styles.sectionSubtitle,
+                    { color: isDarkMode ? "#CCC" : "#666" },
+                  ]}
+                >
+                  {expiredRides.length} expired rides
+                </Text>
+              </View>
+              {expiredRides.map(renderExpiredRideCard)}
+            </>
+          )}
+
           {/* Quick Actions Section */}
           <Text
             style={[
@@ -1184,43 +1450,9 @@ const StudentCarpoolSystem = ({
                   if (category.key === "create") {
                     handleCreateRide();
                   } else if (category.key === "notifications") {
-                    // Show a list of notifications and handle clicks
-                    if (notifications.length > 0) {
-                      Alert.alert(
-                        "Notifications",
-                        `You have ${unreadNotifications} unread notifications`,
-                        [
-                          {
-                            text: "View Latest",
-                            onPress: () => {
-                              const latestNotification = notifications?.find(
-                                (n) => !n.read
-                              );
-                              if (latestNotification) {
-                                handleNotificationClick(latestNotification);
-                              }
-                            },
-                          },
-                          {
-                            text: "Mark All Read",
-                            onPress: async () => {
-                              await NotificationService.markAllAsRead(
-                                currentUser.id
-                              );
-                              fetchNotifications();
-                            },
-                          },
-                          { text: "Cancel", style: "cancel" },
-                        ]
-                      );
-                    } else {
-                      Alert.alert("Notifications", "No notifications yet!");
-                    }
+                    setShowNotifications(true);
                   } else if (category.key === "history") {
-                    router.push({
-                      pathname: "/ride-history",
-                      params: { user: JSON.stringify(currentUser) },
-                    });
+                    setShowRideHistory(true);
                   } else if (category.key === "search") {
                     // Focus on search bar or show search tips
                     Alert.alert(
@@ -1852,6 +2084,29 @@ const StudentCarpoolSystem = ({
         isDarkMode={isDarkMode}
       />
 
+      {/* Notification Screen */}
+      <Modal
+        visible={showNotifications}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <NotificationScreen
+          onBack={() => setShowNotifications(false)}
+          currentUser={currentUser}
+          isDarkMode={isDarkMode}
+        />
+      </Modal>
+
+      {/* Ride History Screen */}
+      {showRideHistory && currentUser && (
+        <UserRideHistoryScreen
+          visible={showRideHistory}
+          onClose={() => setShowRideHistory(false)}
+          user={currentUser}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
       <LoadingOverlay
         visible={loading}
         message="Loading..."
@@ -2157,16 +2412,61 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
+    maxWidth: 220, // Limit the maximum width
     borderRadius: 12,
   },
+  enhancedSearchWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    gap: 12,
+  },
+  searchIcon: {
+    opacity: 0.7,
+  },
+  enhancedSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
   menuBtn: {
-    padding: 8,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  notificationIcon: {
+    padding: 12,
+    borderRadius: 12,
+    position: "relative",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterIcon: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#F5F5F5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -2737,11 +3037,6 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  notificationIcon: {
-    padding: 8,
-    borderRadius: 12,
-    position: "relative",
   },
   notificationBadge: {
     position: "absolute",
