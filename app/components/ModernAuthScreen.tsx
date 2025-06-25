@@ -21,6 +21,7 @@ import { Eye, EyeOff, ArrowRight } from "lucide-react-native";
 
 import Input from "./ui/Input";
 import Button from "./ui/Button";
+import supabase from "../lib/supabase";
 
 const { width } = Dimensions.get("window");
 
@@ -85,44 +86,74 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     return password.length >= 6;
   };
 
-  const handleSubmit = async () => {
-    // Reset errors
-    setEmailError("");
-    setPasswordError("");
+ const handleSubmit = async () => {
+  setEmailError('');
+  setPasswordError('');
 
-    // Validate inputs
-    if (!validateEmail(email)) {
-      setEmailError(
-        "Please enter a valid LNMIIT email (e.g., 24ucs001@lnmiit.ac.in)"
-      );
-      return;
+  if (!validateEmail(email)) {
+    setEmailError('Please enter a valid LNMIIT email.');
+    return;
+  }
+
+  if (!validatePassword(password)) {
+    setPasswordError('Password must be at least 6 characters.');
+    return;
+  }
+
+  if (!isLogin && password !== confirmPassword) {
+    setPasswordError("Passwords don't match");
+    return;
+  }
+
+  if (!isLogin && !name.trim()) {
+    Alert.alert('Error', 'Please enter your name');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    if (!isLogin) {
+      // SIGN UP
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role: selectedRole,
+          },
+        },
+      });
+
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          setEmailError('A user with this email already exists.');
+        } else {
+          Alert.alert('Signup Error', error.message);
+        }
+        return;
+      }
+    } else {
+      // LOGIN
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        Alert.alert('Login Error', error.message);
+        return;
+      }
     }
 
-    if (!validatePassword(password)) {
-      setPasswordError("Password must be at least 6 characters");
-      return;
-    }
-
-    if (!isLogin && password !== confirmPassword) {
-      setPasswordError("Passwords don't match");
-      return;
-    }
-
-    if (!isLogin && !name.trim()) {
-      Alert.alert("Error", "Please enter your name");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      onAuthenticated(email, password, selectedRole);
-    } catch (error) {
-      Alert.alert("Error", "Authentication failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    onAuthenticated(email, password, selectedRole);
+  } catch (err) {
+    Alert.alert('Error', 'Something went wrong. Try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>
