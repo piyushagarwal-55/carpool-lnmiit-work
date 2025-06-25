@@ -8,6 +8,9 @@ import {
   Alert,
   StyleSheet,
   Dimensions,
+  Modal,
+  TextInput,
+  Linking,
 } from "react-native";
 import { Avatar } from "react-native-paper";
 import {
@@ -26,7 +29,13 @@ import {
   Bell,
   Bus,
   CheckCircle,
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  X,
 } from "lucide-react-native";
+import { supabase } from "../lib/supabase";
 
 interface UserProfileSafetyProps {
   user?: {
@@ -39,7 +48,6 @@ interface UserProfileSafetyProps {
     year: string;
     phone: string;
     ridesCompleted: number;
-    
   };
   emergencyContacts?: Array<{
     id: string;
@@ -71,7 +79,6 @@ interface UserProfileSafetyProps {
 
 const { width } = Dimensions.get("window");
 
-
 const UserProfileSafety = ({
   user = {
     name: "Demo User",
@@ -84,8 +91,8 @@ const UserProfileSafety = ({
     phone: "+91 99999 00000",
     ridesCompleted: 25,
   },
- 
- 
+  emergencyContacts: initialEmergencyContacts = [],
+  rideHistory = [],
   busBookings = [
     {
       id: "1",
@@ -115,9 +122,259 @@ const UserProfileSafety = ({
   const [locationSharing, setLocationSharing] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
+  // Emergency contacts state
+  const [emergencyContacts, setEmergencyContacts] = useState<
+    Array<{
+      id: string;
+      name: string;
+      phone: string;
+      relation: string;
+    }>
+  >([]);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<any>(null);
+  const [contactForm, setContactForm] = useState({
+    name: "",
+    phone: "",
+    relation: "",
+  });
+
+  // Load emergency contacts from database
+  useEffect(() => {
+    fetchEmergencyContacts();
+  }, []);
+
+  const fetchEmergencyContacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("emergency_contacts")
+        .select("*")
+        .eq("user_id", user.email)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setEmergencyContacts(
+          data.map((contact) => ({
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            relation: contact.relation,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching emergency contacts:", error);
+    }
+  };
+
+  const saveEmergencyContact = async () => {
+    if (
+      !contactForm.name.trim() ||
+      !contactForm.phone.trim() ||
+      !contactForm.relation.trim()
+    ) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    try {
+      if (editingContact) {
+        // Update existing contact
+        const { error } = await supabase
+          .from("emergency_contacts")
+          .update({
+            name: contactForm.name.trim(),
+            phone: contactForm.phone.trim(),
+            relation: contactForm.relation.trim(),
+          })
+          .eq("id", editingContact.id);
+
+        if (error) throw error;
+
+        setEmergencyContacts((prev) =>
+          prev.map((contact) =>
+            contact.id === editingContact.id
+              ? { ...contact, ...contactForm }
+              : contact
+          )
+        );
+      } else {
+        // Add new contact
+        const { data, error } = await supabase
+          .from("emergency_contacts")
+          .insert([
+            {
+              user_id: user.email,
+              name: contactForm.name.trim(),
+              phone: contactForm.phone.trim(),
+              relation: contactForm.relation.trim(),
+            },
+          ])
+          .select();
+
+        if (error) throw error;
+
+        if (data && data[0]) {
+          setEmergencyContacts((prev) => [
+            ...prev,
+            {
+              id: data[0].id,
+              name: data[0].name,
+              phone: data[0].phone,
+              relation: data[0].relation,
+            },
+          ]);
+        }
+      }
+
+      closeContactModal();
+      Alert.alert(
+        "Success",
+        editingContact ? "Contact updated!" : "Contact added!"
+      );
+    } catch (error) {
+      console.error("Error saving emergency contact:", error);
+      Alert.alert("Error", "Failed to save contact. Please try again.");
+    }
+  };
+
+  const deleteEmergencyContact = async (contactId: string) => {
+    Alert.alert(
+      "Delete Contact",
+      "Are you sure you want to delete this emergency contact?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("emergency_contacts")
+                .delete()
+                .eq("id", contactId);
+
+              if (error) throw error;
+
+              setEmergencyContacts((prev) =>
+                prev.filter((contact) => contact.id !== contactId)
+              );
+              Alert.alert("Success", "Contact deleted!");
+            } catch (error) {
+              console.error("Error deleting emergency contact:", error);
+              Alert.alert(
+                "Error",
+                "Failed to delete contact. Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openContactModal = (contact?: any) => {
+    if (contact) {
+      setEditingContact(contact);
+      setContactForm({
+        name: contact.name,
+        phone: contact.phone,
+        relation: contact.relation,
+      });
+    } else {
+      setEditingContact(null);
+      setContactForm({ name: "", phone: "", relation: "" });
+    }
+    setShowContactModal(true);
+  };
+
+  const closeContactModal = () => {
+    setShowContactModal(false);
+    setEditingContact(null);
+    setContactForm({ name: "", phone: "", relation: "" });
+  };
+
   const handleSOS = () => {
-    console.log("SOS Alert triggered - Emergency contacts would be notified");
-    // TODO: Implement actual SOS functionality
+    Alert.alert(
+      "🚨 Emergency SOS",
+      "This will immediately notify your emergency contacts and campus security. Only use in real emergencies.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send SOS",
+          style: "destructive",
+          onPress: () => {
+            // Show countdown alert
+            Alert.alert(
+              "🚨 SOS Activated",
+              "Emergency contacts notified! Automatically calling first contact in 8 seconds...\n\nPress OK to call immediately or Cancel to stop auto-call.",
+              [
+                {
+                  text: "Cancel Auto-Call",
+                  style: "cancel",
+                  onPress: () => {
+                    Alert.alert(
+                      "SOS Sent",
+                      "Emergency contacts have been notified!"
+                    );
+                  },
+                },
+                {
+                  text: "Call Now",
+                  style: "destructive",
+                  onPress: () => callFirstEmergencyContact(),
+                },
+                {
+                  text: "OK",
+                  onPress: () => {
+                    // Start 8-second countdown
+                    setTimeout(() => {
+                      callFirstEmergencyContact();
+                    }, 8000);
+                    Alert.alert(
+                      "SOS Sent",
+                      "Emergency contacts notified! Auto-calling in 8 seconds..."
+                    );
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const callFirstEmergencyContact = () => {
+    if (emergencyContacts.length > 0) {
+      const firstContact = emergencyContacts[0];
+      const phoneNumber = firstContact.phone.replace(/[^0-9+]/g, ""); // Clean phone number
+      const phoneUrl = `tel:${phoneNumber}`;
+
+      Alert.alert(
+        "📞 Calling Emergency Contact",
+        `Calling ${firstContact.name} (${firstContact.relation})\n${firstContact.phone}`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Call",
+            onPress: () => {
+              Linking.openURL(phoneUrl).catch((err) => {
+                Alert.alert("Error", "Unable to make phone call");
+                console.error("Call error:", err);
+              });
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "No Emergency Contacts",
+        "Please add emergency contacts first before using SOS feature."
+      );
+    }
   };
 
   const renderStars = (rating: number) => {
@@ -138,7 +395,7 @@ const UserProfileSafety = ({
   const tabs = [
     { key: "profile", title: "Profile", icon: User },
     { key: "safety", title: "Safety", icon: Shield },
-    { key: "bookings", title: "Bookings", icon: Bus },
+    { key: "bookings", title: "Bookings", icon: Car },
   ];
   const usernamePart = user?.email?.split("@")[0] || "";
   const firstTwo = usernamePart.substring(0, 2).toUpperCase();
@@ -184,7 +441,6 @@ const UserProfileSafety = ({
         >
           Profile
         </Text>
-
      
         <View
           style={[
@@ -392,7 +648,6 @@ const UserProfileSafety = ({
                     >
                       Branch
                     </Text>
-                    
                   </View>
                   <Text
                     style={[
@@ -570,12 +825,9 @@ const UserProfileSafety = ({
                   thumbColor="#FFFFFF"
                 />
               </View>
-
-              
             </View>
 
             {/* Recent Rides */}
-         
 
             {/* Logout */}
             <TouchableOpacity
@@ -695,17 +947,122 @@ const UserProfileSafety = ({
                 📞 Emergency Contacts
               </Text>
 
-             
+              {/* Emergency Contacts List */}
+              {emergencyContacts.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  {emergencyContacts.map((contact, index) => (
+                    <View
+                      key={contact.id}
+                      style={[
+                        styles.contactItem,
+                        {
+                          backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
+                          borderRadius: 12,
+                          paddingHorizontal: 16,
+                          paddingVertical: 12,
+                          marginBottom:
+                            index === emergencyContacts.length - 1 ? 0 : 12,
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.1,
+                          shadowRadius: 4,
+                          elevation: 3,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.contactIcon,
+                          {
+                            backgroundColor: isDarkMode ? "#3B82F6" : "#2563EB",
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                          },
+                        ]}
+                      >
+                        <User size={20} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.contactDetails}>
+                        <Text
+                          style={[
+                            styles.contactName,
+                            {
+                              color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
+                              fontSize: 16,
+                              fontWeight: "600",
+                              marginBottom: 2,
+                            },
+                          ]}
+                        >
+                          {contact.name}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.contactRelation,
+                            {
+                              color: isDarkMode ? "#CCCCCC" : "#666666",
+                              fontSize: 14,
+                              marginBottom: 4,
+                            },
+                          ]}
+                        >
+                          {contact.relation} • {contact.phone}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.callButton,
+                            {
+                              backgroundColor: "#10B981",
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                            },
+                          ]}
+                          onPress={() => {
+                            const phoneNumber = contact.phone.replace(
+                              /[^0-9+]/g,
+                              ""
+                            );
+                            const phoneUrl = `tel:${phoneNumber}`;
+                            Linking.openURL(phoneUrl).catch((err) => {
+                              Alert.alert("Error", "Unable to make phone call");
+                              console.error("Call error:", err);
+                            });
+                          }}
+                        >
+                          <Phone size={18} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.callButton,
+                            {
+                              backgroundColor: isDarkMode
+                                ? "#666666"
+                                : "#9CA3AF",
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                            },
+                          ]}
+                          onPress={() => openContactModal(contact)}
+                        >
+                          <Edit size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
 
               <TouchableOpacity
                 style={[
                   styles.addContactButton,
                   { borderColor: isDarkMode ? "#333333" : "#E0E0E0" },
                 ]}
-                onPress={() => {
-                  console.log("Add emergency contact pressed");
-                  // TODO: Navigate to add contact screen
-                }}
+                onPress={() => openContactModal()}
               >
                 <Text
                   style={[
@@ -785,7 +1142,7 @@ const UserProfileSafety = ({
         ) : (
           // Bookings Tab
           <View style={styles.content}>
-            {/* Active Bus Bookings */}
+            {/* Active Ride Bookings */}
             <View
               style={[
                 styles.card,
@@ -806,7 +1163,7 @@ const UserProfileSafety = ({
                   },
                 ]}
               >
-                🚌 Car Bookings
+                🚗 Ride Bookings
               </Text>
 
               {busBookings.filter((booking) => booking.status === "active")
@@ -849,7 +1206,7 @@ const UserProfileSafety = ({
                           },
                         ]}
                       >
-                        <Bus size={22} color="#FFFFFF" />
+                        <Car size={22} color="#FFFFFF" />
                       </View>
                       <View style={styles.bookingDetails}>
                         <Text
@@ -941,14 +1298,14 @@ const UserProfileSafety = ({
                   ))
               ) : (
                 <View style={styles.emptyBookings}>
-                  <Bus size={48} color={isDarkMode ? "#666666" : "#CCCCCC"} />
+                  <Car size={48} color={isDarkMode ? "#666666" : "#CCCCCC"} />
                   <Text
                     style={[
                       styles.emptyText,
                       { color: isDarkMode ? "#CCCCCC" : "#666666" },
                     ]}
                   >
-                    No active Car bookings
+                    No active ride bookings
                   </Text>
                   <Text
                     style={[
@@ -956,7 +1313,7 @@ const UserProfileSafety = ({
                       { color: isDarkMode ? "#666666" : "#999999" },
                     ]}
                   >
-                    Book a bus to see your bookings here
+                    Book a ride to see your bookings here
                   </Text>
                 </View>
               )}
@@ -1012,7 +1369,7 @@ const UserProfileSafety = ({
                           },
                         ]}
                       >
-                        <Bus size={16} color="#FFFFFF" />
+                        <Car size={16} color="#FFFFFF" />
                       </View>
                       <View style={styles.bookingDetails}>
                         <Text
@@ -1055,352 +1412,166 @@ const UserProfileSafety = ({
                   ))}
               </View>
             )}
-
-            {/* Booking History Stats */}
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: isDarkMode ? "#1A1A2E" : "#F3E8FF",
-                  borderColor: isDarkMode ? "#A855F7" : "#9333EA",
-                  borderWidth: 2,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.cardTitle,
-                  {
-                    color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
-                    fontSize: 20,
-                    marginBottom: 20,
-                  },
-                ]}
-              >
-                📊 Booking Statistics
-              </Text>
-
-              {/* Enhanced Analytics Grid */}
-              <View style={styles.analyticsGrid}>
-                {/* Total Bookings */}
-                <View
-                  style={[
-                    styles.analyticsCard,
-                    {
-                      backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                      borderLeftColor: isDarkMode ? "#A855F7" : "#9333EA",
-                    },
-                  ]}
-                >
-                  <View style={styles.analyticsHeader}>
-                    <View
-                      style={[
-                        styles.analyticsIcon,
-                        { backgroundColor: isDarkMode ? "#A855F7" : "#9333EA" },
-                      ]}
-                    >
-                      <Text style={styles.analyticsEmoji}>📊</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.analyticsNumber,
-                        { color: isDarkMode ? "#A855F7" : "#9333EA" },
-                      ]}
-                    >
-                      {busBookings.length}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.analyticsLabel,
-                      { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                    ]}
-                  >
-                    Total Bookings
-                  </Text>
-                  <Text
-                    style={[
-                      styles.analyticsSubtext,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    All time bookings
-                  </Text>
-                </View>
-
-                {/* Active Bookings */}
-                <View
-                  style={[
-                    styles.analyticsCard,
-                    {
-                      backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                      borderLeftColor: isDarkMode ? "#22C55E" : "#16A34A",
-                    },
-                  ]}
-                >
-                  <View style={styles.analyticsHeader}>
-                    <View
-                      style={[
-                        styles.analyticsIcon,
-                        { backgroundColor: isDarkMode ? "#22C55E" : "#16A34A" },
-                      ]}
-                    >
-                      <Text style={styles.analyticsEmoji}>🎫</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.analyticsNumber,
-                        { color: isDarkMode ? "#22C55E" : "#16A34A" },
-                      ]}
-                    >
-                      {busBookings.filter((b) => b.status === "active").length}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.analyticsLabel,
-                      { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                    ]}
-                  >
-                    Active Bookings
-                  </Text>
-                  <Text
-                    style={[
-                      styles.analyticsSubtext,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    Ready to travel
-                  </Text>
-                </View>
-
-                {/* Completed Journeys */}
-                <View
-                  style={[
-                    styles.analyticsCard,
-                    {
-                      backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                      borderLeftColor: isDarkMode ? "#3B82F6" : "#2563EB",
-                    },
-                  ]}
-                >
-                  <View style={styles.analyticsHeader}>
-                    <View
-                      style={[
-                        styles.analyticsIcon,
-                        { backgroundColor: isDarkMode ? "#3B82F6" : "#2563EB" },
-                      ]}
-                    >
-                      <Text style={styles.analyticsEmoji}>🏆</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.analyticsNumber,
-                        { color: isDarkMode ? "#3B82F6" : "#2563EB" },
-                      ]}
-                    >
-                      {
-                        busBookings.filter((b) => b.status === "completed")
-                          .length
-                      }
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.analyticsLabel,
-                      { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                    ]}
-                  >
-                    Completed
-                  </Text>
-                  <Text
-                    style={[
-                      styles.analyticsSubtext,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    Successful trips
-                  </Text>
-                </View>
-
-                {/* Most Used Route */}
-                <View
-                  style={[
-                    styles.analyticsCard,
-                    {
-                      backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF",
-                      borderLeftColor: isDarkMode ? "#F97316" : "#EA580C",
-                    },
-                  ]}
-                >
-                  <View style={styles.analyticsHeader}>
-                    <View
-                      style={[
-                        styles.analyticsIcon,
-                        { backgroundColor: isDarkMode ? "#F97316" : "#EA580C" },
-                      ]}
-                    >
-                      <Text style={styles.analyticsEmoji}>🚌</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.analyticsNumber,
-                        {
-                          color: isDarkMode ? "#F97316" : "#EA580C",
-                          fontSize: 14,
-                          fontWeight: "600",
-                        },
-                      ]}
-                    >
-                      {busBookings.length > 0
-                        ? busBookings.reduce((acc, booking) => {
-                            acc[booking.busRoute] =
-                              (acc[booking.busRoute] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)[
-                            Object.keys(
-                              busBookings.reduce((acc, booking) => {
-                                acc[booking.busRoute] =
-                                  (acc[booking.busRoute] || 0) + 1;
-                                return acc;
-                              }, {} as Record<string, number>)
-                            ).reduce((a, b) =>
-                              busBookings.reduce((acc, booking) => {
-                                acc[booking.busRoute] =
-                                  (acc[booking.busRoute] || 0) + 1;
-                                return acc;
-                              }, {} as Record<string, number>)[a] >
-                              busBookings.reduce((acc, booking) => {
-                                acc[booking.busRoute] =
-                                  (acc[booking.busRoute] || 0) + 1;
-                                return acc;
-                              }, {} as Record<string, number>)[b]
-                                ? a
-                                : b
-                            )
-                          ] || 0
-                        : 0}
-                      x
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.analyticsLabel,
-                      { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                    ]}
-                  >
-                    Favorite Route
-                  </Text>
-                  <Text
-                    style={[
-                      styles.analyticsSubtext,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    {busBookings.length > 0
-                      ? Object.keys(
-                          busBookings.reduce((acc, booking) => {
-                            acc[booking.busRoute] =
-                              (acc[booking.busRoute] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)
-                        )
-                          .reduce((a, b) =>
-                            busBookings.reduce((acc, booking) => {
-                              acc[booking.busRoute] =
-                                (acc[booking.busRoute] || 0) + 1;
-                              return acc;
-                            }, {} as Record<string, number>)[a] >
-                            busBookings.reduce((acc, booking) => {
-                              acc[booking.busRoute] =
-                                (acc[booking.busRoute] || 0) + 1;
-                              return acc;
-                            }, {} as Record<string, number>)[b]
-                              ? a
-                              : b
-                          )
-                          .split(" to ")[0]
-                      : "No routes"}
-                  </Text>
-                </View>
               </View>
-
-              {/* Quick Insights */}
-              <View
-                style={[
-                  styles.insightsContainer,
-                  { backgroundColor: isDarkMode ? "#0F172A" : "#FFFFFF" },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.insightsTitle,
-                    { color: isDarkMode ? "#FFFFFF" : "#1A1A2E" },
-                  ]}
-                >
-                  📈 Quick Insights
-                </Text>
-                <View style={styles.insightsList}>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightEmoji}>🕒</Text>
-                    <Text
-                      style={[
-                        styles.insightText,
-                        { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                      ]}
-                    >
-                      Most bookings in Morning hours
-                    </Text>
-                  </View>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightEmoji}>📅</Text>
-                    <Text
-                      style={[
-                        styles.insightText,
-                        { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                      ]}
-                    >
-                      Last booking:{" "}
-                      {busBookings.length > 0
-                        ? new Date(
-                            Math.max(
-                              ...busBookings.map((b) => b.bookingTime.getTime())
-                            )
-                          ).toLocaleDateString()
-                        : "No bookings yet"}
-                    </Text>
-                  </View>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightEmoji}>⭐</Text>
-                    <Text
-                      style={[
-                        styles.insightText,
-                        { color: isDarkMode ? "#B8C5D1" : "#5A6C7D" },
-                      ]}
-                    >
-                      {busBookings.filter((b) => b.status === "active").length >
-                      0
-                        ? `${
-                            busBookings.filter((b) => b.status === "active")
-                              .length
-                          } upcoming journey${
-                            busBookings.filter((b) => b.status === "active")
-                              .length > 1
-                              ? "s"
-                              : ""
-                          }`
-                        : "No upcoming journeys"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
+            )}
 
         {/* Bottom spacing */}
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Emergency Contact Modal */}
+      <Modal
+        visible={showContactModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeContactModal}
+      >
+                    <View
+                      style={[
+            styles.modalContainer,
+            { backgroundColor: isDarkMode ? "#0F0F23" : "#FFFFFF" },
+                      ]}
+                    >
+          <View style={styles.modalHeader}>
+                    <Text
+                      style={[
+                styles.modalTitle,
+                { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                      ]}
+                    >
+              {editingContact
+                ? "Edit Emergency Contact"
+                : "Add Emergency Contact"}
+                    </Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={closeContactModal}
+            >
+              <X size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+            </TouchableOpacity>
+                  </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.formGroup}>
+                  <Text
+                    style={[
+                  styles.formLabel,
+                  { color: isDarkMode ? "#CCCCCC" : "#333333" },
+                    ]}
+                  >
+                Full Name *
+                  </Text>
+              <TextInput
+                    style={[
+                  styles.formInput,
+                  {
+                    backgroundColor: isDarkMode ? "#1A1A2E" : "#F8F9FA",
+                    borderColor: isDarkMode ? "#333333" : "#E0E0E0",
+                    color: isDarkMode ? "#FFFFFF" : "#000000",
+                  },
+                ]}
+                value={contactForm.name}
+                onChangeText={(text) =>
+                  setContactForm((prev) => ({ ...prev, name: text }))
+                }
+                placeholder="Enter contact's full name"
+                placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
+              />
+                    </View>
+
+            <View style={styles.formGroup}>
+                    <Text
+                      style={[
+                  styles.formLabel,
+                  { color: isDarkMode ? "#CCCCCC" : "#333333" },
+                      ]}
+                    >
+                Phone Number *
+                    </Text>
+              <TextInput
+                    style={[
+                  styles.formInput,
+                  {
+                    backgroundColor: isDarkMode ? "#1A1A2E" : "#F8F9FA",
+                    borderColor: isDarkMode ? "#333333" : "#E0E0E0",
+                    color: isDarkMode ? "#FFFFFF" : "#000000",
+                  },
+                ]}
+                value={contactForm.phone}
+                onChangeText={(text) =>
+                  setContactForm((prev) => ({ ...prev, phone: text }))
+                }
+                placeholder="+91 XXXXX XXXXX"
+                placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
+                keyboardType="phone-pad"
+              />
+                  </View>
+
+            <View style={styles.formGroup}>
+                  <Text
+                    style={[
+                  styles.formLabel,
+                  { color: isDarkMode ? "#CCCCCC" : "#333333" },
+                    ]}
+                  >
+                Relationship *
+                  </Text>
+              <TextInput
+                    style={[
+                  styles.formInput,
+                  {
+                    backgroundColor: isDarkMode ? "#1A1A2E" : "#F8F9FA",
+                    borderColor: isDarkMode ? "#333333" : "#E0E0E0",
+                    color: isDarkMode ? "#FFFFFF" : "#000000",
+                  },
+                ]}
+                value={contactForm.relation}
+                onChangeText={(text) =>
+                  setContactForm((prev) => ({ ...prev, relation: text }))
+                }
+                placeholder="e.g., Father, Mother, Guardian"
+                placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
+              />
+                    </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={saveEmergencyContact}
+              >
+                <Save size={20} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>
+                  {editingContact ? "Update Contact" : "Save Contact"}
+                    </Text>
+              </TouchableOpacity>
+
+              {editingContact && (
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.deleteButton]}
+                  onPress={() => deleteEmergencyContact(editingContact.id)}
+                >
+                  <Trash2 size={20} color="#FFFFFF" />
+                  <Text style={styles.deleteButtonText}>Delete Contact</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={closeContactModal}
+              >
+                <Text
+                  style={[
+                    styles.cancelButtonText,
+                    { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+                  </View>
+      </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1808,6 +1979,100 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     flex: 1,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    padding: 0,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    flex: 1,
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  formInput: {
+    height: 50,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  modalActions: {
+    gap: 12,
+    marginTop: 32,
+  },
+  modalButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  saveButton: {
+    backgroundColor: "#10B981",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  deleteButton: {
+    backgroundColor: "#EF4444",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  deleteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  cancelButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

@@ -114,6 +114,16 @@ CREATE TABLE IF NOT EXISTS bus_bookings (
   UNIQUE(schedule_id, seat_number, booking_date)
 );
 
+CREATE TABLE IF NOT EXISTS emergency_contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  relation TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Now recreate the fixed views without the duplicate column issue
 CREATE OR REPLACE VIEW ride_summary AS
 SELECT 
@@ -308,6 +318,9 @@ DROP TRIGGER IF EXISTS update_bus_schedules_updated_at ON bus_schedules;
 CREATE TRIGGER update_bus_schedules_updated_at BEFORE UPDATE ON bus_schedules
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
+CREATE TRIGGER update_emergency_contacts_updated_at BEFORE UPDATE ON emergency_contacts
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
 -- Function to cleanup expired data
 CREATE OR REPLACE FUNCTION cleanup_expired_data()
 RETURNS void AS $$
@@ -364,6 +377,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_participants_user ON chat_participants(user_
 
 CREATE INDEX IF NOT EXISTS idx_bus_bookings_user ON bus_bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bus_bookings_schedule ON bus_bookings(schedule_id, booking_date);
+
+CREATE INDEX IF NOT EXISTS idx_emergency_contacts_user ON emergency_contacts(user_id);
+CREATE INDEX IF NOT EXISTS idx_emergency_contacts_created ON emergency_contacts(created_at);
 
 -- Insert sample bus schedules only if they don't exist
 INSERT INTO bus_schedules (route_name, origin, destination, departure_time, arrival_time, days_of_week, bus_number, total_seats, driver_name, driver_phone, fare) 
