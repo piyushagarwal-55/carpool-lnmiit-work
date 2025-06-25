@@ -36,7 +36,6 @@ import { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import Auth from "./components/ModernAuthScreen";
 import CreateRideScreen from "./components/CreateRideScreen";
-import { CarpoolRide } from "./models/ride";
 import { formatDate, formatTime } from "./lib/utils";
 
 // Theme
@@ -120,10 +119,10 @@ interface CarpoolRide {
 const validateDatabaseConfig = async () => {
   try {
     const { data, error } = await supabase
-      .from("rides")
+      .from("carpool_rides")
       .select("id")
       .limit(1);
-    
+
     if (error) {
       console.error("Database validation failed:", error);
       return false;
@@ -211,14 +210,16 @@ const AppContent = ({ session }: { session: Session }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarAnimation] = useState(new Animated.Value(-400));
   const [busBookings, setBusBookings] = useState<any[]>([]);
-  const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>({});
+  const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>(
+    {}
+  );
   const [availableRides, setAvailableRides] = useState(0);
   const [userRideHistory, setUserRideHistory] = useState(0);
   const [activeBusRoutes, setActiveBusRoutes] = useState(0);
   const [showCreateRide, setShowCreateRide] = useState(false);
   const [rideSubmitting, setRideSubmitting] = useState(false);
   const [showRideHistory, setShowRideHistory] = useState(false);
- const [rides, setRides] = useState<CarpoolRide[]>([]);
+  const [rides, setRides] = useState<CarpoolRide[]>([]);
   const colorScheme = useColorScheme();
   const router = useRouter();
   const themeTransition = useSharedValue(0);
@@ -242,7 +243,7 @@ const AppContent = ({ session }: { session: Session }) => {
         console.warn("Database connection issues detected");
       }
     };
-    
+
     checkConnection();
     const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
@@ -252,7 +253,7 @@ const AppContent = ({ session }: { session: Session }) => {
   const fetchSidebarData = async () => {
     try {
       const { data: ridesData, error: ridesError } = await supabase
-        .from("rides")
+        .from("carpool_rides")
         .select("id")
         .eq("status", "active")
         .gte("departure_time", new Date().toISOString());
@@ -265,7 +266,7 @@ const AppContent = ({ session }: { session: Session }) => {
 
       if (user?.id) {
         const { data: historyData, error: historyError } = await supabase
-          .from("rides")
+          .from("carpool_rides")
           .select("id")
           .eq("driver_id", user.id);
 
@@ -324,39 +325,44 @@ const AppContent = ({ session }: { session: Session }) => {
   // ✅ FIXED: Improved handleRideCreated function with better error handling
   const handleRideCreated = async (rideData: any) => {
     setRideSubmitting(true);
-    
+
     try {
       console.log("Raw rideData:", rideData);
-      
+
       // Add network and database validation
       try {
         // Test database connection first
         const { data: testData, error: testError } = await supabase
-          .from("rides")
+          .from("carpool_rides")
           .select("count")
           .limit(1);
-        
+
         if (testError && testError.message) {
           throw new Error(`Database connection failed: ${testError.message}`);
         }
       } catch (connectionError) {
         console.error("Database connection test failed:", connectionError);
-        throw new Error("Unable to connect to database. Please check your internet connection.");
+        throw new Error(
+          "Unable to connect to database. Please check your internet connection."
+        );
       }
-      
+
       // ✅ FIXED: Better date/time validation and processing
       let departureDateTime;
-      
+
       try {
         if (rideData.date && rideData.time) {
           // Parse date - handle different formats
           let dateStr = rideData.date;
           if (rideData.date instanceof Date) {
-            dateStr = rideData.date.toISOString().split('T')[0];
-          } else if (typeof rideData.date === 'string' && !rideData.date.includes('-')) {
-            dateStr = new Date(rideData.date).toISOString().split('T')[0];
+            dateStr = rideData.date.toISOString().split("T")[0];
+          } else if (
+            typeof rideData.date === "string" &&
+            !rideData.date.includes("-")
+          ) {
+            dateStr = new Date(rideData.date).toISOString().split("T")[0];
           }
-          
+
           // Parse time - ensure proper format
           let timeStr = rideData.time;
           if (timeStr.length === 5) {
@@ -366,9 +372,9 @@ const AppContent = ({ session }: { session: Session }) => {
           } else {
             timeStr = `${timeStr}:00:00`;
           }
-          
+
           departureDateTime = new Date(`${dateStr}T${timeStr}.000Z`);
-          
+
           // Validate the created date
           if (isNaN(departureDateTime.getTime())) {
             throw new Error("Invalid date/time format");
@@ -392,58 +398,95 @@ const AppContent = ({ session }: { session: Session }) => {
         // Required fields with proper validation
         driver_id: user?.id || generateFallbackId(),
         driver_name: user?.name || rideData.driverName || "Anonymous Driver",
-        from_location: (rideData.from || rideData.fromLocation || "LNMIIT Campus").trim(),
+        from_location: (
+          rideData.from ||
+          rideData.fromLocation ||
+          "LNMIIT Campus"
+        ).trim(),
         to_location: (rideData.to || rideData.toLocation || "Jaipur").trim(),
         departure_time: departureDateTime.toISOString(),
-        departure_date: departureDateTime.toISOString().split('T')[0],
-        
+        departure_date: departureDateTime.toISOString().split("T")[0],
+
         // Numeric fields with validation
         available_seats: Math.max(1, parseInt(rideData.availableSeats) || 3),
         total_seats: Math.max(1, parseInt(rideData.totalSeats) || 4),
         price_per_seat: Math.max(0, parseFloat(rideData.pricePerSeat) || 100),
-        
+
         // Vehicle information with defaults
-        vehicle_make: (rideData.vehicle_make || rideData.vehicleMake || "Car").trim(),
-        vehicle_model: (rideData.vehicle_model || rideData.vehicleModel || "Model").trim(),
-        vehicle_color: (rideData.vehicle_color || rideData.vehicleColor || "White").trim(),
-        
+        vehicle_make: (
+          rideData.vehicle_make ||
+          rideData.vehicleMake ||
+          "Car"
+        ).trim(),
+        vehicle_model: (
+          rideData.vehicle_model ||
+          rideData.vehicleModel ||
+          "Model"
+        ).trim(),
+        vehicle_color: (
+          rideData.vehicle_color ||
+          rideData.vehicleColor ||
+          "White"
+        ).trim(),
+
         // Boolean fields with proper defaults
         is_ac: Boolean(rideData.is_ac ?? rideData.isAC ?? true),
-        smoking_allowed: Boolean(rideData.smoking_allowed ?? rideData.smokingAllowed ?? false),
-        music_allowed: Boolean(rideData.music_allowed ?? rideData.musicAllowed ?? true),
-        instant_booking: Boolean(rideData.instant_booking ?? rideData.instantBooking ?? false),
-        chat_enabled: Boolean(rideData.chat_enabled ?? rideData.chatEnabled ?? true),
-        
+        smoking_allowed: Boolean(
+          rideData.smoking_allowed ?? rideData.smokingAllowed ?? false
+        ),
+        music_allowed: Boolean(
+          rideData.music_allowed ?? rideData.musicAllowed ?? true
+        ),
+        instant_booking: Boolean(
+          rideData.instant_booking ?? rideData.instantBooking ?? false
+        ),
+        chat_enabled: Boolean(
+          rideData.chat_enabled ?? rideData.chatEnabled ?? true
+        ),
+
         // Status and timestamps
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        
+
         // Optional driver details
         driver_rating: user?.rating || 4.5,
         driver_phone: user?.phone || rideData.driverPhone || null,
         driver_branch: user?.branch || rideData.driverBranch || null,
         driver_year: user?.year || rideData.driverYear || null,
-        
+
         // Route information (if provided)
         route_stops: rideData.routeStops || [],
         notes: (rideData.notes || "").trim(),
       };
 
       // Validate required database fields match
-      const requiredFields = ['driver_id', 'from_location', 'to_location', 'departure_time'];
-      const missingFields = requiredFields.filter(field => !newRide[field]);
+      const requiredFields = [
+        "driver_id",
+        "from_location",
+        "to_location",
+        "departure_time",
+      ] as const;
+      const missingFields = requiredFields.filter(
+        (field) => !(newRide as any)[field]
+      );
 
       if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+        throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
       }
 
       // Validate data types
-      if (typeof newRide.available_seats !== 'number' || isNaN(newRide.available_seats)) {
+      if (
+        typeof newRide.available_seats !== "number" ||
+        isNaN(newRide.available_seats)
+      ) {
         throw new Error("Invalid seat number format");
       }
 
-      if (typeof newRide.price_per_seat !== 'number' || isNaN(newRide.price_per_seat)) {
+      if (
+        typeof newRide.price_per_seat !== "number" ||
+        isNaN(newRide.price_per_seat)
+      ) {
         throw new Error("Invalid price format");
       }
 
@@ -454,7 +497,6 @@ const AppContent = ({ session }: { session: Session }) => {
 
       console.log("Processed ride data for insert:", newRide);
 
-      
       let insertAttempts = 0;
       const maxAttempts = 3;
       let data, error;
@@ -462,27 +504,29 @@ const AppContent = ({ session }: { session: Session }) => {
       while (insertAttempts < maxAttempts) {
         try {
           const result = await supabase
-            .from("rides")
+            .from("carpool_rides")
             .insert([newRide])
             .select()
             .single();
-          
+
           data = result.data;
           error = result.error;
-          
+
           if (!error) break; // Success, exit retry loop
-          
+
           insertAttempts++;
           if (insertAttempts < maxAttempts) {
             console.log(`Insert attempt ${insertAttempts} failed, retrying...`);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retry
           }
         } catch (networkError) {
           insertAttempts++;
           if (insertAttempts >= maxAttempts) {
-            throw new Error("Network error: Unable to create ride. Please check your internet connection.");
+            throw new Error(
+              "Network error: Unable to create ride. Please check your internet connection."
+            );
           }
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -492,26 +536,27 @@ const AppContent = ({ session }: { session: Session }) => {
           message: error?.message || "Unknown error",
           details: error?.details || "No details available",
           hint: error?.hint || "No hint available",
-          code: error?.code || "No error code"
+          code: error?.code || "No error code",
         });
-        
+
         // Provide specific error messages based on error type
         let errorMessage = "Failed to create ride";
-        
+
         if (!error.message && !error.code) {
-          errorMessage = "Network connection failed. Please check your internet connection and try again.";
-        } else if (error.code === '23505') {
+          errorMessage =
+            "Network connection failed. Please check your internet connection and try again.";
+        } else if (error.code === "23505") {
           errorMessage = "A ride with these details already exists";
-        } else if (error.code === '23502') {
+        } else if (error.code === "23502") {
           errorMessage = "Missing required information";
-        } else if (error.code === '23514') {
+        } else if (error.code === "23514") {
           errorMessage = "Invalid data format";
-        } else if (error.code === 'PGRST116') {
+        } else if (error.code === "PGRST116") {
           errorMessage = "Database table not found. Please contact support.";
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -520,9 +565,9 @@ const AppContent = ({ session }: { session: Session }) => {
       }
 
       console.log("Ride created successfully:", data);
-      
+
       Alert.alert(
-        "Success! 🎉", 
+        "Success! 🎉",
         "Your ride has been created successfully and is now available for bookings!",
         [
           {
@@ -530,44 +575,49 @@ const AppContent = ({ session }: { session: Session }) => {
             onPress: () => {
               setShowCreateRide(false);
               setIndex(0); // Navigate to carpool tab
-            }
-          }
+            },
+          },
         ]
       );
-      
+
       setShowCreateRide(false);
       await fetchSidebarData(); // Refresh data
-
     } catch (error) {
       console.error("Error creating ride:", error);
-      
-      let userFriendlyMessage = "An unexpected error occurred while creating your ride.";
-      
+
+      let userFriendlyMessage =
+        "An unexpected error occurred while creating your ride.";
+
       if (error instanceof Error) {
         if (error.message.includes("required fields")) {
-          userFriendlyMessage = "Please fill in all required fields and try again.";
+          userFriendlyMessage =
+            "Please fill in all required fields and try again.";
         } else if (error.message.includes("seats")) {
-          userFriendlyMessage = "Please check your seat numbers - available seats cannot exceed total seats.";
-        } else if (error.message.includes("date") || error.message.includes("time")) {
+          userFriendlyMessage =
+            "Please check your seat numbers - available seats cannot exceed total seats.";
+        } else if (
+          error.message.includes("date") ||
+          error.message.includes("time")
+        ) {
           userFriendlyMessage = "Please check your departure date and time.";
         } else {
           userFriendlyMessage = error.message;
         }
       }
-      
+
       Alert.alert(
-        "Connection Error", 
+        "Connection Error",
         `${userFriendlyMessage}\n\nPlease check:\n• Internet connection\n• Try again in a few moments\n• Contact support if problem persists`,
         [
           {
             text: "Retry",
             onPress: () => handleRideCreated(rideData),
-            style: "default"
+            style: "default",
           },
           {
             text: "Cancel",
-            style: "cancel"
-          }
+            style: "cancel",
+          },
         ]
       );
     } finally {
@@ -789,7 +839,6 @@ const AppContent = ({ session }: { session: Session }) => {
               onBack={() => setShowCreateRide(false)}
               onRideCreated={handleRideCreated}
               isDarkMode={isDarkMode}
-              submitting={rideSubmitting}
             />
 
             {/* Global Sidebar */}
@@ -820,7 +869,7 @@ const AppContent = ({ session }: { session: Session }) => {
                     colors={
                       isDarkMode
                         ? ["#0F0F23", "#1A1A2E", "#16213E", "#0F0F23"]
-                        : ["#667eea", "#764ba2", "#f093fb", "#f5f7fa"]
+                        : ["#F5F7FA", "#E3F2FD", "#F0F4FF", "#FFFFFF"]
                     }
                     locations={[0, 0.3, 0.7, 1]}
                     style={{
@@ -835,7 +884,7 @@ const AppContent = ({ session }: { session: Session }) => {
                         borderBottomWidth: 1,
                         borderBottomColor: isDarkMode
                           ? "rgba(255,255,255,0.1)"
-                          : "rgba(255,255,255,0.3)",
+                          : "rgba(0,0,0,0.1)",
                       }}
                     >
                       <View
@@ -853,7 +902,9 @@ const AppContent = ({ session }: { session: Session }) => {
                               width: 44,
                               height: 44,
                               borderRadius: 22,
-                              backgroundColor: "#FFFFFF",
+                              backgroundColor: isDarkMode
+                                ? "#FFFFFF"
+                                : "#1565C0",
                               alignItems: "center",
                               justifyContent: "center",
                               marginRight: 14,
@@ -1001,7 +1052,7 @@ const AppContent = ({ session }: { session: Session }) => {
                           >
                             {user?.name || "Student"}
                           </Text>
-                          <Text
+                          {/* <Text
                             style={{
                               fontSize: 14,
                               color: "#667eea",
@@ -1011,7 +1062,7 @@ const AppContent = ({ session }: { session: Session }) => {
                           >
                             {user?.branch || "Computer Science"} •{" "}
                             {user?.year || "3rd Year"}
-                          </Text>
+                          </Text> */}
                           <View
                             style={{
                               flexDirection: "row",
@@ -1076,20 +1127,6 @@ const AppContent = ({ session }: { session: Session }) => {
                         <View>
                           {[
                             {
-                              icon: "🔍",
-                              label: "Search Rides",
-                              count: availableRides,
-                              color: "#4CAF50",
-                              action: () => {
-                                setSidebarVisible(false);
-                                Alert.alert(
-                                  "Search Tips",
-                                  "Try searching for popular destinations like:\n\n• Jaipur Railway Station\n• Jaipur Airport\n• City Mall\n• World Trade Park\n• C-Scheme\n• Vaishali Nagar",
-                                  [{ text: "Got it!" }]
-                                );
-                              },
-                            },
-                            {
                               icon: "🚗",
                               label: "Create New Ride",
                               count: "New",
@@ -1106,17 +1143,7 @@ const AppContent = ({ session }: { session: Session }) => {
                                 setIndex(1);
                               },
                             },
-                            {
-                              icon: "📋",
-                              label: "My Ride History",
-                              count: userRideHistory,
-                              color: "#9C27B0",
-                              action: () => {
-                                setSidebarVisible(false);
-                                setShowRideHistory(true);
-                              },
-                            },
-                        ].map((item, index) => (
+                          ].map((item, index) => (
                             <View
                               key={index}
                               style={{
@@ -1168,7 +1195,9 @@ const AppContent = ({ session }: { session: Session }) => {
                                       elevation: 4,
                                     }}
                                   >
-                                    <Text style={{ fontSize: 22 }}>{item.icon}</Text>
+                                    <Text style={{ fontSize: 22 }}>
+                                      {item.icon}
+                                    </Text>
                                   </View>
                                   <View style={{ flex: 1 }}>
                                     <Text
@@ -1401,7 +1430,6 @@ const AppContent = ({ session }: { session: Session }) => {
                 onBack={() => setShowCreateRide(false)}
                 onRideCreated={handleRideCreated}
                 isDarkMode={isDarkMode}
-                submitting={rideSubmitting}
               />
             )}
           </Animated.View>
@@ -1410,8 +1438,6 @@ const AppContent = ({ session }: { session: Session }) => {
     </AuthContext.Provider>
   );
 };
-
-
 
 AppContent.displayName = "AppContent";
 
