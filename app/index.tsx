@@ -1,4 +1,4 @@
-//index.tsx code
+//index.tsx code - FIXED VERSION
 
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, useColorScheme, Animated } from "react-native";
@@ -35,6 +35,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import Auth from "./components/ModernAuthScreen";
+import CreateRideScreen from "./components/CreateRideScreen";
+import { CarpoolRide } from "./models/ride";
+import { formatDate, formatTime } from "./lib/utils";
 
 // Theme
 const lightTheme = {
@@ -59,6 +62,77 @@ const darkTheme = {
     surface: "#000000",
     onSurface: "#FFFFFF",
   },
+};
+
+interface CarpoolRide {
+  id: string;
+  driverId: string;
+  driverName: string;
+  driverRating: number;
+  driverPhoto: string;
+  driverBranch: string;
+  driverYear: string;
+  driverPhone?: string;
+  from: string;
+  to: string;
+  departureTime: string;
+  date: string;
+  availableSeats: number;
+  totalSeats: number;
+  pricePerSeat: number;
+  vehicleInfo: {
+    make: string;
+    model: string;
+    color: string;
+    isAC: boolean;
+  };
+  route: string[];
+  preferences: {
+    gender?: "male" | "female" | "any";
+    smokingAllowed: boolean;
+    musicAllowed: boolean;
+  };
+  status: "active" | "full" | "completed" | "cancelled";
+  passengers: Array<{
+    id: string;
+    name: string;
+    photo: string;
+    joinedAt: string;
+    status: "pending" | "accepted" | "confirmed";
+    seatsBooked: number;
+  }>;
+  pendingRequests: Array<{
+    id: string;
+    passengerId: string;
+    passengerName: string;
+    passengerPhoto: string;
+    seatsRequested: number;
+    message?: string;
+    requestedAt: string;
+    status: "pending" | "accepted" | "rejected";
+  }>;
+  instantBooking: boolean;
+  chatEnabled: boolean;
+  createdAt: string;
+}
+
+// Add database configuration validation
+const validateDatabaseConfig = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("rides")
+      .select("id")
+      .limit(1);
+    
+    if (error) {
+      console.error("Database validation failed:", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Database connection test failed:", error);
+    return false;
+  }
 };
 
 export const useAuth = (session?: Session) => {
@@ -94,17 +168,14 @@ export const useAuth = (session?: Session) => {
     role: "driver" | "passenger" | "external_driver"
   ) => {
     // Generate a consistent UUID from email using a deterministic method
-    // This creates a UUID v5 based on the email to ensure consistency
     const generateUUIDFromEmail = (email: string): string => {
-      // Simple hash function to convert email to a consistent UUID-like string
       let hash = 0;
       for (let i = 0; i < email.length; i++) {
         const char = email.charCodeAt(i);
         hash = (hash << 5) - hash + char;
-        hash = hash & hash; // Convert to 32-bit integer
+        hash = hash & hash;
       }
 
-      // Convert hash to UUID format
       const hex = Math.abs(hash).toString(16).padStart(8, "0");
       return `${hex.substring(0, 8)}-${hex.substring(0, 4)}-4${hex.substring(
         1,
@@ -131,29 +202,29 @@ export const useAuth = (session?: Session) => {
 };
 
 const AppContent = ({ session }: { session: Session }) => {
-  const auth = useAuth(session); // still keep your destructure if needed
+  const auth = useAuth(session);
   const { user, loading, isInitialLoading, login, logout } = auth;
 
+  // ✅ FIXED: Move all useState hooks to the top level, before any conditional returns
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarAnimation] = useState(new Animated.Value(-400));
-  const colorScheme = useColorScheme();
   const [busBookings, setBusBookings] = useState<any[]>([]);
-  const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>(
-    {}
-  );
-
-  // Dynamic sidebar data
+  const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>({});
   const [availableRides, setAvailableRides] = useState(0);
   const [userRideHistory, setUserRideHistory] = useState(0);
   const [activeBusRoutes, setActiveBusRoutes] = useState(0);
+  const [showCreateRide, setShowCreateRide] = useState(false);
+  const [rideSubmitting, setRideSubmitting] = useState(false);
+  const [showRideHistory, setShowRideHistory] = useState(false);
+ const [rides, setRides] = useState<CarpoolRide[]>([]);
+  const colorScheme = useColorScheme();
   const router = useRouter();
-
   const themeTransition = useSharedValue(0);
 
   useEffect(() => {
-    setIsDarkMode(false); // default theme
+    setIsDarkMode(false);
   }, [colorScheme]);
 
   useEffect(() => {
@@ -163,10 +234,23 @@ const AppContent = ({ session }: { session: Session }) => {
     });
   }, [isDarkMode]);
 
+  // Add connection status monitoring
+  useEffect(() => {
+    const checkConnection = async () => {
+      const isConnected = await validateDatabaseConfig();
+      if (!isConnected) {
+        console.warn("Database connection issues detected");
+      }
+    };
+    
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   // Fetch real data for sidebar
   const fetchSidebarData = async () => {
     try {
-      // Fetch available rides count - using correct table structure
       const { data: ridesData, error: ridesError } = await supabase
         .from("rides")
         .select("id")
@@ -174,12 +258,11 @@ const AppContent = ({ session }: { session: Session }) => {
         .gte("departure_time", new Date().toISOString());
 
       if (ridesError) {
-        setAvailableRides(12); // fallback
+        setAvailableRides(12);
       } else {
         setAvailableRides(ridesData?.length || 0);
       }
 
-      // Fetch user's ride history count - simplified query
       if (user?.id) {
         const { data: historyData, error: historyError } = await supabase
           .from("rides")
@@ -187,32 +270,29 @@ const AppContent = ({ session }: { session: Session }) => {
           .eq("driver_id", user.id);
 
         if (historyError) {
-          setUserRideHistory(5); // fallback
+          setUserRideHistory(5);
         } else {
           setUserRideHistory(historyData?.length || 0);
         }
       }
 
-      // Fetch active bus routes count - simplified without status column
       const { data: busData, error: busError } = await supabase
         .from("buses")
         .select("route_name");
 
       if (busError) {
-        setActiveBusRoutes(8); // fallback
+        setActiveBusRoutes(8);
       } else {
         const uniqueRoutes = new Set(busData?.map((bus) => bus.route_name));
         setActiveBusRoutes(uniqueRoutes.size || 8);
       }
     } catch (error) {
-      // Set fallback values
       setAvailableRides(12);
       setUserRideHistory(5);
       setActiveBusRoutes(8);
     }
   };
 
-  // Fetch data on component mount, user change, and refresh periodically
   useEffect(() => {
     if (user) {
       fetchSidebarData();
@@ -221,11 +301,279 @@ const AppContent = ({ session }: { session: Session }) => {
 
   useEffect(() => {
     if (user) {
-      // Refresh sidebar data every 30 seconds
       const interval = setInterval(fetchSidebarData, 30000);
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  // ✅ FIXED: Create ride handlers moved to proper location
+  const handleCreateRide = () => {
+    // Close sidebar first
+    setSidebarVisible(false);
+    // Small delay to ensure smooth transition
+    setTimeout(() => {
+      setShowCreateRide(true);
+    }, 150);
+  };
+
+  // Helper function to generate fallback ID
+  const generateFallbackId = () => {
+    return `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  // ✅ FIXED: Improved handleRideCreated function with better error handling
+  const handleRideCreated = async (rideData: any) => {
+    setRideSubmitting(true);
+    
+    try {
+      console.log("Raw rideData:", rideData);
+      
+      // Add network and database validation
+      try {
+        // Test database connection first
+        const { data: testData, error: testError } = await supabase
+          .from("rides")
+          .select("count")
+          .limit(1);
+        
+        if (testError && testError.message) {
+          throw new Error(`Database connection failed: ${testError.message}`);
+        }
+      } catch (connectionError) {
+        console.error("Database connection test failed:", connectionError);
+        throw new Error("Unable to connect to database. Please check your internet connection.");
+      }
+      
+      // ✅ FIXED: Better date/time validation and processing
+      let departureDateTime;
+      
+      try {
+        if (rideData.date && rideData.time) {
+          // Parse date - handle different formats
+          let dateStr = rideData.date;
+          if (rideData.date instanceof Date) {
+            dateStr = rideData.date.toISOString().split('T')[0];
+          } else if (typeof rideData.date === 'string' && !rideData.date.includes('-')) {
+            dateStr = new Date(rideData.date).toISOString().split('T')[0];
+          }
+          
+          // Parse time - ensure proper format
+          let timeStr = rideData.time;
+          if (timeStr.length === 5) {
+            timeStr = `${timeStr}:00`;
+          } else if (timeStr.length === 8) {
+            // Already in HH:MM:SS format
+          } else {
+            timeStr = `${timeStr}:00:00`;
+          }
+          
+          departureDateTime = new Date(`${dateStr}T${timeStr}.000Z`);
+          
+          // Validate the created date
+          if (isNaN(departureDateTime.getTime())) {
+            throw new Error("Invalid date/time format");
+          }
+        } else {
+          // Default to tomorrow at 9 AM if no date/time provided
+          departureDateTime = new Date();
+          departureDateTime.setDate(departureDateTime.getDate() + 1);
+          departureDateTime.setHours(9, 0, 0, 0);
+        }
+      } catch (dateError) {
+        console.error("Date parsing error:", dateError);
+        // Fallback date/time
+        departureDateTime = new Date();
+        departureDateTime.setDate(departureDateTime.getDate() + 1);
+        departureDateTime.setHours(9, 0, 0, 0);
+      }
+
+      // ✅ FIXED: Ensure all required fields are properly formatted and validated
+      const newRide = {
+        // Required fields with proper validation
+        driver_id: user?.id || generateFallbackId(),
+        driver_name: user?.name || rideData.driverName || "Anonymous Driver",
+        from_location: (rideData.from || rideData.fromLocation || "LNMIIT Campus").trim(),
+        to_location: (rideData.to || rideData.toLocation || "Jaipur").trim(),
+        departure_time: departureDateTime.toISOString(),
+        departure_date: departureDateTime.toISOString().split('T')[0],
+        
+        // Numeric fields with validation
+        available_seats: Math.max(1, parseInt(rideData.availableSeats) || 3),
+        total_seats: Math.max(1, parseInt(rideData.totalSeats) || 4),
+        price_per_seat: Math.max(0, parseFloat(rideData.pricePerSeat) || 100),
+        
+        // Vehicle information with defaults
+        vehicle_make: (rideData.vehicle_make || rideData.vehicleMake || "Car").trim(),
+        vehicle_model: (rideData.vehicle_model || rideData.vehicleModel || "Model").trim(),
+        vehicle_color: (rideData.vehicle_color || rideData.vehicleColor || "White").trim(),
+        
+        // Boolean fields with proper defaults
+        is_ac: Boolean(rideData.is_ac ?? rideData.isAC ?? true),
+        smoking_allowed: Boolean(rideData.smoking_allowed ?? rideData.smokingAllowed ?? false),
+        music_allowed: Boolean(rideData.music_allowed ?? rideData.musicAllowed ?? true),
+        instant_booking: Boolean(rideData.instant_booking ?? rideData.instantBooking ?? false),
+        chat_enabled: Boolean(rideData.chat_enabled ?? rideData.chatEnabled ?? true),
+        
+        // Status and timestamps
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        
+        // Optional driver details
+        driver_rating: user?.rating || 4.5,
+        driver_phone: user?.phone || rideData.driverPhone || null,
+        driver_branch: user?.branch || rideData.driverBranch || null,
+        driver_year: user?.year || rideData.driverYear || null,
+        
+        // Route information (if provided)
+        route_stops: rideData.routeStops || [],
+        notes: (rideData.notes || "").trim(),
+      };
+
+      // Validate required database fields match
+      const requiredFields = ['driver_id', 'from_location', 'to_location', 'departure_time'];
+      const missingFields = requiredFields.filter(field => !newRide[field]);
+
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+
+      // Validate data types
+      if (typeof newRide.available_seats !== 'number' || isNaN(newRide.available_seats)) {
+        throw new Error("Invalid seat number format");
+      }
+
+      if (typeof newRide.price_per_seat !== 'number' || isNaN(newRide.price_per_seat)) {
+        throw new Error("Invalid price format");
+      }
+
+      // Validate seat numbers
+      if (newRide.available_seats > newRide.total_seats) {
+        throw new Error("Available seats cannot exceed total seats");
+      }
+
+      console.log("Processed ride data for insert:", newRide);
+
+      
+      let insertAttempts = 0;
+      const maxAttempts = 3;
+      let data, error;
+
+      while (insertAttempts < maxAttempts) {
+        try {
+          const result = await supabase
+            .from("rides")
+            .insert([newRide])
+            .select()
+            .single();
+          
+          data = result.data;
+          error = result.error;
+          
+          if (!error) break; // Success, exit retry loop
+          
+          insertAttempts++;
+          if (insertAttempts < maxAttempts) {
+            console.log(`Insert attempt ${insertAttempts} failed, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          }
+        } catch (networkError) {
+          insertAttempts++;
+          if (insertAttempts >= maxAttempts) {
+            throw new Error("Network error: Unable to create ride. Please check your internet connection.");
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (error) {
+        console.error("Supabase insert error details:", {
+          error,
+          message: error?.message || "Unknown error",
+          details: error?.details || "No details available",
+          hint: error?.hint || "No hint available",
+          code: error?.code || "No error code"
+        });
+        
+        // Provide specific error messages based on error type
+        let errorMessage = "Failed to create ride";
+        
+        if (!error.message && !error.code) {
+          errorMessage = "Network connection failed. Please check your internet connection and try again.";
+        } else if (error.code === '23505') {
+          errorMessage = "A ride with these details already exists";
+        } else if (error.code === '23502') {
+          errorMessage = "Missing required information";
+        } else if (error.code === '23514') {
+          errorMessage = "Invalid data format";
+        } else if (error.code === 'PGRST116') {
+          errorMessage = "Database table not found. Please contact support.";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      if (!data) {
+        throw new Error("No data returned from database");
+      }
+
+      console.log("Ride created successfully:", data);
+      
+      Alert.alert(
+        "Success! 🎉", 
+        "Your ride has been created successfully and is now available for bookings!",
+        [
+          {
+            text: "View Rides",
+            onPress: () => {
+              setShowCreateRide(false);
+              setIndex(0); // Navigate to carpool tab
+            }
+          }
+        ]
+      );
+      
+      setShowCreateRide(false);
+      await fetchSidebarData(); // Refresh data
+
+    } catch (error) {
+      console.error("Error creating ride:", error);
+      
+      let userFriendlyMessage = "An unexpected error occurred while creating your ride.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("required fields")) {
+          userFriendlyMessage = "Please fill in all required fields and try again.";
+        } else if (error.message.includes("seats")) {
+          userFriendlyMessage = "Please check your seat numbers - available seats cannot exceed total seats.";
+        } else if (error.message.includes("date") || error.message.includes("time")) {
+          userFriendlyMessage = "Please check your departure date and time.";
+        } else {
+          userFriendlyMessage = error.message;
+        }
+      }
+      
+      Alert.alert(
+        "Connection Error", 
+        `${userFriendlyMessage}\n\nPlease check:\n• Internet connection\n• Try again in a few moments\n• Contact support if problem persists`,
+        [
+          {
+            text: "Retry",
+            onPress: () => handleRideCreated(rideData),
+            style: "default"
+          },
+          {
+            text: "Cancel",
+            style: "cancel"
+          }
+        ]
+      );
+    } finally {
+      setRideSubmitting(false);
+    }
+  };
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
     backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
@@ -263,6 +611,7 @@ const AppContent = ({ session }: { session: Session }) => {
     }).start();
   };
 
+  // ✅ FIXED: Early returns after all hooks are declared
   if (isInitialLoading) {
     return <LoadingScreen isDarkMode={isDarkMode} />;
   }
@@ -292,7 +641,6 @@ const AppContent = ({ session }: { session: Session }) => {
   if (!user) {
     return <ModernAuthScreen onAuthenticated={login} isDarkMode={isDarkMode} />;
   }
-
   return (
     <AuthContext.Provider value={auth}>
       <View style={styles.safeArea}>
@@ -303,11 +651,7 @@ const AppContent = ({ session }: { session: Session }) => {
         />
         <SafeAreaView style={styles.container} edges={["top"]}>
           <Animated.View style={[styles.container, animatedContainerStyle]}>
-            {/* Header Removed */}
-
-            {/* Content with Custom Bottom Navigation */}
             <View style={styles.content}>
-              {/* Main Content */}
               <View style={styles.sceneContainer}>
                 {index === 0 && (
                   <StudentCarpoolSystem
@@ -323,16 +667,12 @@ const AppContent = ({ session }: { session: Session }) => {
                         user.profilePicture ||
                         `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
                     }}
-                    onCreateRide={() => {
-                      console.log("Create ride from StudentCarpool");
-                      // Navigate to create ride functionality
-                    }}
+                    onCreateRide={handleCreateRide} // ✅ FIXED: Use proper handler
                     onJoinRide={(rideId) => {
                       console.log("Join ride:", rideId);
-                      // Handle ride join logic
                     }}
                     onShowBusBooking={() => {
-                      setIndex(1); // Switch to bus booking tab
+                      setIndex(1);
                     }}
                     onToggleSidebar={toggleSidebar}
                   />
@@ -359,22 +699,14 @@ const AppContent = ({ session }: { session: Session }) => {
                     sidebarVisible={sidebarVisible}
                   />
                 )}
-                {index === 2 &&
-                  (user.role === "external_driver" ? (
-                    <UserProfileSafety
-                      user={user}
-                      busBookings={busBookings}
-                      onLogout={logout}
-                      isDarkMode={isDarkMode}
-                    />
-                  ) : (
-                    <UserProfileSafety
-                      user={user}
-                      busBookings={busBookings}
-                      onLogout={logout}
-                      isDarkMode={isDarkMode}
-                    />
-                  ))}
+                {index === 2 && (
+                  <UserProfileSafety
+                    user={user}
+                    busBookings={busBookings}
+                    onLogout={logout}
+                    isDarkMode={isDarkMode}
+                  />
+                )}
               </View>
 
               {/* Custom Bottom Navigation */}
@@ -385,8 +717,8 @@ const AppContent = ({ session }: { session: Session }) => {
                     backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
                     borderTopColor: isDarkMode ? "#333333" : "#E0E0E0",
                     borderTopWidth: 1,
-                    zIndex: 1, // Lower z-index so sidebar can cover it
-                    elevation: 1, // Lower elevation for Android
+                    zIndex: 1,
+                    elevation: 1,
                   },
                 ]}
               >
@@ -445,17 +777,24 @@ const AppContent = ({ session }: { session: Session }) => {
                       >
                         {route.title}
                       </Text>
-                      {/* Underline removed */}
                     </TouchableOpacity>
                   );
                 })}
               </View>
             </View>
 
-            {/* Global Sidebar - positioned at app level to cover everything including bottom nav */}
+            {/* ✅ FIXED: CreateRideScreen moved outside sidebar */}
+            <CreateRideScreen
+              visible={showCreateRide}
+              onBack={() => setShowCreateRide(false)}
+              onRideCreated={handleRideCreated}
+              isDarkMode={isDarkMode}
+              submitting={rideSubmitting}
+            />
+
+            {/* Global Sidebar */}
             {sidebarVisible && (
               <>
-                {/* Sidebar */}
                 <Animated.View
                   style={[
                     {
@@ -465,8 +804,8 @@ const AppContent = ({ session }: { session: Session }) => {
                       width: "85%",
                       height: "100%",
                       maxWidth: 380,
-                      zIndex: 10000, // Highest possible z-index
-                      elevation: 50, // Maximum elevation for Android
+                      zIndex: 10000,
+                      elevation: 50,
                       shadowColor: "#000",
                       shadowOffset: { width: 4, height: 0 },
                       shadowOpacity: 0.3,
@@ -477,7 +816,6 @@ const AppContent = ({ session }: { session: Session }) => {
                     },
                   ]}
                 >
-                  {/* Cool Gradient Background */}
                   <LinearGradient
                     colors={
                       isDarkMode
@@ -574,7 +912,6 @@ const AppContent = ({ session }: { session: Session }) => {
                         </TouchableOpacity>
                       </View>
 
-                      {/* Real-time Status Badge */}
                       <View
                         style={{
                           flexDirection: "row",
@@ -720,7 +1057,6 @@ const AppContent = ({ session }: { session: Session }) => {
                       style={{ flex: 1, padding: 20 }}
                       showsVerticalScrollIndicator={false}
                     >
-                      {/* Quick Actions */}
                       <View>
                         <Text
                           style={{
@@ -737,159 +1073,156 @@ const AppContent = ({ session }: { session: Session }) => {
                           QUICK ACTIONS
                         </Text>
 
-                        {[
-                          {
-                            icon: "🔍",
-                            label: "Search Rides",
-                            count: availableRides,
-                            color: "#4CAF50",
-                            action: () => {
-                              setSidebarVisible(false);
-                              Alert.alert(
-                                "🔍 Search Rides",
-                                `${availableRides} rides available. Find rides to any destination across Jaipur and beyond.`,
-                                [{ text: "Got it!", style: "default" }]
-                              );
+                        <View>
+                          {[
+                            {
+                              icon: "🔍",
+                              label: "Search Rides",
+                              count: availableRides,
+                              color: "#4CAF50",
+                              action: () => {
+                                setSidebarVisible(false);
+                                Alert.alert(
+                                  "Search Tips",
+                                  "Try searching for popular destinations like:\n\n• Jaipur Railway Station\n• Jaipur Airport\n• City Mall\n• World Trade Park\n• C-Scheme\n• Vaishali Nagar",
+                                  [{ text: "Got it!" }]
+                                );
+                              },
                             },
-                          },
-                          {
-                            icon: "🚗",
-                            label: "Create New Ride",
-                            count: "New",
-                            color: "#2196F3",
-                            action: () => {
-                              setSidebarVisible(false);
-                              Alert.alert(
-                                "Create Ride",
-                                "Opening create ride screen..."
-                              );
+                            {
+                              icon: "🚗",
+                              label: "Create New Ride",
+                              count: "New",
+                              color: "#2196F3",
+                              action: handleCreateRide, // ✅ FIXED: Use proper handler
                             },
-                          },
-                          {
-                            icon: "🚌",
-                            label: "Check Bus Schedule",
-                            count: activeBusRoutes,
-                            color: "#FF9800",
-                            action: () => {
-                              setSidebarVisible(false);
-                              setIndex(1); // Switch to bus booking tab
+                            {
+                              icon: "🚌",
+                              label: "Check Bus Schedule",
+                              count: activeBusRoutes,
+                              color: "#FF9800",
+                              action: () => {
+                                setSidebarVisible(false);
+                                setIndex(1);
+                              },
                             },
-                          },
-                          {
-                            icon: "📋",
-                            label: "My Ride History",
-                            count: userRideHistory,
-                            color: "#9C27B0",
-                            action: () => {
-                              setSidebarVisible(false);
-                              Alert.alert(
-                                "📋 Ride History",
-                                `You have ${userRideHistory} rides in your history. View all your past rides, earnings, and trip statistics.`,
-                                [{ text: "Got it!", style: "default" }]
-                              );
+                            {
+                              icon: "📋",
+                              label: "My Ride History",
+                              count: userRideHistory,
+                              color: "#9C27B0",
+                              action: () => {
+                                setSidebarVisible(false);
+                                setShowRideHistory(true);
+                              },
                             },
-                          },
                         ].map((item, index) => (
-                          <View
-                            key={index}
-                            style={{
-                              marginBottom: 14,
-                              borderRadius: 16,
-                              overflow: "hidden",
-                              shadowColor: "#000",
-                              shadowOffset: { width: 0, height: 3 },
-                              shadowOpacity: 0.15,
-                              shadowRadius: 8,
-                              elevation: 6,
-                            }}
-                          >
-                            <LinearGradient
-                              colors={["#FFFFFF", "#F8F9FF", "#FFFFFF"]}
-                              style={{ borderRadius: 16 }}
+                            <View
+                              key={index}
+                              style={{
+                                marginBottom: 14,
+                                borderRadius: 16,
+                                overflow: "hidden",
+                                shadowColor: "#000",
+                                shadowOffset: { width: 0, height: 3 },
+                                shadowOpacity: 0.15,
+                                shadowRadius: 8,
+                                elevation: 6,
+                              }}
                             >
-                              <TouchableOpacity
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  paddingVertical: 18,
-                                  paddingHorizontal: 18,
-                                  borderLeftWidth: 5,
-                                  borderLeftColor: item.color,
-                                }}
-                                onPress={item.action}
+                              <LinearGradient
+                                colors={["#FFFFFF", "#F8F9FF", "#FFFFFF"]}
+                                style={{ borderRadius: 16 }}
                               >
-                                <View
+                                <TouchableOpacity
                                   style={{
-                                    width: 48,
-                                    height: 48,
-                                    borderRadius: 24,
-                                    backgroundColor: item.color,
+                                    flexDirection: "row",
                                     alignItems: "center",
-                                    justifyContent: "center",
-                                    marginRight: 16,
-                                    shadowColor: item.color,
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: 0.3,
-                                    shadowRadius: 4,
-                                    elevation: 4,
+                                    paddingVertical: 18,
+                                    paddingHorizontal: 18,
+                                    borderLeftWidth: 5,
+                                    borderLeftColor: item.color,
+                                  }}
+                                  onPress={() => {
+                                    // Close sidebar first, then execute action
+                                    setSidebarVisible(false);
+                                    // Add small delay to ensure sidebar closes first
+                                    setTimeout(() => {
+                                      item.action();
+                                    }, 100);
                                   }}
                                 >
-                                  <Text style={{ fontSize: 22 }}>
-                                    {item.icon}
-                                  </Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text
+                                  <View
                                     style={{
-                                      fontSize: 17,
-                                      fontWeight: "700",
-                                      color: "#1A1A2E",
-                                      marginBottom: 4,
+                                      width: 48,
+                                      height: 48,
+                                      borderRadius: 24,
+                                      backgroundColor: item.color,
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      marginRight: 16,
+                                      shadowColor: item.color,
+                                      shadowOffset: { width: 0, height: 2 },
+                                      shadowOpacity: 0.3,
+                                      shadowRadius: 4,
+                                      elevation: 4,
                                     }}
                                   >
-                                    {item.label}
-                                  </Text>
-                                  <Text
+                                    <Text style={{ fontSize: 22 }}>{item.icon}</Text>
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text
+                                      style={{
+                                        fontSize: 17,
+                                        fontWeight: "700",
+                                        color: "#1A1A2E",
+                                        marginBottom: 4,
+                                      }}
+                                    >
+                                      {item.label}
+                                    </Text>
+                                    <Text
+                                      style={{
+                                        fontSize: 13,
+                                        color: "#667eea",
+                                        fontWeight: "600",
+                                      }}
+                                    >
+                                      {typeof item.count === "number"
+                                        ? `${item.count} available`
+                                        : item.count}
+                                    </Text>
+                                  </View>
+                                  <View
                                     style={{
-                                      fontSize: 13,
-                                      color: "#667eea",
-                                      fontWeight: "600",
+                                      backgroundColor: item.color,
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 6,
+                                      borderRadius: 16,
+                                      minWidth: 36,
+                                      alignItems: "center",
+                                      shadowColor: item.color,
+                                      shadowOffset: { width: 0, height: 2 },
+                                      shadowOpacity: 0.2,
+                                      shadowRadius: 3,
+                                      elevation: 3,
                                     }}
                                   >
-                                    {typeof item.count === "number"
-                                      ? `${item.count} available`
-                                      : item.count}
-                                  </Text>
-                                </View>
-                                <View
-                                  style={{
-                                    backgroundColor: item.color,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 6,
-                                    borderRadius: 16,
-                                    minWidth: 36,
-                                    alignItems: "center",
-                                    shadowColor: item.color,
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: 0.2,
-                                    shadowRadius: 3,
-                                    elevation: 3,
-                                  }}
-                                >
-                                  <Text
-                                    style={{
-                                      color: "#FFFFFF",
-                                      fontSize: 13,
-                                      fontWeight: "700",
-                                    }}
-                                  >
-                                    {item.count}
-                                  </Text>
-                                </View>
-                              </TouchableOpacity>
-                            </LinearGradient>
-                          </View>
-                        ))}
+                                    <Text
+                                      style={{
+                                        color: "#FFFFFF",
+                                        fontSize: 13,
+                                        fontWeight: "700",
+                                      }}
+                                    >
+                                      {item.count}
+                                    </Text>
+                                  </View>
+                                </TouchableOpacity>
+                              </LinearGradient>
+                            </View>
+                          ))}
+                        </View>
                       </View>
 
                       {/* Enhanced Emergency SOS Button */}
@@ -1060,12 +1393,25 @@ const AppContent = ({ session }: { session: Session }) => {
                 </Animated.View>
               </>
             )}
+
+            {/* ✅ FIXED: CreateRideScreen moved outside sidebar and with proper z-index */}
+            {showCreateRide && (
+              <CreateRideScreen
+                visible={showCreateRide}
+                onBack={() => setShowCreateRide(false)}
+                onRideCreated={handleRideCreated}
+                isDarkMode={isDarkMode}
+                submitting={rideSubmitting}
+              />
+            )}
           </Animated.View>
         </SafeAreaView>
       </View>
     </AuthContext.Provider>
   );
 };
+
+
 
 AppContent.displayName = "AppContent";
 
