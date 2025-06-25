@@ -319,10 +319,10 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
       </View>
       <View style={styles.madeWithContainer}>
         <Text style={styles.madeWithCreative}>
-          Crafted with 💜 & ☕ by{" "}
+          Crafted with  & ☕ by{" "}
           <Text style={styles.creatorNames}>Amrendra</Text>
           {" & "}
-          <Text style={styles.creatorNames}>Piyush</Text>
+          <Text style={styles.creatorNames}>Piyush!</Text>
         </Text>
       </View>
     </SafeAreaView>
