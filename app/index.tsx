@@ -398,6 +398,9 @@ const AppContent = ({ session }: { session: Session }) => {
         // Required fields with proper validation
         driver_id: user?.id || generateFallbackId(),
         driver_name: user?.name || rideData.driverName || "Anonymous Driver",
+        driver_email:
+          user?.email || rideData.driverEmail || "unknown@lnmiit.ac.in",
+        driver_phone: user?.phone || rideData.driverPhone || null,
         from_location: (
           rideData.from ||
           rideData.fromLocation ||
@@ -428,6 +431,7 @@ const AppContent = ({ session }: { session: Session }) => {
           rideData.vehicleColor ||
           "White"
         ).trim(),
+        license_plate: rideData.license_plate || rideData.licensePlate || null,
 
         // Boolean fields with proper defaults
         is_ac: Boolean(rideData.is_ac ?? rideData.isAC ?? true),
@@ -437,6 +441,9 @@ const AppContent = ({ session }: { session: Session }) => {
         music_allowed: Boolean(
           rideData.music_allowed ?? rideData.musicAllowed ?? true
         ),
+        pets_allowed: Boolean(
+          rideData.pets_allowed ?? rideData.petsAllowed ?? false
+        ),
         instant_booking: Boolean(
           rideData.instant_booking ?? rideData.instantBooking ?? false
         ),
@@ -444,28 +451,27 @@ const AppContent = ({ session }: { session: Session }) => {
           rideData.chat_enabled ?? rideData.chatEnabled ?? true
         ),
 
-        // Status and timestamps
+        // Status and additional fields
         status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        estimated_duration: rideData.estimated_duration || "30 mins",
+        description: (rideData.description || rideData.notes || "").trim(),
 
-        // Optional driver details
-        driver_rating: user?.rating || 4.5,
-        driver_phone: user?.phone || rideData.driverPhone || null,
-        driver_branch: user?.branch || rideData.driverBranch || null,
-        driver_year: user?.year || rideData.driverYear || null,
-
-        // Route information (if provided)
-        route_stops: rideData.routeStops || [],
-        notes: (rideData.notes || "").trim(),
+        // NOTE: Removed driver_rating, driver_branch, driver_year as they don't exist in carpool_rides table
+        // These are stored in user_profiles table instead
       };
 
       // Validate required database fields match
       const requiredFields = [
         "driver_id",
+        "driver_name",
+        "driver_email",
         "from_location",
         "to_location",
         "departure_time",
+        "departure_date",
+        "available_seats",
+        "total_seats",
+        "price_per_seat",
       ] as const;
       const missingFields = requiredFields.filter(
         (field) => !(newRide as any)[field]
@@ -1396,6 +1402,71 @@ const AppContent = ({ session }: { session: Session }) => {
                       >
                         Safe. Reliable. Connected.
                       </Text>
+
+                      {/* Made with love section */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginTop: 16,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDarkMode ? "#888" : "#666",
+                            textAlign: "center",
+                          }}
+                        >
+                          Made with{" "}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#E91E63",
+                          }}
+                        >
+                          ❤️
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDarkMode ? "#888" : "#666",
+                            textAlign: "center",
+                          }}
+                        >
+                          {" "}
+                          by{" "}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDarkMode ? "#FFFFFF" : "#1565C0",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Amrendra
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDarkMode ? "#888" : "#666",
+                          }}
+                        >
+                          {" "}
+                          and{" "}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDarkMode ? "#FFFFFF" : "#1565C0",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Piyush
+                        </Text>
+                      </View>
                     </View>
                   </LinearGradient>
                 </Animated.View>
