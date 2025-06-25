@@ -922,8 +922,10 @@ const AppContent = ({ session }: { session: Session }) => {
                               style={{
                                 fontSize: 20,
                                 fontWeight: "800",
-                                color: "#FFFFFF",
-                                textShadowColor: "rgba(0,0,0,0.3)",
+                                color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
+                                textShadowColor: isDarkMode
+                                  ? "rgba(0,0,0,0.3)"
+                                  : "none",
                                 textShadowOffset: { width: 1, height: 1 },
                                 textShadowRadius: 2,
                               }}
@@ -933,7 +935,9 @@ const AppContent = ({ session }: { session: Session }) => {
                             <Text
                               style={{
                                 fontSize: 13,
-                                color: "rgba(255,255,255,0.9)",
+                                color: isDarkMode
+                                  ? "rgba(255,255,255,0.9)"
+                                  : "#666666",
                                 fontWeight: "600",
                                 letterSpacing: 0.5,
                               }}
@@ -947,18 +951,22 @@ const AppContent = ({ session }: { session: Session }) => {
                             width: 36,
                             height: 36,
                             borderRadius: 18,
-                            backgroundColor: "rgba(255,255,255,0.2)",
+                            backgroundColor: isDarkMode
+                              ? "rgba(255,255,255,0.2)"
+                              : "rgba(0,0,0,0.1)",
                             alignItems: "center",
                             justifyContent: "center",
                             borderWidth: 1,
-                            borderColor: "rgba(255,255,255,0.3)",
+                            borderColor: isDarkMode
+                              ? "rgba(255,255,255,0.3)"
+                              : "rgba(0,0,0,0.2)",
                           }}
                           onPress={toggleSidebar}
                         >
                           <IconButton
                             icon="close"
                             size={18}
-                            iconColor="#FFFFFF"
+                            iconColor={isDarkMode ? "#FFFFFF" : "#1A1A2E"}
                           />
                         </TouchableOpacity>
                       </View>
@@ -1113,10 +1121,12 @@ const AppContent = ({ session }: { session: Session }) => {
                           style={{
                             fontSize: 13,
                             fontWeight: "700",
-                            color: "#FFFFFF",
+                            color: isDarkMode ? "#FFFFFF" : "#1A1A2E",
                             marginBottom: 16,
                             letterSpacing: 1,
-                            textShadowColor: "rgba(0,0,0,0.3)",
+                            textShadowColor: isDarkMode
+                              ? "rgba(0,0,0,0.3)"
+                              : "none",
                             textShadowOffset: { width: 1, height: 1 },
                             textShadowRadius: 2,
                           }}
