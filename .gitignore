@@ -75,3 +75,4 @@ app-example
 expo-env.d.ts
 # @end expo-cli# Exclude unused folder from TypeScript compilation
 unused/
+.vercel

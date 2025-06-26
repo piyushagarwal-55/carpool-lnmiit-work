@@ -10,6 +10,9 @@
       "ios": {
         "resourceClass": "m-medium"
       },
+      "android": {
+        "resourceClass": "large"
+      },
       "channel": "development"
     },
     "preview": {
@@ -17,12 +20,19 @@
       "ios": {
         "resourceClass": "m-medium"
       },
+      "android": {
+        "resourceClass": "large",
+        "buildType": "apk"
+      },
       "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "resourceClass": "large"
       },
       "channel": "production"
     }
