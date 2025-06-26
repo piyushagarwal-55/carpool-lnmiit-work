@@ -105,7 +105,7 @@ export default function RideDetailsScreen({
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
-  const isDriverCurrentUser = ride?.driverId === currentUser.id;
+  const isDriverCurrentUser = ride?.rideCreatorId === currentUser.id;
   const hasJoined = passengers.some((p) => p.id === currentUser.id);
   const canJoin =
     !isDriverCurrentUser && !hasJoined && ride && ride.availableSeats > 0;
@@ -135,22 +135,22 @@ export default function RideDetailsScreen({
       }
 
       // Parse driver email for branch and year info
-      const emailInfo = parseEmailInfo(rideData.driver_email);
+      const emailInfo = parseEmailInfo(rideData.ride_creator_email || "");
       const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
       // Transform database data to CarpoolRide interface
       const transformedRide: CarpoolRide = {
         id: rideData.id,
-        driverId: rideData.driver_id,
-        driverName: rideData.driver_name,
-        driverPhone: rideData.driver_phone || "",
-        driverRating: 0, // No rating display
-        driverPhoto:
-          rideData.driver_id === currentUser.id
+        rideCreatorId: rideData.ride_creator_id,
+        rideCreatorName: rideData.ride_creator_name,
+        rideCreatorPhone: rideData.ride_creator_phone || "",
+        rideCreatorRating: 0, // No rating display
+        rideCreatorPhoto:
+          rideData.ride_creator_id === currentUser.id
             ? currentUser.photo
-            : generateAvatarFomName(rideData.driver_name),
-        driverBranch: emailInfo.branchFull,
-        driverYear: academicYear,
+            : generateAvatarFomName(rideData.ride_creator_name),
+        rideCreatorBranch: emailInfo.branchFull,
+        rideCreatorYear: academicYear,
         from: rideData.from_location,
         to: rideData.to_location,
         departureTime: formatTime(rideData.departure_time),
@@ -180,6 +180,7 @@ export default function RideDetailsScreen({
         chatEnabled: rideData.chat_enabled || true,
         estimatedDuration: rideData.estimated_duration || "30 mins",
         createdAt: rideData.created_at,
+        students: [], // Add required students property
         passengers: [],
         pendingRequests: [],
       };
@@ -208,7 +209,7 @@ export default function RideDetailsScreen({
       }
 
       // Fetch join requests (for drivers)
-      if (transformedRide.driverId === currentUser.id) {
+      if (transformedRide.rideCreatorId === currentUser.id) {
         const { data: requestsData, error: requestsError } = await supabase
           .from("join_requests")
           .select("*")
@@ -401,7 +402,7 @@ export default function RideDetailsScreen({
         } else {
           // For request-based booking, send notification to driver
           await NotificationService.notifyJoinRequest(
-            ride.driverId,
+            ride.rideCreatorId,
             currentUser.name,
             ride.id,
             joinRequestData.id,
@@ -601,7 +602,7 @@ export default function RideDetailsScreen({
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out this carpool ride from ${ride?.from} to ${ride?.to} on ${ride?.date} at ${ride?.departureTime}. Driver: ${ride?.driverName} (${ride?.driverRating}⭐). Price: ₹${ride?.pricePerSeat} per seat.`,
+        message: `Check out this carpool ride from ${ride?.from} to ${ride?.to} on ${ride?.date} at ${ride?.departureTime}. Ride Creator: ${ride?.rideCreatorName} (${ride?.rideCreatorRating}⭐). Price: ₹${ride?.pricePerSeat} per seat.`,
       });
     } catch (error) {
       console.log("Error sharing:", error);
@@ -806,7 +807,7 @@ export default function RideDetailsScreen({
                     }}
                   >
                     <Image
-                      source={{ uri: ride?.driverPhoto }}
+                      source={{ uri: ride?.rideCreatorPhoto }}
                       style={{
                         width: 70,
                         height: 70,
@@ -827,7 +828,7 @@ export default function RideDetailsScreen({
                             color: "#1565C0",
                           }}
                         >
-                          {ride?.driverName}
+                          {ride?.rideCreatorName}
                         </Text>
                       </View>
                       <View
@@ -846,9 +847,9 @@ export default function RideDetailsScreen({
                             fontWeight: "600",
                           }}
                         >
-                          {ride?.driverBranch &&
-                          !ride.driverBranch.includes("Unknown")
-                            ? ride.driverBranch
+                          {ride?.rideCreatorBranch &&
+                          !ride.rideCreatorBranch.includes("Unknown")
+                            ? ride.rideCreatorBranch
                             : "LNM Student"}
                         </Text>
                       </View>
@@ -1648,7 +1649,7 @@ export default function RideDetailsScreen({
             rideDetails={{
               from: ride.from,
               to: ride.to,
-              driverName: ride.driverName,
+              driverName: ride.rideCreatorName,
               departureTime: ride.departureTime,
             }}
             onBack={() => {

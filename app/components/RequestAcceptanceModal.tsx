@@ -88,7 +88,7 @@ export default function RequestAcceptanceModal({
       // Get driver details
       const { data: driverData, error: driverError } = await supabase
         .from("carpool_rides")
-        .select("driver_name, available_seats")
+        .select("ride_creator_name, available_seats")
         .eq("id", request.rideId)
         .single();
 
@@ -167,7 +167,7 @@ export default function RequestAcceptanceModal({
       // Send notification to passenger
       await NotificationService.notifyRequestAccepted(
         request.passengerId,
-        driverData.driver_name,
+        driverData.ride_creator_name,
         request.rideId,
         request.from,
         request.to
@@ -213,7 +213,7 @@ export default function RequestAcceptanceModal({
       // Get driver details
       const { data: driverData, error: driverError } = await supabase
         .from("carpool_rides")
-        .select("driver_name")
+        .select("ride_creator_name")
         .eq("id", request.rideId)
         .single();
 
@@ -240,7 +240,7 @@ export default function RequestAcceptanceModal({
       // Send notification to passenger
       await NotificationService.notifyRequestRejected(
         request.passengerId,
-        driverData.driver_name,
+        driverData.ride_creator_name,
         request.rideId,
         request.from,
         request.to

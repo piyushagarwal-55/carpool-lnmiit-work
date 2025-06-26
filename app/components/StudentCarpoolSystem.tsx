@@ -48,10 +48,12 @@ import SecureChatSystem from "./SecureChatSystem";
 import RequestAcceptanceModal from "./RequestAcceptanceModal";
 import LoadingOverlay from "./LoadingOverlay";
 import NotificationScreen from "./NotificationScreen";
+import InstructionScreen from "./InstructionScreen";
 import FilterModal, { FilterOptions } from "./FilterModal";
 import { socketService } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import NotificationService from "../services/NotificationService";
+import PushNotificationService from "../services/PushNotificationService";
 import UserRideHistoryScreen from "./UserRideHistoryScreen";
 import { rideManagementAPI } from "../api/carpool";
 
@@ -72,13 +74,13 @@ import {
 
 interface CarpoolRide {
   id: string;
-  driverId: string;
-  driverName: string;
-  driverRating: number;
-  driverPhoto: string;
-  driverBranch: string;
-  driverYear: string;
-  driverPhone?: string;
+  rideCreatorId: string;
+  rideCreatorName: string;
+  rideCreatorRating: number;
+  rideCreatorPhoto: string;
+  rideCreatorBranch: string;
+  rideCreatorYear: string;
+  rideCreatorPhone?: string;
   from: string;
   to: string;
   departureTime: string;
@@ -281,7 +283,7 @@ const StudentCarpoolSystem = ({
 
       // Transform database data to frontend format
       const transformedRides: CarpoolRide[] = ridesData.map((ride) => {
-        const emailInfo = parseEmailInfo(ride.driver_email);
+        const emailInfo = parseEmailInfo(ride.ride_creator_email || "");
         const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
         // Get passengers for this ride
@@ -312,13 +314,13 @@ const StudentCarpoolSystem = ({
 
         return {
           id: ride.id,
-          driverId: ride.driver_id,
-          driverName: ride.driver_name,
-          driverRating: 4.8, // Default rating
-          driverPhoto: getDriverPhoto(ride),
-          driverBranch: emailInfo.branchFull,
-          driverYear: academicYear,
-          driverPhone: ride.driver_phone,
+          rideCreatorId: ride.ride_creator_id,
+          rideCreatorName: ride.ride_creator_name,
+          rideCreatorRating: 4.8, // Default rating
+          rideCreatorPhoto: getDriverPhoto(ride),
+          rideCreatorBranch: emailInfo.branchFull,
+          rideCreatorYear: academicYear,
+          rideCreatorPhone: ride.ride_creator_phone,
           from: ride.from_location,
           to: ride.to_location,
           departureTime: ride.departure_time, // Keep as ISO string for proper formatting
@@ -434,7 +436,7 @@ const StudentCarpoolSystem = ({
       const { data, error } = await supabase
         .from("carpool_rides")
         .select("id")
-        .eq("driver_id", userId)
+        .eq("ride_creator_id", userId)
         .gte("created_at", `${today}T00:00:00.000Z`)
         .lt("created_at", `${today}T23:59:59.999Z`);
 
@@ -455,10 +457,10 @@ const StudentCarpoolSystem = ({
 
   // Helper function to get driver photo - use current user's photo if it's their ride
   const getDriverPhoto = (ride: any): string => {
-    if (ride.driver_id === currentUser.id) {
+    if (ride.ride_creator_id === currentUser.id) {
       return currentUser.photo;
     }
-    return generateAvatarFromName(ride.driver_name);
+    return generateAvatarFromName(ride.ride_creator_name);
   };
 
   // NEW: Fetch joined rides (both as passenger and as driver)
@@ -475,8 +477,8 @@ const StudentCarpoolSystem = ({
           joined_at,
           carpool_rides!inner (
             id,
-            driver_id,
-            driver_name,
+            ride_creator_id,
+            ride_creator_name,
             from_location,
             to_location,
             departure_date,
@@ -497,7 +499,7 @@ const StudentCarpoolSystem = ({
       const { data: driverRidesData, error: driverError } = await supabase
         .from("carpool_rides")
         .select("*")
-        .eq("driver_id", currentUser.id)
+        .eq("ride_creator_id", currentUser.id)
         .eq("status", "active");
 
       let allJoinedRides: any[] = [];
@@ -512,13 +514,16 @@ const StudentCarpoolSystem = ({
 
               return {
                 id: item.carpool_rides.id,
-                driverId: item.carpool_rides.driver_id,
-                driverName: item.carpool_rides.driver_name || "Unknown Driver",
-                driverRating: 4.5,
-                driverPhoto: getDriverPhoto(item.carpool_rides),
-                driverBranch: item.carpool_rides.driver_branch || "Unknown",
-                driverYear: item.carpool_rides.driver_year || "Unknown",
-                driverPhone: item.carpool_rides.driver_phone || "",
+                rideCreatorId: item.carpool_rides.ride_creator_id,
+                rideCreatorName:
+                  item.carpool_rides.ride_creator_name || "Unknown Creator",
+                rideCreatorRating: 4.5,
+                rideCreatorPhoto: getDriverPhoto(item.carpool_rides),
+                rideCreatorBranch:
+                  item.carpool_rides.ride_creator_branch || "Unknown",
+                rideCreatorYear:
+                  item.carpool_rides.ride_creator_year || "Unknown",
+                rideCreatorPhone: item.carpool_rides.ride_creator_phone || "",
                 from: item.carpool_rides.from_location,
                 to: item.carpool_rides.to_location,
                 departureTime: item.carpool_rides.departure_time,
@@ -563,19 +568,19 @@ const StudentCarpoolSystem = ({
       if (!driverError && driverRidesData) {
         const driverRides = driverRidesData.map((ride: any) => {
           const emailInfo = parseEmailInfo(
-            ride.driver_email || currentUser.email
+            ride.ride_creator_email || currentUser.email || ""
           );
           const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
           return {
             id: ride.id,
-            driverId: ride.driver_id,
-            driverName: ride.driver_name,
-            driverRating: 4.8,
-            driverPhoto: getDriverPhoto(ride),
-            driverBranch: emailInfo.branchFull,
-            driverYear: academicYear,
-            driverPhone: ride.driver_phone,
+            rideCreatorId: ride.ride_creator_id,
+            rideCreatorName: ride.ride_creator_name,
+            rideCreatorRating: 4.8,
+            rideCreatorPhoto: getDriverPhoto(ride),
+            rideCreatorBranch: emailInfo.branchFull,
+            rideCreatorYear: academicYear,
+            rideCreatorPhone: ride.ride_creator_phone,
             from: ride.from_location,
             to: ride.to_location,
             departureTime: ride.departure_time,
@@ -694,7 +699,7 @@ const StudentCarpoolSystem = ({
       const { data: driverRides, error: driverError } = await supabase
         .from("carpool_rides")
         .select("*")
-        .eq("driver_id", currentUser.id)
+        .eq("ride_creator_id", currentUser.id)
         .order("created_at", { ascending: false });
 
       // Fetch rides where user is passenger
@@ -773,8 +778,44 @@ const StudentCarpoolSystem = ({
     fetchUserRideHistory();
     socketService.connect(currentUser.id);
 
+    // Initialize push notifications
+    PushNotificationService.initializePushNotifications(currentUser.id)
+      .then((token) => {
+        if (token) {
+          console.log("Push notifications initialized with token:", token);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to initialize push notifications:", error);
+      });
+
+    // Set up notification listeners
+    const cleanup = PushNotificationService.setupNotificationListeners(
+      (notification) => {
+        console.log("Notification received:", notification);
+        // Refresh notifications when received
+        fetchNotifications();
+      },
+      (response) => {
+        console.log("Notification tapped:", response);
+        // Handle notification tap - could navigate to specific screen
+        const notificationData = response.notification.request.content.data;
+        if (notificationData?.type === "ride_request") {
+          setShowNotifications(true);
+        }
+      }
+    );
+
+    // Set up auto-refresh every 30 seconds when app is active
+    const autoRefreshInterval = setInterval(() => {
+      fetchRides();
+      fetchNotifications();
+    }, 30000); // 30 seconds
+
     return () => {
       socketService.disconnect();
+      cleanup();
+      clearInterval(autoRefreshInterval);
     };
   }, []);
 
@@ -1085,7 +1126,7 @@ const StudentCarpoolSystem = ({
 
         // Send notification to driver about the join request
         await NotificationService.notifyJoinRequest(
-          selectedRideForJoin.driverId,
+          selectedRideForJoin.rideCreatorId,
           user.user_metadata?.full_name ||
             user.email?.split("@")[0] ||
             "Passenger",
@@ -1117,8 +1158,8 @@ const StudentCarpoolSystem = ({
 
   const handleContactDriver = (ride: CarpoolRide) => {
     Alert.alert(
-      "Contact Driver",
-      `How would you like to contact ${ride.driverName}?`,
+      "Contact Ride Creator",
+      `How would you like to contact ${ride.rideCreatorName}?`,
       [
         {
           text: "Call",
@@ -1131,7 +1172,25 @@ const StudentCarpoolSystem = ({
         },
         {
           text: "Chat",
-          onPress: () => handleStartChat(ride.id, `${ride.from} → ${ride.to}`),
+          onPress: () => {
+            // Check if user can chat (same logic as handleStartChat)
+            const isRideCreator = ride.rideCreatorId === currentUser.id;
+            const hasJoinedRide = ride.passengers.some(
+              (p) => p.id === currentUser.id && p.status === "accepted"
+            );
+            const hasAcceptedRequest = ride.pendingRequests?.some(
+              (r) => r.passengerId === currentUser.id && r.status === "accepted"
+            );
+
+            if (!isRideCreator && !hasJoinedRide && !hasAcceptedRequest) {
+              Alert.alert(
+                "Chat Not Available",
+                "You can only chat after joining the ride. Please send a join request first."
+              );
+            } else {
+              handleStartChat(ride.id, `${ride.from} → ${ride.to}`);
+            }
+          },
         },
         { text: "Cancel", style: "cancel" },
       ]
@@ -1139,8 +1198,33 @@ const StudentCarpoolSystem = ({
   };
 
   const handleStartChat = (rideId: string, rideTitle: string) => {
+    // Check if user has joined the ride or is the ride creator
+    const ride =
+      rides.find((r) => r.id === rideId) ||
+      joinedRides.find((r) => r.id === rideId);
+    if (!ride) {
+      Alert.alert("Error", "Ride not found");
+      return;
+    }
+
+    const isRideCreator = ride.rideCreatorId === currentUser.id;
+    const hasJoinedRide = ride.passengers.some(
+      (p) => p.id === currentUser.id && p.status === "accepted"
+    );
+    const hasAcceptedRequest = ride.pendingRequests?.some(
+      (r) => r.passengerId === currentUser.id && r.status === "accepted"
+    );
+
+    if (!isRideCreator && !hasJoinedRide && !hasAcceptedRequest) {
+      Alert.alert(
+        "Chat Not Available",
+        "You can only chat after joining the ride. Please send a join request first.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     // Opening chat for ride
-    // Open chat directly instead of ride details
     setSelectedRideId(rideId);
     setChatRideId(rideId);
     setChatRideTitle(rideTitle);
@@ -1167,12 +1251,12 @@ const StudentCarpoolSystem = ({
     // Transform database ride data to UI format
     const transformedRide: CarpoolRide = {
       id: rideData.id || `ride_${Date.now()}`,
-      driverId: rideData.driver_id || currentUser.id,
-      driverName: rideData.driver_name || currentUser.name,
-      driverRating: 4.5,
-      driverPhoto: rideData.driver_photo || currentUser.photo,
-      driverBranch: currentUser.branch,
-      driverYear: currentUser.year,
+      rideCreatorId: rideData.ride_creator_id || currentUser.id,
+      rideCreatorName: rideData.ride_creator_name || currentUser.name,
+      rideCreatorRating: 4.5,
+      rideCreatorPhoto: rideData.ride_creator_photo || currentUser.photo,
+      rideCreatorBranch: currentUser.branch,
+      rideCreatorYear: currentUser.year,
       from: rideData.from_location || rideData.from,
       to: rideData.to_location || rideData.to,
       departureTime: rideData.departure_time || `${formatTime(rideData.time)}`,
@@ -1299,7 +1383,7 @@ const StudentCarpoolSystem = ({
   };
 
   const renderExpiredRideCard = (ride: CarpoolRide) => {
-    const isDriverCurrentUser = ride.driverId === currentUser.id;
+    const isDriverCurrentUser = ride.rideCreatorId === currentUser.id;
 
     return (
       <TouchableOpacity
@@ -1368,7 +1452,7 @@ const StudentCarpoolSystem = ({
           <View style={styles.avatarsContainer}>
             <Avatar.Image
               size={32}
-              source={{ uri: ride.driverPhoto }}
+              source={{ uri: ride.rideCreatorPhoto }}
               style={[styles.driverAvatar, { opacity: 0.7 }]}
             />
             {ride.passengers.slice(0, 2).map((passenger, index) => (
@@ -1491,7 +1575,7 @@ const StudentCarpoolSystem = ({
   };
 
   const renderJobStyleCard = (ride: CarpoolRide) => {
-    const isDriverCurrentUser = ride.driverId === currentUser.id;
+    const isDriverCurrentUser = ride.rideCreatorId === currentUser.id;
     const currentPassenger = ride.passengers.find(
       (p) => p.id === currentUser.id
     );
@@ -1611,7 +1695,7 @@ const StudentCarpoolSystem = ({
             </View>
           )}
           {ride.pendingRequests.length > 0 &&
-            ride.driverId === currentUser.id && (
+            ride.rideCreatorId === currentUser.id && (
               <View style={[styles.tag, { backgroundColor: "#FF9800" + "20" }]}>
                 <Text style={[styles.tagText, { color: "#FF9800" }]}>
                   📩 {ride.pendingRequests.length} Request
@@ -1675,7 +1759,7 @@ const StudentCarpoolSystem = ({
           <View style={styles.avatarsContainer}>
             <Avatar.Image
               size={32}
-              source={{ uri: ride.driverPhoto }}
+              source={{ uri: ride.rideCreatorPhoto }}
               style={styles.driverAvatar}
             />
             {ride.passengers.slice(0, 2).map((passenger, index) => (
@@ -1795,6 +1879,13 @@ const StudentCarpoolSystem = ({
 
   const sidebarCategories = [
     {
+      key: "instructions",
+      label: "App Instructions",
+      count: "Help",
+      color: "#4CAF50",
+      icon: "📖",
+    },
+    {
       key: "notifications",
       label: "Notifications",
       count: `${unreadNotifications}`,
@@ -1832,6 +1923,7 @@ const StudentCarpoolSystem = ({
   ];
 
   const [showRideHistory, setShowRideHistory] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   return (
     <>
       {/* Main Container */}
@@ -2153,7 +2245,9 @@ const StudentCarpoolSystem = ({
                   category.key === "bus_schedule" && styles.busThemeCard,
                 ]}
                 onPress={() => {
-                  if (category.key === "create") {
+                  if (category.key === "instructions") {
+                    setShowInstructions(true);
+                  } else if (category.key === "create") {
                     handleCreateRide();
                   } else if (category.key === "notifications") {
                     setShowNotifications(true);
@@ -2375,7 +2469,7 @@ const StudentCarpoolSystem = ({
                   </Text>
                   <View style={styles.driverVerificationInfo}>
                     <Image
-                      source={{ uri: selectedRideForJoin.driverPhoto }}
+                      source={{ uri: selectedRideForJoin.rideCreatorPhoto }}
                       style={styles.driverVerificationAvatar}
                     />
                     <View style={styles.driverVerificationDetails}>
@@ -2385,7 +2479,7 @@ const StudentCarpoolSystem = ({
                           { color: isDarkMode ? "#FFFFFF" : "#000000" },
                         ]}
                       >
-                        {selectedRideForJoin.driverName}
+                        {selectedRideForJoin.rideCreatorName}
                       </Text>
                       <View style={styles.driverVerificationRating}>
                         <Star size={14} color="#FFD700" fill="#FFD700" />
@@ -2395,8 +2489,8 @@ const StudentCarpoolSystem = ({
                             { color: isDarkMode ? "#CCCCCC" : "#666666" },
                           ]}
                         >
-                          {selectedRideForJoin.driverRating} •{" "}
-                          {selectedRideForJoin.driverBranch}
+                          {selectedRideForJoin.rideCreatorRating} •{" "}
+                          {selectedRideForJoin.rideCreatorBranch}
                         </Text>
                       </View>
                     </View>
@@ -2533,7 +2627,7 @@ const StudentCarpoolSystem = ({
                     { color: isDarkMode ? "#CCCCCC" : "#666666" },
                   ]}
                 >
-                  Send a request to the driver
+                  Send a request to the Ride Creator
                 </Text>
               </View>
 
@@ -2711,7 +2805,7 @@ const StudentCarpoolSystem = ({
                       { color: isDarkMode ? "#FFFFFF" : "#000000" },
                     ]}
                   >
-                    💬 Message to Driver (Optional)
+                    💬 Message to Ride Creator (Optional)
                   </Text>
                   <TextInput
                     style={{
@@ -2795,7 +2889,7 @@ const StudentCarpoolSystem = ({
       <LoadingOverlay
         visible={loading}
         message="Loading rides..."
-        isDarkMode={isDarkMode}
+        isDarkMode={false}
       />
 
       {/* Filter Modal */}
@@ -2819,6 +2913,13 @@ const StudentCarpoolSystem = ({
           isDarkMode={isDarkMode}
         />
       </Modal>
+
+      {/* Instruction Screen */}
+      <InstructionScreen
+        visible={showInstructions}
+        onClose={() => setShowInstructions(false)}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Ride History Screen */}
       {showRideHistory && currentUser && (

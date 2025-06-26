@@ -39,7 +39,7 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
       const { data: driverRides, error: driverError } = await supabase
         .from("carpool_rides")
         .select("*")
-        .eq("driver_id", user.id)
+        .eq("ride_creator_id", user.id)
         .order("created_at", { ascending: false });
 
       const { data: passengerRides, error: passengerError } = await supabase
@@ -235,7 +235,8 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                           <View style={styles.rideDetailItem}>
                             <MapPin size={12} color="#6B7280" />
                             <Text style={styles.rideDetailText}>
-                              Driver: {ride.driver_name || "Unknown"}
+                              Ride Creator:{" "}
+                              {ride.ride_creator_name || "Unknown"}
                             </Text>
                           </View>
                           <View style={styles.rideDetailItem}>
@@ -326,7 +327,8 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                           <View style={styles.rideDetailItem}>
                             <MapPin size={12} color="#6B7280" />
                             <Text style={styles.rideDetailText}>
-                              Driver: {ride.driver_name || "Unknown"}
+                              Ride Creator:{" "}
+                              {ride.ride_creator_name || "Unknown"}
                             </Text>
                           </View>
                           <View style={styles.rideDetailItem}>

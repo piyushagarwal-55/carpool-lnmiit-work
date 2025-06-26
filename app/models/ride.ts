@@ -15,16 +15,16 @@ export interface Ride {
   updatedAt: Date;
 }
 
-// Enhanced Carpool Ride Schema
+// Enhanced Carpool Ride Schema - Updated Terminology
 export interface CarpoolRide {
   id: string;
-  driverId: string;
-  driverName: string;
-  driverRating: number;
-  driverPhoto: string;
-  driverBranch: string;
-  driverYear: string;
-  driverPhone?: string;
+  rideCreatorId: string;
+  rideCreatorName: string;
+  rideCreatorRating: number;
+  rideCreatorPhoto: string;
+  rideCreatorBranch: string;
+  rideCreatorYear: string;
+  rideCreatorPhone?: string;
   from: string;
   to: string;
   departureTime: string;
@@ -36,8 +36,10 @@ export interface CarpoolRide {
   route: string[];
   preferences: RidePreferences;
   status: "active" | "full" | "completed" | "cancelled" | "in_progress";
-  passengers: CarpoolPassenger[];
+  students: CarpoolStudent[];
   pendingRequests: JoinRequest[];
+  // Backward compatibility
+  passengers: CarpoolPassenger[];
   chatEnabled: boolean;
   instantBooking: boolean; // If true, auto-accept; if false, driver must confirm
   estimatedDuration: string;
@@ -45,7 +47,8 @@ export interface CarpoolRide {
   updatedAt?: string;
 }
 
-export interface CarpoolPassenger {
+// Updated Terminology: Student instead of Passenger
+export interface CarpoolStudent {
   id: string;
   name: string;
   photo: string;
@@ -60,6 +63,9 @@ export interface CarpoolPassenger {
   dropoffPoint?: string;
   paymentStatus: "pending" | "paid" | "refunded";
 }
+
+// Backward compatibility alias
+export interface CarpoolPassenger extends CarpoolStudent {}
 
 export interface JoinRequest {
   id: string;

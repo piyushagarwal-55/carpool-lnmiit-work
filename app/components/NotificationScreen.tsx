@@ -108,6 +108,58 @@ export default function NotificationScreen({
     }
   };
 
+  const handleApproveRequest = async (notification: Notification) => {
+    try {
+      const requestId = notification.data?.requestId;
+      if (!requestId) return;
+
+      // Update request status to accepted
+      const { error } = await supabase
+        .from("ride_requests")
+        .update({ status: "accepted" })
+        .eq("id", requestId);
+
+      if (error) {
+        console.error("Error approving request:", error);
+        return;
+      }
+
+      // Mark notification as read
+      await markAsRead(notification.id);
+
+      // Refresh notifications
+      await fetchNotifications();
+    } catch (error) {
+      console.error("Error in handleApproveRequest:", error);
+    }
+  };
+
+  const handleRejectRequest = async (notification: Notification) => {
+    try {
+      const requestId = notification.data?.requestId;
+      if (!requestId) return;
+
+      // Update request status to rejected
+      const { error } = await supabase
+        .from("ride_requests")
+        .update({ status: "rejected" })
+        .eq("id", requestId);
+
+      if (error) {
+        console.error("Error rejecting request:", error);
+        return;
+      }
+
+      // Mark notification as read
+      await markAsRead(notification.id);
+
+      // Refresh notifications
+      await fetchNotifications();
+    } catch (error) {
+      console.error("Error in handleRejectRequest:", error);
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "join_request":
@@ -305,7 +357,7 @@ export default function NotificationScreen({
                 </View>
 
                 {unreadNotifications.map((notification, index) => (
-                  <TouchableOpacity
+                  <View
                     key={notification.id}
                     style={[
                       styles.modernNotificationCard,
@@ -318,67 +370,91 @@ export default function NotificationScreen({
                         borderLeftWidth: 4,
                       },
                     ]}
-                    onPress={() => markAsRead(notification.id)}
                   >
-                    <View style={styles.modernNotificationHeader}>
-                      <View style={styles.modernNotificationIconSection}>
-                        <View
-                          style={[
-                            styles.modernNotificationIcon,
-                            {
-                              backgroundColor: getStatusColor(
-                                notification.type
-                              ),
-                            },
-                          ]}
-                        >
-                          {getNotificationIcon(notification.type)}
-                        </View>
-                        <View style={styles.modernNotificationTitleSection}>
-                          <Text
+                    <TouchableOpacity
+                      onPress={() => markAsRead(notification.id)}
+                      style={styles.notificationContent}
+                    >
+                      <View style={styles.modernNotificationHeader}>
+                        <View style={styles.modernNotificationIconSection}>
+                          <View
                             style={[
-                              styles.modernNotificationTitle,
+                              styles.modernNotificationIcon,
                               {
-                                color: isDarkMode ? "#FFFFFF" : "#000000",
-                                fontWeight: "600",
+                                backgroundColor: getStatusColor(
+                                  notification.type
+                                ),
                               },
                             ]}
                           >
-                            {notification.title}
-                          </Text>
+                            {getNotificationIcon(notification.type)}
+                          </View>
+                          <View style={styles.modernNotificationTitleSection}>
+                            <Text
+                              style={[
+                                styles.modernNotificationTitle,
+                                {
+                                  color: isDarkMode ? "#FFFFFF" : "#000000",
+                                  fontWeight: "600",
+                                },
+                              ]}
+                            >
+                              {notification.title}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.modernNotificationMessage,
+                                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                              ]}
+                            >
+                              {notification.message}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.modernNotificationMeta}>
                           <Text
                             style={[
-                              styles.modernNotificationMessage,
-                              { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                              styles.modernNotificationTime,
+                              { color: isDarkMode ? "#6B7280" : "#9CA3AF" },
                             ]}
                           >
-                            {notification.message}
+                            {formatTime(notification.created_at)}
                           </Text>
+                          <View
+                            style={[
+                              styles.unreadIndicator,
+                              {
+                                backgroundColor: getStatusColor(
+                                  notification.type
+                                ),
+                              },
+                            ]}
+                          />
                         </View>
                       </View>
+                    </TouchableOpacity>
 
-                      <View style={styles.modernNotificationMeta}>
-                        <Text
-                          style={[
-                            styles.modernNotificationTime,
-                            { color: isDarkMode ? "#6B7280" : "#9CA3AF" },
-                          ]}
+                    {/* Add approve/reject buttons for ride requests */}
+                    {notification.type === "ride_request" && (
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.rejectButton]}
+                          onPress={() => handleRejectRequest(notification)}
                         >
-                          {formatTime(notification.created_at)}
-                        </Text>
-                        <View
-                          style={[
-                            styles.unreadIndicator,
-                            {
-                              backgroundColor: getStatusColor(
-                                notification.type
-                              ),
-                            },
-                          ]}
-                        />
+                          <X size={16} color="#FFFFFF" />
+                          <Text style={styles.actionButtonText}>Reject</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.approveButton]}
+                          onPress={() => handleApproveRequest(notification)}
+                        >
+                          <Check size={16} color="#FFFFFF" />
+                          <Text style={styles.actionButtonText}>Approve</Text>
+                        </TouchableOpacity>
                       </View>
-                    </View>
-                  </TouchableOpacity>
+                    )}
+                  </View>
                 ))}
               </View>
             )}
@@ -642,5 +718,36 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 20,
   },
+  notificationContent: {
+    flex: 1,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  approveButton: {
+    backgroundColor: "#4CAF50",
+  },
+  rejectButton: {
+    backgroundColor: "#F44336",
+  },
+  actionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });
- 

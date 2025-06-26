@@ -693,7 +693,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
         </View>
 
         {/* Invite Friends Card */}
-        <View style={[cardStyle, styles.inviteCard]}>
+        {/* <View style={[cardStyle, styles.inviteCard]}>
           <LinearGradient
             colors={["#667eea", "#764ba2"]}
             style={styles.inviteGradient}
@@ -713,7 +713,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
               </View>
             </View>
           </LinearGradient>
-        </View>
+        </View> */}
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
@@ -738,7 +738,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
           </TouchableOpacity>
 
           {/* My Booking History */}
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[cardStyle, styles.menuItem]}
             onPress={() => setShowBookingHistory(true)}
           >
@@ -757,7 +757,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                 iconColor={isDarkMode ? "#CCCCCC" : "#666666"}
               />
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {/* Safety */}
           <TouchableOpacity

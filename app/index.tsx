@@ -270,7 +270,7 @@ const AppContent = ({ session }: { session: Session }) => {
         const { data: historyData, error: historyError } = await supabase
           .from("carpool_rides")
           .select("id")
-          .eq("driver_id", user.id);
+          .eq("ride_creator_id", user.id);
 
         if (historyError) {
           setUserRideHistory(5);
@@ -398,11 +398,12 @@ const AppContent = ({ session }: { session: Session }) => {
       // ✅ FIXED: Ensure all required fields are properly formatted and validated
       const newRide = {
         // Required fields with proper validation
-        driver_id: user?.id || generateFallbackId(),
-        driver_name: user?.name || rideData.driverName || "Anonymous Driver",
-        driver_email:
+        ride_creator_id: user?.id || generateFallbackId(),
+        ride_creator_name:
+          user?.name || rideData.rideCreatorName || "Anonymous Creator",
+        ride_creator_email:
           user?.email || rideData.driverEmail || "unknown@lnmiit.ac.in",
-        driver_phone: user?.phone || rideData.driverPhone || null,
+        ride_creator_phone: user?.phone || rideData.rideCreatorPhone || null,
         from_location: (
           rideData.from ||
           rideData.fromLocation ||
@@ -464,9 +465,9 @@ const AppContent = ({ session }: { session: Session }) => {
 
       // Validate required database fields match
       const requiredFields = [
-        "driver_id",
-        "driver_name",
-        "driver_email",
+        "ride_creator_id",
+        "ride_creator_name",
+        "ride_creator_email",
         "from_location",
         "to_location",
         "departure_time",

@@ -269,12 +269,12 @@ export default function CreateRideScreen({
       );
 
       const rideData = {
-        driver_id: user.id,
-        driver_name:
+        ride_creator_id: user.id,
+        ride_creator_name:
           user.user_metadata?.full_name ||
           user.email?.split("@")[0] ||
-          "Driver",
-        driver_email: user.email,
+          "Creator",
+        ride_creator_email: user.email,
         from_location: formData.from.trim(),
         to_location: formData.to.trim(),
         departure_time: rideDateTime.toISOString(),
