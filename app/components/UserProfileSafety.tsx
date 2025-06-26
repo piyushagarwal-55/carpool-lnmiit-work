@@ -431,51 +431,51 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
     }
   };
 
- const updateUserProfile = async () => {
-  setLoading(true);
-  try {
-    let profilePictureUrl = profileImageUri || editedUser.profilePicture || user.profilePicture;
+  const updateUserProfile = async () => {
+    setLoading(true);
+    try {
+      let profilePictureUrl =
+        profileImageUri || editedUser.profilePicture || user.profilePicture;
 
-    if (selectedImage) {
-      const uploadedUrl = await uploadImage(selectedImage);
-      if (uploadedUrl) {
-        profilePictureUrl = uploadedUrl;
-      } else {
-        setLoading(false);
-        return;
+      if (selectedImage) {
+        const uploadedUrl = await uploadImage(selectedImage);
+        if (uploadedUrl) {
+          profilePictureUrl = uploadedUrl;
+        } else {
+          setLoading(false);
+          return;
+        }
       }
+
+      // update auth
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          phone: editedUser.phone,
+          profile_picture: profilePictureUrl,
+        },
+      });
+
+      // update users table
+      const { error: dbError } = await supabase
+        .from("users")
+        .update({
+          profile_picture: profilePictureUrl,
+        })
+        .eq("id", user.id);
+
+      setEditedUser({ ...editedUser, profilePicture: profilePictureUrl });
+      setProfileImageUri(profilePictureUrl);
+      setSelectedImage(null);
+
+      Alert.alert("Success", "Profile updated successfully!");
+      setShowEditProfile(false);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    // update auth
-    const { error: authError } = await supabase.auth.updateUser({
-      data: {
-        phone: editedUser.phone,
-        profile_picture: profilePictureUrl,
-      },
-    });
-
-    // update users table
-    const { error: dbError } = await supabase
-      .from("users")
-      .update({
-        profile_picture: profilePictureUrl,
-      })
-      .eq("id", user.id);
-
-    setEditedUser({ ...editedUser, profilePicture: profilePictureUrl });
-    setProfileImageUri(profilePictureUrl);
-    setSelectedImage(null);
-
-    Alert.alert("Success", "Profile updated successfully!");
-    setShowEditProfile(false);
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    Alert.alert("Error", "Failed to update profile. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const updateSafetySettings = async (newSettings: Partial<SafetySettings>) => {
     const updatedSettings = { ...safetySettings, ...newSettings };
@@ -715,25 +715,41 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
           </LinearGradient>
         </View> */}
 
-        {/* Menu Items */}
+        {/* Modern Menu Items */}
         <View style={styles.menuSection}>
           {/* My Account */}
           <TouchableOpacity
-            style={[cardStyle, styles.menuItem]}
+            style={[
+              styles.modernCard,
+              { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
+            ]}
             onPress={() => setShowEditProfile(true)}
           >
-            <View style={styles.menuItemContent}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIcon, { backgroundColor: "#4CAF50" }]}>
-                  <Text style={styles.menuIconText}>👤</Text>
-                </View>
-                <Text style={[styles.menuItemText, textStyle]}>My Account</Text>
+            <View style={styles.modernMenuItemContent}>
+              <LinearGradient
+                colors={["#667eea", "#764ba2"]}
+                style={styles.modernMenuIcon}
+              >
+                <Text style={styles.modernMenuIconText}>👤</Text>
+              </LinearGradient>
+              <View style={styles.modernMenuTextContainer}>
+                <Text style={[styles.modernMenuTitle, textStyle]}>
+                  Edit Profile
+                </Text>
+                <Text style={[styles.modernMenuSubtitle, secondaryTextStyle]}>
+                  Update your personal information
+                </Text>
               </View>
-              <IconButton
-                icon="chevron-right"
-                size={20}
-                iconColor={isDarkMode ? "#CCCCCC" : "#666666"}
-              />
+              <View style={styles.modernMenuArrow}>
+                <Text
+                  style={[
+                    styles.modernArrowText,
+                    { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                  ]}
+                >
+                  ›
+                </Text>
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -761,56 +777,109 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
 
           {/* Safety */}
           <TouchableOpacity
-            style={[cardStyle, styles.menuItem]}
+            style={[
+              styles.modernCard,
+              { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
+            ]}
             onPress={() => setShowSafetySettings(true)}
           >
-            <View style={styles.menuItemContent}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIcon, { backgroundColor: "#FF9800" }]}>
-                  <Text style={styles.menuIconText}>🛡️</Text>
-                </View>
-                <Text style={[styles.menuItemText, textStyle]}>Safety</Text>
+            <View style={styles.modernMenuItemContent}>
+              <LinearGradient
+                colors={["#FFD700", "#FFA500"]}
+                style={styles.modernMenuIcon}
+              >
+                <Text style={styles.modernMenuIconText}>🛡️</Text>
+              </LinearGradient>
+              <View style={styles.modernMenuTextContainer}>
+                <Text style={[styles.modernMenuTitle, textStyle]}>
+                  Safety Settings
+                </Text>
+                <Text style={[styles.modernMenuSubtitle, secondaryTextStyle]}>
+                  Manage your safety preferences
+                </Text>
               </View>
-              <IconButton
-                icon="chevron-right"
-                size={20}
-                iconColor={isDarkMode ? "#CCCCCC" : "#666666"}
-              />
+              <View style={styles.modernMenuArrow}>
+                <Text
+                  style={[
+                    styles.modernArrowText,
+                    { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                  ]}
+                >
+                  ›
+                </Text>
+              </View>
             </View>
           </TouchableOpacity>
 
           {/* General Settings */}
           <TouchableOpacity
-            style={[cardStyle, styles.menuItem]}
+            style={[
+              styles.modernCard,
+              { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
+            ]}
             onPress={() => setShowGeneralSettings(true)}
           >
-            <View style={styles.menuItemContent}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIcon, { backgroundColor: "#9C27B0" }]}>
-                  <Text style={styles.menuIconText}>⚙️</Text>
-                </View>
-                <Text style={[styles.menuItemText, textStyle]}>
+            <View style={styles.modernMenuItemContent}>
+              <LinearGradient
+                colors={["#2196F3", "#64B5F6"]}
+                style={styles.modernMenuIcon}
+              >
+                <Text style={styles.modernMenuIconText}>⚙️</Text>
+              </LinearGradient>
+              <View style={styles.modernMenuTextContainer}>
+                <Text style={[styles.modernMenuTitle, textStyle]}>
                   General Settings
                 </Text>
+                <Text style={[styles.modernMenuSubtitle, secondaryTextStyle]}>
+                  App preferences and notifications
+                </Text>
               </View>
-              <IconButton
-                icon="chevron-right"
-                size={20}
-                iconColor={isDarkMode ? "#CCCCCC" : "#666666"}
-              />
+              <View style={styles.modernMenuArrow}>
+                <Text
+                  style={[
+                    styles.modernArrowText,
+                    { color: isDarkMode ? "#CCCCCC" : "#666666" },
+                  ]}
+                >
+                  ›
+                </Text>
+              </View>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Logout Button */}
+        {/* Modern Logout Button */}
         <TouchableOpacity
           style={[
-            styles.logoutButton,
-            { backgroundColor: isDarkMode ? "#FF4444" : "#F44336" },
+            styles.modernCard,
+            {
+              backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF",
+              marginTop: 16,
+            },
           ]}
           onPress={handleLogout}
         >
-          <Text style={styles.logoutButtonText}>Logout</Text>
+          <View style={styles.modernMenuItemContent}>
+            <LinearGradient
+              colors={["#FF6B6B", "#EE5A5A"]}
+              style={styles.modernMenuIcon}
+            >
+              <Text style={styles.modernMenuIconText}>🚪</Text>
+            </LinearGradient>
+            <View style={styles.modernMenuTextContainer}>
+              <Text style={[styles.modernMenuTitle, { color: "#FF6B6B" }]}>
+                Logout
+              </Text>
+              <Text style={[styles.modernMenuSubtitle, secondaryTextStyle]}>
+                Sign out of your account
+              </Text>
+            </View>
+            <View style={styles.modernMenuArrow}>
+              <Text style={[styles.modernArrowText, { color: "#FF6B6B" }]}>
+                ›
+              </Text>
+            </View>
+          </View>
         </TouchableOpacity>
 
         {/* Bottom Navigation Space */}
@@ -1296,6 +1365,54 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 4,
+  },
+  // Modern Menu Styles
+  modernCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modernMenuItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+  },
+  modernMenuIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  modernMenuIconText: {
+    fontSize: 20,
+    color: "#FFFFFF",
+  },
+  modernMenuTextContainer: {
+    flex: 1,
+  },
+  modernMenuTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  modernMenuSubtitle: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  modernMenuArrow: {
+    marginLeft: 12,
+  },
+  modernArrowText: {
+    fontSize: 24,
+    fontWeight: "300",
   },
   profileCard: {
     marginTop: 16,
