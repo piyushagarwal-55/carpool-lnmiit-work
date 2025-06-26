@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm Your LNMIIT Carpool Account</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f8fafc;
+        color: #334155;
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 40px 30px;
+        text-align: center;
+        color: white;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+      }
+
+      .header p {
+        margin: 10px 0 0 0;
+        font-size: 16px;
+        opacity: 0.9;
+      }
+
+      .logo {
+        font-size: 48px;
+        margin-bottom: 20px;
+      }
+
+      .content {
+        padding: 40px 30px;
+      }
+
+      .welcome-message {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .welcome-message h2 {
+        color: #1e293b;
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+
+      .welcome-message p {
+        color: #64748b;
+        font-size: 16px;
+      }
+
+      .confirmation-box {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        margin: 30px 0;
+        border-left: 4px solid #667eea;
+      }
+
+      .confirmation-button {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-decoration: none;
+        padding: 16px 32px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        margin: 20px 0;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        transition: transform 0.2s ease;
+      }
+
+      .confirmation-button:hover {
+        transform: translateY(-2px);
+      }
+
+      .features {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin: 30px 0;
+      }
+
+      .feature {
+        flex: 1;
+        min-width: 200px;
+        text-align: center;
+        padding: 20px;
+        background: #f8fafc;
+        border-radius: 8px;
+      }
+
+      .feature-icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+
+      .feature h3 {
+        color: #1e293b;
+        font-size: 16px;
+        margin: 10px 0;
+      }
+
+      .feature p {
+        color: #64748b;
+        font-size: 14px;
+      }
+
+      .security-notice {
+        background: #fef3c7;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 30px 0;
+      }
+
+      .security-notice h3 {
+        color: #92400e;
+        margin: 0 0 10px 0;
+        font-size: 16px;
+      }
+
+      .security-notice p {
+        color: #92400e;
+        margin: 0;
+        font-size: 14px;
+      }
+
+      .footer {
+        background: #1e293b;
+        color: #94a3b8;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .footer h3 {
+        color: #f1f5f9;
+        margin: 0 0 15px 0;
+      }
+
+      .footer p {
+        margin: 5px 0;
+        font-size: 14px;
+      }
+
+      .footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+
+      .social-links {
+        margin: 20px 0;
+      }
+
+      .social-links a {
+        display: inline-block;
+        margin: 0 10px;
+        padding: 8px;
+        background: #334155;
+        border-radius: 50%;
+        color: #94a3b8;
+        text-decoration: none;
+        font-size: 16px;
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          margin: 0;
+          border-radius: 0;
+        }
+
+        .header,
+        .content,
+        .footer {
+          padding: 30px 20px;
+        }
+
+        .features {
+          flex-direction: column;
+        }
+
+        .feature {
+          min-width: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <div class="logo">🚗</div>
+        <h1>LNMIIT Carpool</h1>
+        <p>Your Campus Transportation Solution</p>
+      </div>
+
+      <!-- Content -->
+      <div class="content">
+        <div class="welcome-message">
+          <h2>Welcome to LNMIIT Carpool! 🎉</h2>
+          <p>
+            Thank you for joining our campus transportation community. Let's get
+            your account verified!
+          </p>
+        </div>
+
+        <div class="confirmation-box">
+          <h3 style="color: #1e293b; margin-bottom: 15px">
+            Confirm Your Email Address
+          </h3>
+          <p style="color: #64748b; margin-bottom: 20px">
+            Click the button below to verify your email address and activate
+            your account.
+          </p>
+
+          <a href="{{ .ConfirmationURL }}" class="confirmation-button">
+            Confirm My Account ✨
+          </a>
+
+          <p style="color: #64748b; font-size: 14px; margin-top: 20px">
+            This link will expire in 24 hours for your security.
+          </p>
+        </div>
+
+        <!-- Features -->
+        <div class="features">
+          <div class="feature">
+            <div class="feature-icon">🚗</div>
+            <h3>Share Rides</h3>
+            <p>Create and join rides with fellow LNMIIT students</p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">💬</div>
+            <h3>Secure Chat</h3>
+            <p>Communicate safely with ride partners</p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">🚌</div>
+            <h3>Bus Schedules</h3>
+            <p>Check campus bus timings and book seats</p>
+          </div>
+        </div>
+
+        <!-- Security Notice -->
+        <div class="security-notice">
+          <h3>🔒 Security Notice</h3>
+          <p>
+            If you didn't create an account with LNMIIT Carpool, please ignore
+            this email. Your email address will not be used without
+            confirmation.
+          </p>
+        </div>
+
+        <div
+          style="
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #e2e8f0;
+          "
+        >
+          <p style="color: #64748b">
+            Having trouble with the button? Copy and paste this link into your
+            browser:
+          </p>
+          <p style="word-break: break-all; color: #667eea; font-size: 14px">
+            {{ .ConfirmationURL }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <h3>LNMIIT Carpool</h3>
+        <p>The LNM Institute of Information Technology</p>
+        <p>Jaipur, Rajasthan 302031</p>
+
+        <div class="social-links">
+          <a href="#">📧</a>
+          <a href="#">🌐</a>
+          <a href="#">📱</a>
+        </div>
+
+        <p style="margin-top: 20px; font-size: 12px; opacity: 0.8">
+          This email was sent to {{ .Email }} because you signed up for LNMIIT
+          Carpool.
+        </p>
+
+        <p style="font-size: 12px; opacity: 0.8">
+          Made with ❤️ by Amrendra & Piyush
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

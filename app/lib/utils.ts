@@ -488,8 +488,8 @@ export async function deleteExpiredRides(supabase: any): Promise<number> {
 
     // Filter to find truly expired rides
     const expiredRideIds = expiredRides
-      .filter((ride) => isRideExpired(ride))
-      .map((ride) => ride.id);
+      .filter((ride: any) => isRideExpired(ride))
+      .map((ride: any) => ride.id);
 
     if (expiredRideIds.length === 0) {
       return 0;
@@ -604,8 +604,8 @@ export async function markExpiredRidesAsCompleted(
 
     // Filter to find expired rides
     const expiredRideIds = activeRides
-      .filter((ride) => isRideExpired(ride))
-      .map((ride) => ride.id);
+      .filter((ride: any) => isRideExpired(ride))
+      .map((ride: any) => ride.id);
 
     if (expiredRideIds.length === 0) {
       return 0;

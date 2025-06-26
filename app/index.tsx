@@ -769,6 +769,9 @@ const AppContent = ({ session }: { session: Session }) => {
                     onShowBusBooking={() => {
                       setIndex(1);
                     }}
+                    onShowProfile={() => {
+                      setIndex(2); // Navigate to profile tab
+                    }}
                     onToggleSidebar={toggleSidebar}
                   />
                 )}

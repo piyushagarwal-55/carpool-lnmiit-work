@@ -1732,8 +1732,8 @@ const StudentCarpoolSystem = ({
             </Text>
           </View>
           <View style={styles.toggleContainer}>
-            {/* Delete button - only show for driver */}
-            {isDriverCurrentUser && (
+            {/* Delete button - DISABLED (may be used in future) */}
+            {/* {isDriverCurrentUser && (
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation(); // Prevent card press
@@ -1761,7 +1761,7 @@ const StudentCarpoolSystem = ({
                   Delete
                 </Text>
               </TouchableOpacity>
-            )}
+            )} */}
             <View style={[styles.toggle, { backgroundColor: colors.accent }]}>
               <View style={styles.toggleButton} />
             </View>
@@ -1995,14 +1995,15 @@ const StudentCarpoolSystem = ({
     {
       key: "create",
       label: "Create Ride",
-      count: "New",
-      color: "#2196F3",
-      icon: "➕",
+      count: "Start Now",
+      color: "#FF6B35",
+      icon: "🚗",
+      isSpecial: true,
     },
     {
       key: "profile",
       label: "My Profile",
-      count: "View",
+      count: "Edit",
       color: "#8B5CF6",
       icon: "👤",
     },
@@ -2335,6 +2336,7 @@ const StudentCarpoolSystem = ({
                   styles.categoryCard,
                   { backgroundColor: category.color },
                   category.key === "bus_schedule" && styles.busThemeCard,
+                  category.isSpecial && styles.specialCreateCard,
                 ]}
                 onPress={() => {
                   if (category.key === "instructions") {
@@ -2362,11 +2364,23 @@ const StudentCarpoolSystem = ({
                     <View style={styles.busStripe} />
                   </View>
                 )}
-                <Text style={styles.categoryCardEmoji}>{category.icon}</Text>
+
+                {/* Special glow effect for create ride card */}
+                {category.isSpecial && <View style={styles.createRideGlow} />}
+
+                <Text
+                  style={[
+                    styles.categoryCardEmoji,
+                    category.isSpecial && styles.specialCardEmoji,
+                  ]}
+                >
+                  {category.icon}
+                </Text>
                 <Text
                   style={[
                     styles.categoryCardTitle,
                     category.key === "bus_schedule" && { color: "#000000" },
+                    category.isSpecial && styles.specialCardTitle,
                   ]}
                 >
                   {category.label}
@@ -2375,12 +2389,18 @@ const StudentCarpoolSystem = ({
                   style={[
                     styles.categoryCardCount,
                     category.key === "bus_schedule" && { color: "#000000" },
+                    category.isSpecial && styles.specialCardCount,
                   ]}
                 >
                   {category.key === "create"
                     ? category.count
+                    : category.key === "profile"
+                    ? category.count
                     : `${category.count} available`}
                 </Text>
+
+                {/* Pulse animation indicator for create ride */}
+                {category.isSpecial && <View style={styles.createRidePulse} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -3658,6 +3678,69 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
+  },
+  specialCreateCard: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#FF6B35",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: "rgba(255, 107, 53, 0.3)",
+    position: "relative",
+    overflow: "hidden",
+  },
+  createRideGlow: {
+    position: "absolute",
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    borderRadius: 25,
+    backgroundColor: "rgba(255, 107, 53, 0.1)",
+    opacity: 0.7,
+  },
+  createRidePulse: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  specialCardEmoji: {
+    fontSize: 28,
+    marginBottom: 10,
+    textShadowColor: "rgba(255, 255, 255, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  specialCardTitle: {
+    color: "#FFF",
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 6,
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  specialCardCount: {
+    color: "#FFD700",
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: 12,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   busThemeCard: {
     backgroundColor: "#FFF9C4", // Light yellow

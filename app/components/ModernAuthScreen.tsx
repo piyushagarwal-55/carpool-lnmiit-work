@@ -52,6 +52,8 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
 
   // Validation State
   const [emailError, setEmailError] = useState("");
@@ -86,74 +88,131 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
     return password.length >= 6;
   };
 
- const handleSubmit = async () => {
-  setEmailError('');
-  setPasswordError('');
+  const extractBranchFromEmail = (email: string) => {
+    const match = email.match(/^\d{2}u([a-z]{2})\d{3}@lnmiit\.ac\.in$/i);
+    if (!match) return "Unknown";
 
-  if (!validateEmail(email)) {
-    setEmailError('Please enter a valid LNMIIT email.');
-    return;
-  }
+    const branchCode = match[1].toUpperCase();
+    const branchMap: { [key: string]: string } = {
+      CS: "Computer Science",
+      EC: "Electronics & Communication",
+      ME: "Mechanical Engineering",
+      CE: "Civil Engineering",
+      EE: "Electrical Engineering",
+      CH: "Chemical Engineering",
+      CC: "Computer Communication",
+      MM: "Materials & Metallurgy",
+    };
 
-  if (!validatePassword(password)) {
-    setPasswordError('Password must be at least 6 characters.');
-    return;
-  }
+    return branchMap[branchCode] || "Unknown";
+  };
 
-  if (!isLogin && password !== confirmPassword) {
-    setPasswordError("Passwords don't match");
-    return;
-  }
+  const extractYearFromEmail = (email: string) => {
+    const match = email.match(/^(\d{2})u[a-z]{2}\d{3}@lnmiit\.ac\.in$/i);
+    if (!match) return "Unknown";
 
-  if (!isLogin && !name.trim()) {
-    Alert.alert('Error', 'Please enter your name');
-    return;
-  }
+    const yearCode = parseInt(match[1]);
+    const currentYear = new Date().getFullYear();
+    const currentYearCode = currentYear % 100;
 
-  setLoading(true);
-
-  try {
-    if (!isLogin) {
-      // SIGN UP
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role: selectedRole,
-          },
-        },
-      });
-
-      if (error) {
-        if (error.message.includes('User already registered')) {
-          setEmailError('A user with this email already exists.');
-        } else {
-          Alert.alert('Signup Error', error.message);
-        }
-        return;
-      }
-    } else {
-      // LOGIN
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        Alert.alert('Login Error', error.message);
-        return;
-      }
+    // Calculate academic year
+    if (yearCode <= currentYearCode) {
+      const yearDiff = currentYearCode - yearCode;
+      if (yearDiff === 0) return "1st Year";
+      if (yearDiff === 1) return "2nd Year";
+      if (yearDiff === 2) return "3rd Year";
+      if (yearDiff === 3) return "4th Year";
     }
 
-    onAuthenticated(email, password, selectedRole);
-  } catch (err) {
-    Alert.alert('Error', 'Something went wrong. Try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+    return "Unknown";
+  };
+
+  const handleSubmit = async () => {
+    setEmailError("");
+    setPasswordError("");
+
+    if (!validateEmail(email)) {
+      setEmailError("Please enter a valid LNMIIT email.");
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (!isLogin && password !== confirmPassword) {
+      setPasswordError("Passwords don't match");
+      return;
+    }
+
+    if (!isLogin && !name.trim()) {
+      Alert.alert("Error", "Please enter your name");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (!isLogin) {
+        // SIGN UP WITH EMAIL CONFIRMATION
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name,
+              role: selectedRole,
+              full_name: name,
+              branch: extractBranchFromEmail(email),
+              year: extractYearFromEmail(email),
+            },
+            emailRedirectTo: "https://lnmiit-carpool.app/auth/callback", // This would be your app's deep link
+          },
+        });
+
+        if (error) {
+          if (error.message.includes("User already registered")) {
+            setEmailError("A user with this email already exists.");
+          } else {
+            Alert.alert("Signup Error", error.message);
+          }
+          return;
+        }
+
+        if (data.user && !data.session) {
+          // Email confirmation required
+          setUserEmail(email);
+          setEmailSent(true);
+          return;
+        }
+      } else {
+        // LOGIN
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          if (error.message.includes("Email not confirmed")) {
+            Alert.alert(
+              "Email Not Confirmed",
+              "Please check your email and click the confirmation link before signing in."
+            );
+          } else {
+            Alert.alert("Login Error", error.message);
+          }
+          return;
+        }
+      }
+
+      onAuthenticated(email, password, selectedRole);
+    } catch (err) {
+      Alert.alert("Error", "Something went wrong. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -168,182 +227,268 @@ const ModernAuthScreen: React.FC<ModernAuthScreenProps> = ({
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View style={[styles.content, containerAnimatedStyle]}>
-              {/* Simple Welcome Header */}
-              <Animated.View
-                style={[styles.welcomeHeader, containerAnimatedStyle]}
-              >
-                <Text style={styles.welcomeTitle}>
-                  {isLogin ? "Welcome back!" : "Create your account"}
-                </Text>
-                <Text style={styles.welcomeSubtitle}>
-                  {isLogin
-                    ? "Sign in to continue your journey"
-                    : "Join the LNMIIT carpool community"}
-                </Text>
-              </Animated.View>
+              {emailSent ? (
+                // Email Confirmation Screen
+                <View style={styles.confirmationContainer}>
+                  <View style={styles.confirmationIcon}>
+                    <Text style={styles.confirmationEmoji}>📧</Text>
+                  </View>
 
-              {/* Form Card */}
-              <View style={styles.formCard}>
-                {/* Toggle Buttons */}
-                <View style={styles.toggleContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggleButton,
-                      isLogin && styles.toggleButtonActive,
-                    ]}
-                    onPress={() => {
-                      setIsLogin(true);
-                      setEmailError("");
-                      setPasswordError("");
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        isLogin && styles.toggleTextActive,
-                      ]}
-                    >
-                      Sign In
+                  <Text style={styles.confirmationTitle}>Check Your Email</Text>
+                  <Text style={styles.confirmationSubtitle}>
+                    We've sent a confirmation link to:
+                  </Text>
+                  <Text style={styles.confirmationEmail}>{userEmail}</Text>
+
+                  <View style={styles.confirmationSteps}>
+                    <Text style={styles.confirmationStepsTitle}>
+                      Next steps:
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggleButton,
-                      !isLogin && styles.toggleButtonActive,
-                    ]}
-                    onPress={() => {
-                      setIsLogin(false);
-                      setEmailError("");
-                      setPasswordError("");
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        !isLogin && styles.toggleTextActive,
-                      ]}
-                    >
-                      Sign Up
+                    <Text style={styles.confirmationStep}>
+                      1. Check your email inbox
                     </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Form Fields */}
-                <View style={styles.formFields}>
-                  {/* Name Input - Only for Sign Up */}
-                  {!isLogin && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Full Name</Text>
-                      <Input
-                        value={name}
-                        onChangeText={setName}
-                        placeholder="Enter your full name"
-                        autoCapitalize="words"
-                      />
-                    </View>
-                  )}
-
-                  {/* Email Input */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>College Email Address</Text>
-                    <Input
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        if (emailError) setEmailError("");
-                      }}
-                      placeholder="24ucs001@lnmiit.ac.in"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      error={emailError}
-                    />
-                    <Text style={styles.inputHelper}>
-                      Please use your official LNMIIT email address
+                    <Text style={styles.confirmationStep}>
+                      2. Click the confirmation link
+                    </Text>
+                    <Text style={styles.confirmationStep}>
+                      3. Return to the app to sign in
                     </Text>
                   </View>
 
-                  {/* Password Input */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Password</Text>
-                    <Input
-                      value={password}
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        if (passwordError) setPasswordError("");
-                      }}
-                      secureTextEntry={!showPassword}
-                      rightIcon={
-                        showPassword ? (
-                          <EyeOff size={20} color="#6B7280" />
-                        ) : (
-                          <Eye size={20} color="#6B7280" />
-                        )
-                      }
-                      onRightIconPress={() => setShowPassword(!showPassword)}
-                      placeholder="Enter your password"
-                      error={passwordError}
-                    />
-                  </View>
-
-                  {/* Confirm Password Input - Only for Sign Up */}
-                  {!isLogin && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Confirm Password</Text>
-                      <Input
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        secureTextEntry={!showConfirmPassword}
-                        rightIcon={
-                          showConfirmPassword ? (
-                            <EyeOff size={20} color="#6B7280" />
-                          ) : (
-                            <Eye size={20} color="#6B7280" />
-                          )
-                        }
-                        onRightIconPress={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
-                        placeholder="Confirm your password"
-                      />
-                    </View>
-                  )}
-                </View>
-
-                {/* Forgot Password Link - Only for Sign In */}
-                {isLogin && (
-                  <TouchableOpacity style={styles.forgotPassword}>
-                    <Text style={styles.forgotPasswordText}>
-                      Forgot your password?
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Submit Button */}
-                <LinearGradient
-                  colors={
-                    isDarkMode ? ["#4CAF50", "#2196F3"] : ["#667eea", "#764ba2"]
-                  }
-                  style={styles.submitButton}
-                >
                   <Button
-                    title={isLogin ? "Sign In" : "Create Account"}
-                    onPress={handleSubmit}
-                    loading={loading}
-                    fullWidth
-                    size="large"
-                    rightIcon={
-                      !loading && <ArrowRight size={20} color="white" />
-                    }
-                    style={styles.submitButtonInner}
+                    title="Back to Sign In"
+                    onPress={() => {
+                      setEmailSent(false);
+                      setIsLogin(true);
+                      setEmail("");
+                      setPassword("");
+                      setConfirmPassword("");
+                      setName("");
+                    }}
+                    style={styles.backToSignInButton}
                   />
-                </LinearGradient>
-              </View>
 
-              {/* Footer */}
-              <Text style={styles.footer}>
-                By continuing, you agree to our Terms of Service and Privacy
-                Policy
-              </Text>
+                  <TouchableOpacity
+                    style={styles.resendButton}
+                    onPress={async () => {
+                      setLoading(true);
+                      try {
+                        await supabase.auth.resend({
+                          type: "signup",
+                          email: userEmail,
+                          options: {
+                            emailRedirectTo:
+                              "https://lnmiit-carpool.app/auth/callback",
+                          },
+                        });
+                        Alert.alert(
+                          "Email Sent",
+                          "Confirmation email has been resent."
+                        );
+                      } catch (error) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to resend email. Please try again."
+                        );
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    <Text style={styles.resendButtonText}>
+                      Didn't receive the email? Resend
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Regular Auth Form
+                <>
+                  {/* Simple Welcome Header */}
+                  <Animated.View
+                    style={[styles.welcomeHeader, containerAnimatedStyle]}
+                  >
+                    <Text style={styles.welcomeTitle}>
+                      {isLogin ? "Welcome back!" : "Create your account"}
+                    </Text>
+                    <Text style={styles.welcomeSubtitle}>
+                      {isLogin
+                        ? "Sign in to continue your journey"
+                        : "Join the LNMIIT carpool community"}
+                    </Text>
+                  </Animated.View>
+
+                  {/* Form Card */}
+                  <View style={styles.formCard}>
+                    {/* Toggle Buttons */}
+                    <View style={styles.toggleContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.toggleButton,
+                          isLogin && styles.toggleButtonActive,
+                        ]}
+                        onPress={() => {
+                          setIsLogin(true);
+                          setEmailError("");
+                          setPasswordError("");
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.toggleText,
+                            isLogin && styles.toggleTextActive,
+                          ]}
+                        >
+                          Sign In
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.toggleButton,
+                          !isLogin && styles.toggleButtonActive,
+                        ]}
+                        onPress={() => {
+                          setIsLogin(false);
+                          setEmailError("");
+                          setPasswordError("");
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.toggleText,
+                            !isLogin && styles.toggleTextActive,
+                          ]}
+                        >
+                          Sign Up
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Form Fields */}
+                    <View style={styles.formFields}>
+                      {/* Name Input - Only for Sign Up */}
+                      {!isLogin && (
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>Full Name</Text>
+                          <Input
+                            value={name}
+                            onChangeText={setName}
+                            placeholder="Enter your full name"
+                            autoCapitalize="words"
+                          />
+                        </View>
+                      )}
+
+                      {/* Email Input */}
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>
+                          College Email Address
+                        </Text>
+                        <Input
+                          value={email}
+                          onChangeText={(text) => {
+                            setEmail(text);
+                            if (emailError) setEmailError("");
+                          }}
+                          placeholder="24ucs001@lnmiit.ac.in"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          error={emailError}
+                        />
+                        <Text style={styles.inputHelper}>
+                          Please use your official LNMIIT email address
+                        </Text>
+                      </View>
+
+                      {/* Password Input */}
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Password</Text>
+                        <Input
+                          value={password}
+                          onChangeText={(text) => {
+                            setPassword(text);
+                            if (passwordError) setPasswordError("");
+                          }}
+                          secureTextEntry={!showPassword}
+                          rightIcon={
+                            showPassword ? (
+                              <EyeOff size={20} color="#6B7280" />
+                            ) : (
+                              <Eye size={20} color="#6B7280" />
+                            )
+                          }
+                          onRightIconPress={() =>
+                            setShowPassword(!showPassword)
+                          }
+                          placeholder="Enter your password"
+                          error={passwordError}
+                        />
+                      </View>
+
+                      {/* Confirm Password Input - Only for Sign Up */}
+                      {!isLogin && (
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>
+                            Confirm Password
+                          </Text>
+                          <Input
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showConfirmPassword}
+                            rightIcon={
+                              showConfirmPassword ? (
+                                <EyeOff size={20} color="#6B7280" />
+                              ) : (
+                                <Eye size={20} color="#6B7280" />
+                              )
+                            }
+                            onRightIconPress={() =>
+                              setShowConfirmPassword(!showConfirmPassword)
+                            }
+                            placeholder="Confirm your password"
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Forgot Password Link - Only for Sign In */}
+                    {isLogin && (
+                      <TouchableOpacity style={styles.forgotPassword}>
+                        <Text style={styles.forgotPasswordText}>
+                          Forgot your password?
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Submit Button */}
+                    <LinearGradient
+                      colors={
+                        isDarkMode
+                          ? ["#4CAF50", "#2196F3"]
+                          : ["#667eea", "#764ba2"]
+                      }
+                      style={styles.submitButton}
+                    >
+                      <Button
+                        title={isLogin ? "Sign In" : "Create Account"}
+                        onPress={handleSubmit}
+                        loading={loading}
+                        fullWidth
+                        size="large"
+                        rightIcon={
+                          !loading && <ArrowRight size={20} color="white" />
+                        }
+                        style={styles.submitButtonInner}
+                      />
+                    </LinearGradient>
+                  </View>
+
+                  {/* Footer */}
+                  <Text style={styles.footer}>
+                    By continuing, you agree to our Terms of Service and Privacy
+                    Policy
+                  </Text>
+                </>
+              )}
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -529,6 +674,69 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "600",
     letterSpacing: 0.5,
+  },
+
+  // Email Confirmation Screen
+  confirmationContainer: {
+    alignItems: "center",
+    padding: 24,
+  },
+  confirmationIcon: {
+    backgroundColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+  },
+  confirmationEmoji: {
+    fontSize: 24,
+  },
+  confirmationTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  confirmationSubtitle: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  confirmationEmail: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 20,
+  },
+  confirmationSteps: {
+    marginBottom: 20,
+  },
+  confirmationStepsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  confirmationStep: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  backToSignInButton: {
+    backgroundColor: "#667eea",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  resendButton: {
+    backgroundColor: "#667eea",
+    borderRadius: 12,
+    padding: 16,
+  },
+  resendButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
 
