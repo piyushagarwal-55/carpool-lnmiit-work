@@ -170,8 +170,8 @@ const StudentCarpoolSystem = ({
   const [loading, setLoading] = useState(false);
   const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
   const [showRideDetails, setShowRideDetails] = useState(false);
-  // NEW: Disable ride details viewing
-  const [enableRideDetails] = useState(false);
+  // NEW: Enable ride details viewing
+  const [enableRideDetails] = useState(true);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [rideToJoin, setRideToJoin] = useState<CarpoolRide | null>(null);
   const [chatModalVisible, setChatModalVisible] = useState(false);
@@ -1124,7 +1124,7 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCardPress = (ride: CarpoolRide) => {
-    // Disabled ride details viewing as requested
+    // Enable ride details viewing
     if (!enableRideDetails) {
       return;
     }
@@ -2058,6 +2058,14 @@ const StudentCarpoolSystem = ({
                   }
                 }}
               >
+                {/* Bus stripe pattern for bus_schedule card */}
+                {category.key === "bus_schedule" && (
+                  <View style={styles.busStripes}>
+                    <View style={styles.busStripe} />
+                    <View style={styles.busStripe} />
+                    <View style={styles.busStripe} />
+                  </View>
+                )}
                 <Text style={styles.categoryCardEmoji}>{category.icon}</Text>
                 <Text
                   style={[
@@ -3314,12 +3322,28 @@ const styles = StyleSheet.create({
     borderLeftColor: "#000000",
     borderRightWidth: 4,
     borderRightColor: "#000000",
-    borderTopWidth: 2,
+    borderTopWidth: 4,
     borderTopColor: "#000000",
-    borderBottomWidth: 2,
+    borderBottomWidth: 4,
     borderBottomColor: "#000000",
     shadowColor: "#FFD700",
-    shadowOpacity: 0.3,
+    shadowOpacity: 0,
+  },
+  busStripes: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    alignItems: "center",
+    opacity: 0.1,
+  },
+  busStripe: {
+    width: 2,
+    height: "100%",
+    backgroundColor: "#000000",
   },
   categoryCardEmoji: {
     fontSize: 24,

@@ -936,8 +936,6 @@ const AppContent = ({ session }: { session: Session }) => {
                                 textShadowColor: isDarkMode
                                   ? "rgba(0,0,0,0.3)"
                                   : "none",
-                                textShadowOffset: { width: 1, height: 1 },
-                                textShadowRadius: 2,
                               }}
                             >
                               LNMIIT Carpool
