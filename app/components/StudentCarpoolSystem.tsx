@@ -780,6 +780,7 @@ const StudentCarpoolSystem = ({
 
     // Initialize push notifications
     PushNotificationService.initializePushNotifications(currentUser.id)
+      .catch((err) => console.warn("Push notification setup failed:", err))
       .then((token) => {
         if (token) {
           console.log("Push notifications initialized with token:", token);

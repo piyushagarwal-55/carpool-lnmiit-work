@@ -28,6 +28,15 @@ class PushNotificationService {
         return null;
       }
 
+      // Check if we're in Expo Go (which has limitations)
+      const isExpoGo = typeof expo !== "undefined" && expo?.modules?.ExpoGo;
+      if (isExpoGo) {
+        console.warn(
+          "Push notifications are limited in Expo Go. Use a development build for full functionality."
+        );
+        return null;
+      }
+
       // Request permissions
       const { status: existingStatus } =
         await Notifications.getPermissionsAsync();
@@ -43,8 +52,20 @@ class PushNotificationService {
         return null;
       }
 
-      // Get push token
-      const token = await Notifications.getExpoPushTokenAsync();
+      // Get push token with error handling
+      let token;
+      try {
+        token = await Notifications.getExpoPushTokenAsync();
+      } catch (tokenError: any) {
+        // Handle specific cases where projectId is missing
+        if (tokenError.message?.includes("projectId")) {
+          console.warn(
+            "Push notifications require a development build. Skipping initialization in Expo Go."
+          );
+          return null;
+        }
+        throw tokenError;
+      }
 
       this.expoPushToken = token.data;
 
@@ -68,7 +89,8 @@ class PushNotificationService {
       console.log("Push notifications initialized successfully");
       return token.data;
     } catch (error) {
-      console.error("Error initializing push notifications:", error);
+      console.warn("Push notifications unavailable:", error);
+      // Don't throw error - just return null to gracefully handle
       return null;
     }
   }
