@@ -28,7 +28,7 @@ import BusBookingSystem from "./components/BusBookingSystem";
 import UserProfileSafety from "./components/UserProfileSafety";
 
 // ✅ Add these missing imports at the top
-import { TouchableOpacity, ScrollView, Alert } from "react-native";
+import { TouchableOpacity, ScrollView, Alert, Image } from "react-native";
 import { IconButton } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -150,7 +150,9 @@ export const useAuth = (session?: Session) => {
         branch: sessionUser.user_metadata.branch,
         year: sessionUser.user_metadata.year,
         rating: sessionUser.user_metadata.rating || 4.5,
-        profilePicture: sessionUser.user_metadata.avatar_url,
+        profilePicture:
+          sessionUser.user_metadata.profile_picture ||
+          sessionUser.user_metadata.avatar_url,
         phone: sessionUser.user_metadata.phone,
         ridesCompleted: sessionUser.user_metadata.ridesCompleted || 0,
       };
@@ -1053,9 +1055,22 @@ const AppContent = ({ session }: { session: Session }) => {
                             shadowOpacity: 0.3,
                             shadowRadius: 6,
                             elevation: 4,
+                            overflow: "hidden",
                           }}
                         >
-                          <Text style={{ fontSize: 28 }}>👤</Text>
+                          {user?.profilePicture ? (
+                            <Image
+                              source={{ uri: user.profilePicture }}
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 28,
+                              }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text style={{ fontSize: 28 }}>👤</Text>
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text

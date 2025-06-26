@@ -145,7 +145,10 @@ export default function RideDetailsScreen({
         driverName: rideData.driver_name,
         driverPhone: rideData.driver_phone || "",
         driverRating: 0, // No rating display
-        driverPhoto: generateAvatarFomName(rideData.driver_name),
+        driverPhoto:
+          rideData.driver_id === currentUser.id
+            ? currentUser.photo
+            : generateAvatarFomName(rideData.driver_name),
         driverBranch: emailInfo.branchFull,
         driverYear: academicYear,
         from: rideData.from_location,

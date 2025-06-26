@@ -315,7 +315,7 @@ const StudentCarpoolSystem = ({
           driverId: ride.driver_id,
           driverName: ride.driver_name,
           driverRating: 4.8, // Default rating
-          driverPhoto: generateAvatarFromName(ride.driver_name),
+          driverPhoto: getDriverPhoto(ride),
           driverBranch: emailInfo.branchFull,
           driverYear: academicYear,
           driverPhone: ride.driver_phone,
@@ -323,6 +323,8 @@ const StudentCarpoolSystem = ({
           to: ride.to_location,
           departureTime: ride.departure_time, // Keep as ISO string for proper formatting
           date: ride.departure_date,
+          departure_date: ride.departure_date, // For isRideExpired function
+          departure_time: ride.departure_time, // For isRideExpired function
           availableSeats: ride.available_seats,
           totalSeats: ride.total_seats,
           pricePerSeat: ride.price_per_seat,
@@ -451,10 +453,19 @@ const StudentCarpoolSystem = ({
     }
   };
 
-  // NEW: Fetch joined rides
+  // Helper function to get driver photo - use current user's photo if it's their ride
+  const getDriverPhoto = (ride: any): string => {
+    if (ride.driver_id === currentUser.id) {
+      return currentUser.photo;
+    }
+    return generateAvatarFromName(ride.driver_name);
+  };
+
+  // NEW: Fetch joined rides (both as passenger and as driver)
   const fetchJoinedRides = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch rides where user is a passenger
+      const { data: passengerRidesData, error: passengerError } = await supabase
         .from("ride_passengers")
         .select(
           `
@@ -482,62 +493,144 @@ const StudentCarpoolSystem = ({
         .in("status", ["accepted", "confirmed"])
         .eq("carpool_rides.status", "active");
 
-      if (error) {
-        return;
+      // Fetch rides where user is the driver
+      const { data: driverRidesData, error: driverError } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("driver_id", currentUser.id)
+        .eq("status", "active");
+
+      let allJoinedRides: any[] = [];
+
+      // Process passenger rides
+      if (!passengerError && passengerRidesData) {
+        const passengerRides =
+          passengerRidesData
+            ?.filter((item: any) => item.carpool_rides !== null)
+            .map((item: any) => {
+              if (!item.carpool_rides) return null;
+
+              return {
+                id: item.carpool_rides.id,
+                driverId: item.carpool_rides.driver_id,
+                driverName: item.carpool_rides.driver_name || "Unknown Driver",
+                driverRating: 4.5,
+                driverPhoto: getDriverPhoto(item.carpool_rides),
+                driverBranch: item.carpool_rides.driver_branch || "Unknown",
+                driverYear: item.carpool_rides.driver_year || "Unknown",
+                driverPhone: item.carpool_rides.driver_phone || "",
+                from: item.carpool_rides.from_location,
+                to: item.carpool_rides.to_location,
+                departureTime: item.carpool_rides.departure_time,
+                date: item.carpool_rides.departure_date,
+                departure_date: item.carpool_rides.departure_date, // For isRideExpired function
+                departure_time: item.carpool_rides.departure_time, // For isRideExpired function
+                availableSeats: item.carpool_rides.available_seats,
+                totalSeats: item.carpool_rides.total_seats,
+                pricePerSeat: item.carpool_rides.price_per_seat,
+                vehicleInfo: {
+                  make: item.carpool_rides.vehicle_make || "Unknown",
+                  model: item.carpool_rides.vehicle_model || "Car",
+                  color: item.carpool_rides.vehicle_color || "Unknown",
+                  isAC: item.carpool_rides.vehicle_ac || false,
+                },
+                route: item.carpool_rides.route || [],
+                preferences: {
+                  gender: item.carpool_rides.gender_preference || "any",
+                  smokingAllowed: item.carpool_rides.smoking_allowed || false,
+                  musicAllowed: item.carpool_rides.music_allowed || true,
+                },
+                status: item.carpool_rides.status || "active",
+                passengers: [],
+                pendingRequests: [],
+                instantBooking: item.carpool_rides.instant_booking || false,
+                chatEnabled: item.carpool_rides.chat_enabled || true,
+                createdAt:
+                  item.carpool_rides.created_at || new Date().toISOString(),
+                userRole: "passenger", // Mark as passenger ride
+                passengerStatus: item.status,
+                seatsBooked: item.seats_booked,
+              };
+            })
+            .filter(
+              (ride): ride is NonNullable<typeof ride> => ride !== null
+            ) || [];
+
+        allJoinedRides = [...allJoinedRides, ...passengerRides];
       }
 
-      const joinedRidesData =
-        data
-          ?.filter((item: any) => item.carpool_rides !== null)
-          .map((item: any) => {
-            if (!item.carpool_rides) return null;
+      // Process driver rides (rides created by the user)
+      if (!driverError && driverRidesData) {
+        const driverRides = driverRidesData.map((ride: any) => {
+          const emailInfo = parseEmailInfo(
+            ride.driver_email || currentUser.email
+          );
+          const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
-            return {
-              id: item.carpool_rides.id,
-              driverId: item.carpool_rides.driver_id,
-              driverName: item.carpool_rides.driver_name || "Unknown Driver",
-              driverRating: 4.5,
-              driverPhoto:
-                item.carpool_rides.driver_photo ||
-                `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.carpool_rides.driver_id}`,
-              driverBranch: item.carpool_rides.driver_branch || "Unknown",
-              driverYear: item.carpool_rides.driver_year || "Unknown",
-              driverPhone: item.carpool_rides.driver_phone || "",
-              from: item.carpool_rides.from,
-              to: item.carpool_rides.to,
-              departureTime: item.carpool_rides.departure_time,
-              date: item.carpool_rides.date,
-              availableSeats: item.carpool_rides.available_seats,
-              totalSeats: item.carpool_rides.total_seats,
-              pricePerSeat: item.carpool_rides.price_per_seat,
-              vehicleInfo: {
-                make: item.carpool_rides.vehicle_make || "Unknown",
-                model: item.carpool_rides.vehicle_model || "Car",
-                color: item.carpool_rides.vehicle_color || "Unknown",
-                isAC: item.carpool_rides.vehicle_ac || false,
-              },
-              route: item.carpool_rides.route || [],
-              preferences: {
-                gender: item.carpool_rides.gender_preference || "any",
-                smokingAllowed: item.carpool_rides.smoking_allowed || false,
-                musicAllowed: item.carpool_rides.music_allowed || true,
-              },
-              status: item.carpool_rides.status || "active",
-              passengers: [],
-              pendingRequests: [],
-              instantBooking: item.carpool_rides.instant_booking || false,
-              chatEnabled: item.carpool_rides.chat_enabled || true,
-              createdAt:
-                item.carpool_rides.created_at || new Date().toISOString(),
-              passengerStatus: item.status,
-              seatsBooked: item.seats_booked,
-            };
-          })
-          .filter((ride): ride is NonNullable<typeof ride> => ride !== null) ||
-        [];
+          return {
+            id: ride.id,
+            driverId: ride.driver_id,
+            driverName: ride.driver_name,
+            driverRating: 4.8,
+            driverPhoto: getDriverPhoto(ride),
+            driverBranch: emailInfo.branchFull,
+            driverYear: academicYear,
+            driverPhone: ride.driver_phone,
+            from: ride.from_location,
+            to: ride.to_location,
+            departureTime: ride.departure_time,
+            date: ride.departure_date,
+            departure_date: ride.departure_date, // For isRideExpired function
+            departure_time: ride.departure_time, // For isRideExpired function
+            availableSeats: ride.available_seats,
+            totalSeats: ride.total_seats,
+            pricePerSeat: ride.price_per_seat,
+            vehicleInfo: {
+              make: ride.vehicle_make || "Unknown",
+              model: ride.vehicle_model || "Unknown",
+              color: ride.vehicle_color || "White",
+              isAC: ride.is_ac,
+            },
+            route: [ride.from_location, ride.to_location],
+            preferences: {
+              gender: "any" as const,
+              smokingAllowed: ride.smoking_allowed,
+              musicAllowed: ride.music_allowed,
+            },
+            status: ride.status as
+              | "active"
+              | "full"
+              | "completed"
+              | "cancelled",
+            passengers: [],
+            pendingRequests: [],
+            instantBooking: ride.instant_booking,
+            chatEnabled: ride.chat_enabled,
+            createdAt: ride.created_at,
+            userRole: "driver", // Mark as driver ride
+            passengerStatus: "driver", // Special status for driver
+            seatsBooked: 0, // Driver doesn't book seats
+          };
+        });
 
-      setJoinedRides(joinedRidesData);
+        allJoinedRides = [...allJoinedRides, ...driverRides];
+      }
+
+      // Filter out expired rides using the same logic as main rides (30 minutes after departure)
+      const nonExpiredJoinedRides = allJoinedRides.filter((ride) => {
+        return !isRideExpired(ride);
+      });
+
+      // Sort by departure time (earliest first)
+      nonExpiredJoinedRides.sort((a, b) => {
+        const dateA = new Date(`${a.date}T${a.departureTime}`);
+        const dateB = new Date(`${b.date}T${b.departureTime}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      setJoinedRides(nonExpiredJoinedRides);
     } catch (error) {
+      console.error("Error fetching joined rides:", error);
       // Set empty array on error to prevent crashes
       setJoinedRides([]);
     }
@@ -1077,7 +1170,7 @@ const StudentCarpoolSystem = ({
       driverId: rideData.driver_id || currentUser.id,
       driverName: rideData.driver_name || currentUser.name,
       driverRating: 4.5,
-      driverPhoto: currentUser.photo,
+      driverPhoto: rideData.driver_photo || currentUser.photo,
       driverBranch: currentUser.branch,
       driverYear: currentUser.year,
       from: rideData.from_location || rideData.from,
@@ -1322,28 +1415,30 @@ const StudentCarpoolSystem = ({
 
   // NEW: Render Instagram-style circular joined ride
   const renderJoinedRideCircle = (ride: any, index: number) => {
+    const isDriver = ride.userRole === "driver";
+
     const colors = isDarkMode
       ? {
           bg: "#2A2A2A",
-          border: "#4CAF50",
+          border: isDriver ? "#2196F3" : "#4CAF50", // Blue for driver, green for passenger
           text: "#FFFFFF",
           subtext: "#CCCCCC",
           shadow: "#000000",
         }
       : {
           bg: "#FFFFFF",
-          border: "#4CAF50",
+          border: isDriver ? "#2196F3" : "#4CAF50", // Blue for driver, green for passenger
           text: "#000000",
           subtext: "#666666",
           shadow: "#000000",
         };
 
-    const gradientColors: [string, string, ...string[]] =
-      ride.passengerStatus === "confirmed"
-        ? ["#4CAF50", "#45A049", "#388E3C"]
-        : ["#FF9800", "#F57C00", "#E65100"];
-
-    // Static circular design - no scroll animations since it slides up with main scroll
+    // Different gradient colors for driver vs passenger
+    const gradientColors: [string, string, ...string[]] = isDriver
+      ? ["#2196F3", "#1976D2", "#1565C0"] // Blue gradient for driver
+      : ride.passengerStatus === "confirmed"
+      ? ["#4CAF50", "#45A049", "#388E3C"] // Green gradient for confirmed passenger
+      : ["#FF9800", "#F57C00", "#E65100"]; // Orange gradient for pending passenger
 
     return (
       <View
@@ -1353,6 +1448,7 @@ const StudentCarpoolSystem = ({
           {
             backgroundColor: colors.bg,
             borderColor: colors.border,
+            borderWidth: 2,
             shadowColor: colors.shadow,
           },
         ]}
@@ -1369,10 +1465,24 @@ const StudentCarpoolSystem = ({
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.joinedRideContent}>
+              {/* Role indicator */}
+              <View style={styles.roleIndicator}>
+                <Text style={styles.roleText}>{isDriver ? "🚗" : "🧑‍🤝‍🧑"}</Text>
+              </View>
+
               <Text style={styles.joinedRideTime}>
                 {formatTime(ride.departureTime)}
               </Text>
               <Text style={styles.joinedRidePrice}>₹{ride.pricePerSeat}</Text>
+
+              {/* Status indicator */}
+              <Text style={styles.statusIndicator}>
+                {isDriver
+                  ? "Driver"
+                  : ride.passengerStatus === "confirmed"
+                  ? "Confirmed"
+                  : "Pending"}
+              </Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -3937,6 +4047,32 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  roleIndicator: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleText: {
+    fontSize: 10,
+    textAlign: "center",
+  },
+  statusIndicator: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "600",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    marginTop: 2,
+    opacity: 0.9,
   },
   chatIndicator: {
     position: "absolute",
