@@ -1124,10 +1124,10 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCardPress = (ride: CarpoolRide) => {
-    // Enable ride details viewing
-    if (!enableRideDetails) {
-      return;
-    }
+    // Disabled ride details viewing as requested
+    // if (!enableRideDetails) {
+    //   return;
+    // }
     setSelectedRideId(ride.id);
     setShowRideDetails(true);
   };
