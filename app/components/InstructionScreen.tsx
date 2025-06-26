@@ -144,7 +144,7 @@ export default function InstructionScreen({
         ]}
       >
         <LinearGradient
-          colors={isDarkMode ? ["#000000", "#1A1A1A"] : ["#FFFFFF", "#F8F9FA"]}
+          colors={isDarkMode ? ["#000000", "#1A1A1A"] : ["#F8FAFC", "#F1F5F9"]}
           style={styles.gradient}
         >
           {/* Header */}

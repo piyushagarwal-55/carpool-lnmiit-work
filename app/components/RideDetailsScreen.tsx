@@ -935,18 +935,6 @@ export default function RideDetailsScreen({
                       elevation: 3,
                     }}
                   >
-                    <FallbackImage
-                      uri={ride?.rideCreatorPhoto}
-                      fallbackName={ride?.rideCreatorName || "User"}
-                      style={{
-                        width: 70,
-                        height: 70,
-                        borderRadius: 35,
-                        marginRight: 16,
-                        borderWidth: 3,
-                      }}
-                      borderColor="#1565C0"
-                    />
                     <View style={{ flex: 1 }}>
                       <View
                         style={{ flexDirection: "row", alignItems: "center" }}
@@ -1533,18 +1521,6 @@ export default function RideDetailsScreen({
                             elevation: 2,
                           }}
                         >
-                          <FallbackImage
-                            uri={passenger.photo}
-                            fallbackName={passenger.name}
-                            style={{
-                              width: 48,
-                              height: 48,
-                              borderRadius: 24,
-                              marginRight: 12,
-                              borderWidth: 2,
-                            }}
-                            borderColor="#4CAF50"
-                          />
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{
@@ -1620,16 +1596,6 @@ export default function RideDetailsScreen({
                             borderBottomColor: "#E0E0E0",
                           }}
                         >
-                          <FallbackImage
-                            uri={request.passengerPhoto}
-                            fallbackName={request.passengerName}
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 20,
-                              marginRight: 12,
-                            }}
-                          />
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{
