@@ -146,13 +146,24 @@ const UserProfileSafety = ({
 
   const fetchEmergencyContacts = async () => {
     try {
+      // Add network connectivity check
       const { data, error } = await supabase
         .from("emergency_contacts")
         .select("*")
         .eq("user_id", user.email)
         .order("created_at", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific database errors gracefully
+        if (
+          error.message.includes("Network request failed") ||
+          error.message.includes("fetch")
+        ) {
+          console.warn("Network connectivity issue, using offline mode");
+          return;
+        }
+        throw error;
+      }
 
       if (data && data.length > 0) {
         setEmergencyContacts(
@@ -165,7 +176,12 @@ const UserProfileSafety = ({
         );
       }
     } catch (error) {
-      console.error("Error fetching emergency contacts:", error);
+      console.warn(
+        "Could not fetch emergency contacts, using offline mode:",
+        error
+      );
+      // Don't crash the app, just use empty state
+      setEmergencyContacts([]);
     }
   };
 
@@ -191,7 +207,16 @@ const UserProfileSafety = ({
           })
           .eq("id", editingContact.id);
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes("Network request failed")) {
+            Alert.alert(
+              "Network Error",
+              "Please check your internet connection and try again."
+            );
+            return;
+          }
+          throw error;
+        }
 
         setEmergencyContacts((prev) =>
           prev.map((contact) =>
@@ -214,7 +239,16 @@ const UserProfileSafety = ({
           ])
           .select();
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes("Network request failed")) {
+            Alert.alert(
+              "Network Error",
+              "Please check your internet connection and try again."
+            );
+            return;
+          }
+          throw error;
+        }
 
         if (data && data[0]) {
           setEmergencyContacts((prev) => [
@@ -235,8 +269,11 @@ const UserProfileSafety = ({
         editingContact ? "Contact updated!" : "Contact added!"
       );
     } catch (error) {
-      console.error("Error saving emergency contact:", error);
-      Alert.alert("Error", "Failed to save contact. Please try again.");
+      console.warn("Error saving emergency contact:", error);
+      Alert.alert(
+        "Error",
+        "Failed to save contact. Please check your network connection."
+      );
     }
   };
 
@@ -256,17 +293,26 @@ const UserProfileSafety = ({
                 .delete()
                 .eq("id", contactId);
 
-              if (error) throw error;
+              if (error) {
+                if (error.message.includes("Network request failed")) {
+                  Alert.alert(
+                    "Network Error",
+                    "Please check your internet connection and try again."
+                  );
+                  return;
+                }
+                throw error;
+              }
 
               setEmergencyContacts((prev) =>
                 prev.filter((contact) => contact.id !== contactId)
               );
               Alert.alert("Success", "Contact deleted!");
             } catch (error) {
-              console.error("Error deleting emergency contact:", error);
+              console.warn("Error deleting emergency contact:", error);
               Alert.alert(
                 "Error",
-                "Failed to delete contact. Please try again."
+                "Failed to delete contact. Please check your network connection."
               );
             }
           },

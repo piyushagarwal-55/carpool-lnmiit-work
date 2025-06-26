@@ -138,6 +138,7 @@ interface StudentCarpoolSystemProps {
   onJoinRide?: (rideId: string) => void;
   onShowBusBooking?: () => void;
   onToggleSidebar?: () => void;
+  onShowProfile?: () => void;
 }
 
 const StudentCarpoolSystem = ({
@@ -155,6 +156,7 @@ const StudentCarpoolSystem = ({
   onJoinRide = () => {},
   onShowBusBooking = () => {},
   onToggleSidebar = () => {},
+  onShowProfile = () => {},
 }: StudentCarpoolSystemProps) => {
   const [rides, setRides] = useState<CarpoolRide[]>([]);
   const [filteredRides, setFilteredRides] = useState<CarpoolRide[]>([]);
@@ -191,6 +193,7 @@ const StudentCarpoolSystem = ({
   const [showChat, setShowChat] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [scrollX, setScrollX] = useState(new Animated.Value(0));
+  const [mainScrollY] = useState(new Animated.Value(0));
   const [filters, setFilters] = useState<FilterOptions>({
     dateFilter: "all",
     timeFilter: "all",
@@ -220,7 +223,11 @@ const StudentCarpoolSystem = ({
       setLoading(true);
 
       // Auto-cleanup expired rides before fetching
-      await deleteExpiredRides(supabase);
+      try {
+        await deleteExpiredRides(supabase);
+      } catch (cleanupError) {
+        console.warn("Cleanup failed, continuing with fetch:", cleanupError);
+      }
 
       const { data: ridesData, error } = await supabase
         .from("carpool_rides")
@@ -229,6 +236,15 @@ const StudentCarpoolSystem = ({
         .order("created_at", { ascending: false });
 
       if (error) {
+        if (
+          error.message.includes("Network request failed") ||
+          error.message.includes("fetch")
+        ) {
+          console.warn("Network connectivity issue, using offline mode");
+          setRides([]);
+          setFilteredRides([]);
+          return;
+        }
         console.error("Error fetching rides:", error);
         return;
       }
@@ -249,10 +265,18 @@ const StudentCarpoolSystem = ({
         .in("ride_id", rideIds);
 
       if (passengersError) {
-        console.error("Error fetching passengers:", passengersError);
+        if (passengersError.message.includes("Network request failed")) {
+          console.warn("Network error fetching passengers, using empty data");
+        } else {
+          console.error("Error fetching passengers:", passengersError);
+        }
       }
       if (requestsError) {
-        console.error("Error fetching requests:", requestsError);
+        if (requestsError.message.includes("Network request failed")) {
+          console.warn("Network error fetching requests, using empty data");
+        } else {
+          console.error("Error fetching requests:", requestsError);
+        }
       }
 
       // Transform database data to frontend format
@@ -356,7 +380,18 @@ const StudentCarpoolSystem = ({
       await fetchJoinedRides();
       await checkDailyRideLimit(currentUser.id);
     } catch (error) {
-      console.error("Error in fetchRides:", error);
+      if (
+        error instanceof Error &&
+        error.message.includes("Network request failed")
+      ) {
+        console.warn(
+          "Network connectivity issue in fetchRides, continuing in offline mode"
+        );
+        setRides([]);
+        setFilteredRides([]);
+      } else {
+        console.error("Error in fetchRides:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -455,52 +490,51 @@ const StudentCarpoolSystem = ({
         data
           ?.filter((item: any) => item.carpool_rides !== null)
           .map((item: any) => {
-            const ride = item.carpool_rides;
-
-            // Additional safety check
-            if (!ride || !ride.id) {
-              return null;
-            }
+            if (!item.carpool_rides) return null;
 
             return {
-              id: ride.id,
-              driverId: ride.driver_id,
-              driverName: ride.driver_name || "Unknown Driver",
-              driverRating: 4.8,
-              driverPhoto: generateAvatarFromName(
-                ride.driver_name || "Unknown"
-              ),
-              driverBranch: "",
-              driverYear: "",
-              from: ride.from_location || "Unknown",
-              to: ride.to_location || "Unknown",
-              departureTime: ride.departure_time || "",
-              date: ride.departure_date || "",
-              availableSeats: ride.available_seats || 0,
-              totalSeats: ride.total_seats || 0,
-              pricePerSeat: ride.price_per_seat || 0,
+              id: item.carpool_rides.id,
+              driverId: item.carpool_rides.driver_id,
+              driverName: item.carpool_rides.driver_name || "Unknown Driver",
+              driverRating: 4.5,
+              driverPhoto:
+                item.carpool_rides.driver_photo ||
+                `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.carpool_rides.driver_id}`,
+              driverBranch: item.carpool_rides.driver_branch || "Unknown",
+              driverYear: item.carpool_rides.driver_year || "Unknown",
+              driverPhone: item.carpool_rides.driver_phone || "",
+              from: item.carpool_rides.from,
+              to: item.carpool_rides.to,
+              departureTime: item.carpool_rides.departure_time,
+              date: item.carpool_rides.date,
+              availableSeats: item.carpool_rides.available_seats,
+              totalSeats: item.carpool_rides.total_seats,
+              pricePerSeat: item.carpool_rides.price_per_seat,
               vehicleInfo: {
-                make: "Unknown",
-                model: "Car",
-                color: "Unknown",
-                isAC: false,
+                make: item.carpool_rides.vehicle_make || "Unknown",
+                model: item.carpool_rides.vehicle_model || "Car",
+                color: item.carpool_rides.vehicle_color || "Unknown",
+                isAC: item.carpool_rides.vehicle_ac || false,
               },
-              route: [],
+              route: item.carpool_rides.route || [],
               preferences: {
-                smokingAllowed: false,
-                musicAllowed: true,
+                gender: item.carpool_rides.gender_preference || "any",
+                smokingAllowed: item.carpool_rides.smoking_allowed || false,
+                musicAllowed: item.carpool_rides.music_allowed || true,
               },
-              status: ride.status || "active",
+              status: item.carpool_rides.status || "active",
               passengers: [],
               pendingRequests: [],
-              instantBooking: false,
-              chatEnabled: ride.chat_enabled || true,
-              createdAt: item.joined_at,
+              instantBooking: item.carpool_rides.instant_booking || false,
+              chatEnabled: item.carpool_rides.chat_enabled || true,
+              createdAt:
+                item.carpool_rides.created_at || new Date().toISOString(),
               passengerStatus: item.status,
               seatsBooked: item.seats_booked,
             };
           })
-          .filter((ride: any) => ride !== null) || [];
+          .filter((ride): ride is NonNullable<typeof ride> => ride !== null) ||
+        [];
 
       setJoinedRides(joinedRidesData);
     } catch (error) {
@@ -528,14 +562,35 @@ const StudentCarpoolSystem = ({
           setNotifications([]);
           return;
         }
+        // Handle network errors gracefully
+        if (
+          error.message.includes("Network request failed") ||
+          error.message.includes("fetch")
+        ) {
+          console.warn(
+            "Network error fetching notifications, using offline mode"
+          );
+          setNotifications([]);
+          return;
+        }
         console.error("Error fetching notifications:", error);
         return;
       }
 
       setNotifications(notificationsData || []);
     } catch (error) {
-      console.error("Error in fetchNotifications:", error);
-      setNotifications([]);
+      if (
+        error instanceof Error &&
+        error.message.includes("Network request failed")
+      ) {
+        console.warn(
+          "Network connectivity issue in fetchNotifications, using offline mode"
+        );
+        setNotifications([]);
+      } else {
+        console.error("Error in fetchNotifications:", error);
+        setNotifications([]);
+      }
     }
   };
 
@@ -562,14 +617,30 @@ const StudentCarpoolSystem = ({
 
       let allRides: any[] = [];
 
-      if (!driverError && driverRides) {
+      // Handle driver rides with network error handling
+      if (driverError) {
+        if (driverError.message.includes("Network request failed")) {
+          console.warn("Network error fetching driver rides, using empty data");
+        } else {
+          console.error("Error fetching driver rides:", driverError);
+        }
+      } else if (driverRides) {
         allRides = [
           ...allRides,
           ...driverRides.map((ride) => ({ ...ride, userRole: "driver" })),
         ];
       }
 
-      if (!passengerError && passengerRides) {
+      // Handle passenger rides with network error handling
+      if (passengerError) {
+        if (passengerError.message.includes("Network request failed")) {
+          console.warn(
+            "Network error fetching passenger rides, using empty data"
+          );
+        } else {
+          console.error("Error fetching passenger rides:", passengerError);
+        }
+      } else if (passengerRides) {
         allRides = [
           ...allRides,
           ...passengerRides.map((p) => ({
@@ -588,8 +659,18 @@ const StudentCarpoolSystem = ({
 
       setUserRideHistory(allRides);
     } catch (error) {
-      console.error("Error fetching ride history:", error);
-      setUserRideHistory([]);
+      if (
+        error instanceof Error &&
+        error.message.includes("Network request failed")
+      ) {
+        console.warn(
+          "Network connectivity issue in fetchUserRideHistory, using offline mode"
+        );
+        setUserRideHistory([]);
+      } else {
+        console.error("Error fetching ride history:", error);
+        setUserRideHistory([]);
+      }
     }
   };
 
@@ -1257,45 +1338,15 @@ const StudentCarpoolSystem = ({
           shadow: "#000000",
         };
 
-    const gradientColors =
+    const gradientColors: [string, string, ...string[]] =
       ride.passengerStatus === "confirmed"
         ? ["#4CAF50", "#45A049", "#388E3C"]
         : ["#FF9800", "#F57C00", "#E65100"];
 
-    // Calculate card position and scale based on scroll
-    const CARD_WIDTH = 104; // Width + margin
-    const inputRange = [
-      (index - 1) * CARD_WIDTH, // Previous card
-      index * CARD_WIDTH, // Current card
-      (index + 1) * CARD_WIDTH, // Next card
-    ];
-
-    const scale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.75, 1, 0.75], // Scale down when not in center
-      extrapolate: "clamp",
-    });
-
-    const opacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.7, 1, 0.7], // Fade when not in center
-      extrapolate: "clamp",
-    });
-
-    const textOpacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.2, 1, 0.2], // Hide text when scaled down
-      extrapolate: "clamp",
-    });
-
-    const chatIconScale = scrollX.interpolate({
-      inputRange,
-      outputRange: [1.8, 1, 1.8], // Enlarge chat icon when scaled down
-      extrapolate: "clamp",
-    });
+    // Static circular design - no scroll animations since it slides up with main scroll
 
     return (
-      <Animated.View
+      <View
         key={ride.id}
         style={[
           styles.joinedRideCircle,
@@ -1303,8 +1354,6 @@ const StudentCarpoolSystem = ({
             backgroundColor: colors.bg,
             borderColor: colors.border,
             shadowColor: colors.shadow,
-            transform: [{ scale }],
-            opacity,
           },
         ]}
       >
@@ -1319,42 +1368,15 @@ const StudentCarpoolSystem = ({
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Animated.View
-              style={[styles.joinedRideContent, { opacity: textOpacity }]}
-            >
-              <View style={styles.joinedRideHeader}>
-                <Text style={styles.joinedRideTime}>
-                  {formatTime(ride.departureTime)}
-                </Text>
-                <Text style={styles.joinedRideDate}>
-                  {new Date(ride.date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </Text>
-              </View>
-
-              <View style={styles.joinedRideFooter}>
-                <Text style={styles.joinedRidePrice}>₹{ride.pricePerSeat}</Text>
-              </View>
-            </Animated.View>
-
-            {/* Enhanced chat indicator with pulse animation */}
-            <Animated.View
-              style={[
-                styles.chatIndicator,
-                {
-                  transform: [{ scale: chatIconScale }],
-                },
-              ]}
-            >
-              <View style={styles.chatIconContainer}>
-                <MessageCircle size={16} color="#FFFFFF" strokeWidth={2.5} />
-              </View>
-            </Animated.View>
+            <View style={styles.joinedRideContent}>
+              <Text style={styles.joinedRideTime}>
+                {formatTime(ride.departureTime)}
+              </Text>
+              <Text style={styles.joinedRidePrice}>₹{ride.pricePerSeat}</Text>
+            </View>
           </LinearGradient>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     );
   };
 
@@ -1684,6 +1706,13 @@ const StudentCarpoolSystem = ({
       icon: "➕",
     },
     {
+      key: "profile",
+      label: "My Profile",
+      count: "View",
+      color: "#8B5CF6",
+      icon: "👤",
+    },
+    {
       key: "history",
       label: "My History",
       count: `${userRideHistory.length}`,
@@ -1790,93 +1819,7 @@ const StudentCarpoolSystem = ({
           </TouchableOpacity>
         </View>
 
-        {/* Joined Rides Section - Enhanced Instagram Stories Style */}
-        {joinedRides.length > 0 && (
-          <View style={styles.joinedRidesSection}>
-            <View style={styles.joinedRidesSectionHeader}>
-              <View style={styles.sectionTitleContainer}>
-                <Text
-                  style={[
-                    styles.joinedRidesSectionTitle,
-                    { color: isDarkMode ? "#FFF" : "#000" },
-                  ]}
-                >
-                  My Joined Rides
-                </Text>
-                <View
-                  style={[
-                    styles.rideCountBadge,
-                    { backgroundColor: isDarkMode ? "#4CAF50" : "#4CAF50" },
-                  ]}
-                >
-                  <Text style={styles.rideCountText}>{joinedRides.length}</Text>
-                </View>
-              </View>
-              <Text
-                style={[
-                  styles.joinedRidesSectionSubtitle,
-                  { color: isDarkMode ? "#CCC" : "#666" },
-                ]}
-              >
-                Tap to open group chat
-              </Text>
-            </View>
-
-            <Animated.ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.joinedRidesScrollView}
-              contentContainerStyle={styles.joinedRidesContainer}
-              decelerationRate="fast"
-              snapToInterval={104} // Width of card (92px) + margin (12px)
-              snapToAlignment="center"
-              bounces={true}
-              bouncesZoom={false}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                { useNativeDriver: true }
-              )}
-              scrollEventThrottle={16}
-            >
-              {joinedRides.map((ride, index) =>
-                renderJoinedRideCircle(ride, index)
-              )}
-
-              {/* Add ride prompt at the end */}
-              <TouchableOpacity
-                style={[
-                  styles.addRidePrompt,
-                  {
-                    backgroundColor: isDarkMode
-                      ? "rgba(255, 255, 255, 0.1)"
-                      : "rgba(0, 0, 0, 0.05)",
-                    borderColor: isDarkMode
-                      ? "rgba(255, 255, 255, 0.2)"
-                      : "rgba(0, 0, 0, 0.1)",
-                  },
-                ]}
-                onPress={handleCreateRide}
-                activeOpacity={0.7}
-              >
-                <Plus
-                  size={24}
-                  color={isDarkMode ? "#FFF" : "#666"}
-                  strokeWidth={2}
-                />
-                <Text
-                  style={[
-                    styles.addRideText,
-                    { color: isDarkMode ? "#FFF" : "#666" },
-                  ]}
-                >
-                  Add Ride
-                </Text>
-              </TouchableOpacity>
-            </Animated.ScrollView>
-          </View>
-        )}
-
-        {/* Main Content ScrollView */}
+        {/* Single Unified ScrollView with Slide-up Effect */}
         <ScrollView
           style={styles.mainScrollView}
           showsVerticalScrollIndicator={false}
@@ -1888,40 +1831,98 @@ const StudentCarpoolSystem = ({
               tintColor={isDarkMode ? "#FFF" : "#000"}
             />
           }
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: mainScrollY } } }],
+            { useNativeDriver: false }
+          )}
+          scrollEventThrottle={16}
+          stickyHeaderIndices={joinedRides.length > 0 ? [1] : [0]}
         >
-          {/* Quick Tips */}
-          {!searchQuery &&
-            filteredRides.length === 0 &&
-            joinedRides.length === 0 && (
-              <View style={styles.quickTips}>
+          {/* Joined Rides Section that slides up */}
+          {joinedRides.length > 0 && (
+            <View style={styles.joinedRidesSection}>
+              <View style={styles.joinedRidesSectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <Text
+                    style={[
+                      styles.joinedRidesSectionTitle,
+                      { color: isDarkMode ? "#FFF" : "#000" },
+                    ]}
+                  >
+                    My Joined Rides
+                  </Text>
+                  <View
+                    style={[
+                      styles.rideCountBadge,
+                      { backgroundColor: isDarkMode ? "#4CAF50" : "#4CAF50" },
+                    ]}
+                  >
+                    <Text style={styles.rideCountText}>
+                      {joinedRides.length}
+                    </Text>
+                  </View>
+                </View>
                 <Text
                   style={[
-                    styles.tipsTitle,
-                    { color: isDarkMode ? "#FFF" : "#000" },
-                  ]}
-                >
-                  💡 Quick Tips
-                </Text>
-                <Text
-                  style={[
-                    styles.tipsText,
+                    styles.joinedRidesSectionSubtitle,
                     { color: isDarkMode ? "#CCC" : "#666" },
                   ]}
                 >
-                  • Try searching for specific locations like "Railway Station"
-                  {"\n"}• Create your own ride to build your network{"\n"}• Use
-                  destinations like "Railway Station", "Airport", or "Mall"
+                  Tap to open group chat
                 </Text>
               </View>
-            )}
 
-          {/* Available Rides Section */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.joinedRidesScrollView}
+                contentContainerStyle={styles.joinedRidesContainer}
+                decelerationRate="fast"
+                snapToInterval={96} // Adjusted for circular cards (80px + 16px margin)
+                snapToAlignment="start"
+                bounces={true}
+                bouncesZoom={false}
+                pagingEnabled={false}
+                scrollEventThrottle={16}
+                contentInset={{ left: 0, right: 20 }}
+                directionalLockEnabled={true}
+              >
+                {joinedRides.map((ride, index) =>
+                  renderJoinedRideCircle(ride, index)
+                )}
+
+                {/* Add ride prompt at the end */}
+                <TouchableOpacity
+                  style={[
+                    styles.addRidePrompt,
+                    {
+                      backgroundColor: isDarkMode
+                        ? "rgba(76, 175, 80, 0.15)"
+                        : "rgba(76, 175, 80, 0.1)",
+                      borderColor: isDarkMode
+                        ? "rgba(76, 175, 80, 0.6)"
+                        : "rgba(76, 175, 80, 0.5)",
+                    },
+                  ]}
+                  onPress={() => {
+                    console.log("Add Ride button pressed");
+                    handleCreateRide();
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Plus size={32} color="#4CAF50" strokeWidth={3} />
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Sticky Available Rides Header */}
           <View
             style={[
-              styles.sectionHeader,
+              styles.stickyHeader,
               {
-                marginTop: joinedRides.length > 0 ? 12 : 0,
-                paddingTop: joinedRides.length > 0 ? 0 : 0,
+                backgroundColor: isDarkMode ? "#000" : "#F5F7FA",
+                borderBottomColor: isDarkMode ? "#333" : "#E5E7EB",
               },
             ]}
           >
@@ -1942,74 +1943,80 @@ const StudentCarpoolSystem = ({
               {filteredRides.length} rides found
             </Text>
           </View>
+          {/* Scrollable Content Below Sticky Header */}
+          <View style={styles.scrollableContent}>
+            {/* Quick Tips */}
+            {!searchQuery &&
+              filteredRides.length === 0 &&
+              joinedRides.length === 0 && (
+                <View style={styles.quickTips}>
+                  <Text
+                    style={[
+                      styles.tipsTitle,
+                      { color: isDarkMode ? "#FFF" : "#000" },
+                    ]}
+                  >
+                    💡 Quick Tips
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tipsText,
+                      { color: isDarkMode ? "#CCC" : "#666" },
+                    ]}
+                  >
+                    • Try searching for specific locations like "Railway
+                    Station"
+                    {"\n"}• Create your own ride to build your network{"\n"}•
+                    Use destinations like "Railway Station", "Airport", or
+                    "Mall"
+                  </Text>
+                </View>
+              )}
 
-          {filteredRides.length > 0 ? (
-            filteredRides.map(renderJobStyleCard)
-          ) : (
-            <View style={styles.emptyState}>
-              <Car size={64} color={isDarkMode ? "#666" : "#CCC"} />
-              <Text
-                style={[
-                  styles.emptyTitle,
-                  { color: isDarkMode ? "#FFF" : "#000" },
-                ]}
-              >
-                No rides available right now
-              </Text>
-              <Text
-                style={[
-                  styles.emptySubtitle,
-                  { color: isDarkMode ? "#CCC" : "#666" },
-                ]}
-              >
-                • Try searching for different locations{"\n"}• Check rides for
-                tomorrow or this week{"\n"}• Create your own ride and invite
-                others
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.createRideButton,
-                  { backgroundColor: isDarkMode ? "#FFF" : "#000" },
-                ]}
-                onPress={handleCreateRide}
-              >
-                <Plus size={20} color={isDarkMode ? "#000" : "#FFF"} />
+            {/* Available Rides List */}
+            {filteredRides.length > 0 ? (
+              filteredRides.map(renderJobStyleCard)
+            ) : (
+              <View style={styles.emptyState}>
+                <Car size={64} color={isDarkMode ? "#666" : "#CCC"} />
                 <Text
                   style={[
-                    styles.createRideText,
-                    { color: isDarkMode ? "#000" : "#FFF" },
-                  ]}
-                >
-                  Create a Ride
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Expired Rides Section */}
-          {expiredRides.length > 0 && (
-            <>
-              <View style={[styles.sectionHeader, { marginTop: 32 }]}>
-                <Text
-                  style={[
-                    styles.sectionTitle,
+                    styles.emptyTitle,
                     { color: isDarkMode ? "#FFF" : "#000" },
                   ]}
                 >
-                  Expired Rides
+                  No rides available right now
                 </Text>
                 <Text
                   style={[
-                    styles.sectionSubtitle,
+                    styles.emptySubtitle,
                     { color: isDarkMode ? "#CCC" : "#666" },
                   ]}
                 >
-                  {expiredRides.length} expired rides
+                  • Try searching for different locations{"\n"}• Check rides for
+                  tomorrow or this week{"\n"}• Create your own ride and invite
+                  others
                 </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.createRideButton,
+                    { backgroundColor: isDarkMode ? "#FFF" : "#000" },
+                  ]}
+                  onPress={handleCreateRide}
+                >
+                  <Plus size={20} color={isDarkMode ? "#000" : "#FFF"} />
+                  <Text
+                    style={[
+                      styles.createRideText,
+                      { color: isDarkMode ? "#000" : "#FFF" },
+                    ]}
+                  >
+                    Create a Ride
+                  </Text>
+                </TouchableOpacity>
               </View>
-              {expiredRides.map(renderExpiredRideCard)}
-            </>
-          )}
+            )}
+          </View>
 
           {/* Quick Actions Section */}
           <Text
@@ -2018,7 +2025,7 @@ const StudentCarpoolSystem = ({
               {
                 color: isDarkMode ? "#FFF" : "#000",
                 marginTop: 32,
-                marginHorizontal: 20,
+                marginHorizontal: 16,
                 marginBottom: 16,
               },
             ]}
@@ -2033,6 +2040,7 @@ const StudentCarpoolSystem = ({
                 style={[
                   styles.categoryCard,
                   { backgroundColor: category.color },
+                  category.key === "bus_schedule" && styles.busThemeCard,
                 ]}
                 onPress={() => {
                   if (category.key === "create") {
@@ -2044,12 +2052,27 @@ const StudentCarpoolSystem = ({
                   } else if (category.key === "bus_schedule") {
                     // Show bus booking system
                     onShowBusBooking();
+                  } else if (category.key === "profile") {
+                    // Show profile screen
+                    onShowProfile();
                   }
                 }}
               >
                 <Text style={styles.categoryCardEmoji}>{category.icon}</Text>
-                <Text style={styles.categoryCardTitle}>{category.label}</Text>
-                <Text style={styles.categoryCardCount}>
+                <Text
+                  style={[
+                    styles.categoryCardTitle,
+                    category.key === "bus_schedule" && { color: "#000000" },
+                  ]}
+                >
+                  {category.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.categoryCardCount,
+                    category.key === "bus_schedule" && { color: "#000000" },
+                  ]}
+                >
                   {category.key === "create"
                     ? category.count
                     : `${category.count} available`}
@@ -2979,7 +3002,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 20, // ← ADJUST THIS VALUE to change top spacing from status bar
     marginBottom: 24,
     gap: 12,
@@ -3046,7 +3069,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
   },
   sectionTitle: {
@@ -3084,6 +3107,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
+    marginHorizontal: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -3275,7 +3299,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
     marginBottom: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   categoryCard: {
     flex: 1,
@@ -3283,6 +3307,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
+  },
+  busThemeCard: {
+    backgroundColor: "#FFF9C4", // Light yellow
+    borderLeftWidth: 4,
+    borderLeftColor: "#000000",
+    borderRightWidth: 4,
+    borderRightColor: "#000000",
+    borderTopWidth: 2,
+    borderTopColor: "#000000",
+    borderBottomWidth: 2,
+    borderBottomColor: "#000000",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
   },
   categoryCardEmoji: {
     fontSize: 24,
@@ -3742,7 +3779,7 @@ const styles = StyleSheet.create({
   },
   // NEW: Enhanced Joined Rides Section Styles
   joinedRidesSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     marginBottom: 4,
   },
@@ -3781,22 +3818,24 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   joinedRidesContainer: {
-    paddingLeft: 16,
+    paddingLeft: 4,
     paddingRight: 16,
     alignItems: "center",
+    justifyContent: "flex-start",
+    minWidth: "100%",
   },
   joinedRideCircle: {
-    width: 92,
-    height: 120,
-    borderRadius: 18,
-    marginHorizontal: 6,
-    borderWidth: 2.5,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginHorizontal: 8,
+    borderWidth: 3,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
     position: "relative",
   },
   joinedRideGradient: {
@@ -3808,6 +3847,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 8,
   },
   joinedRideHeader: {
     alignItems: "center",
@@ -3815,12 +3855,13 @@ const styles = StyleSheet.create({
   },
   joinedRideTime: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    marginBottom: 2,
   },
   joinedRideDate: {
     color: "#FFFFFF",
@@ -3866,7 +3907,7 @@ const styles = StyleSheet.create({
   },
   joinedRidePrice: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "700",
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.3)",
@@ -3875,11 +3916,11 @@ const styles = StyleSheet.create({
   },
   chatIndicator: {
     position: "absolute",
-    bottom: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: "rgba(0,0,0,0.8)",
     alignItems: "center",
     justifyContent: "center",
@@ -3895,7 +3936,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statusDot: {
+  joinedRideStatusDot: {
     position: "absolute",
     top: 8,
     right: 8,
@@ -3906,26 +3947,33 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   addRidePrompt: {
-    width: 92,
-    height: 120,
-    borderRadius: 18,
-    marginHorizontal: 6,
-    borderWidth: 2,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginHorizontal: 8,
+    borderWidth: 3,
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
+    shadowColor: "#4CAF50",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
-  addRideText: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 8,
+
+  stickyHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    zIndex: 10,
+  },
+  scrollableContent: {
+    paddingHorizontal: 0,
   },
   mainScrollView: {
     flex: 1,
   },
-  ridesList: {
+  mainRidesList: {
     flex: 1,
     paddingHorizontal: 0,
   },
