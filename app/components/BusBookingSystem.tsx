@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   Image,
+  Animated,
 } from "react-native";
 import {
   ArrowLeft,
@@ -25,6 +26,11 @@ import {
   Check,
   Calendar,
   Info,
+  Filter,
+  Bell,
+  Zap,
+  Navigation,
+  TrendingUp,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { parseEmailInfo } from "../lib/utils";
@@ -110,6 +116,92 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
   const [timeFilter, setTimeFilter] = useState<
     "all" | "morning" | "afternoon" | "evening"
   >("all");
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [liveScheduleUpdate, setLiveScheduleUpdate] = useState(new Date());
+
+  // Notification System State
+  const [notifications, setNotifications] = useState<
+    Array<{
+      id: string;
+      busId: string;
+      routeName: string;
+      departureTime: string;
+      origin: string;
+      destination: string;
+      timestamp: Date;
+    }>
+  >([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Live schedule updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+      setLiveScheduleUpdate(new Date());
+    }, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Notification Management Functions
+  const addNotification = (bus: BusSchedule) => {
+    // Check if notification already exists
+    const existingNotification = notifications.find((n) => n.busId === bus.id);
+    if (existingNotification) {
+      Alert.alert(
+        "Already Set",
+        "You already have a notification set for this bus."
+      );
+      return;
+    }
+
+    // Check if max notifications reached (3 max)
+    if (notifications.length >= 3) {
+      Alert.alert(
+        "Notification Limit",
+        "You can only set notifications for 3 buses. Please remove one to add a new notification.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    // Add new notification
+    const newNotification = {
+      id: `notification_${Date.now()}`,
+      busId: bus.id,
+      routeName: bus.routeName,
+      departureTime: bus.departureTime,
+      origin: bus.origin,
+      destination: bus.destination,
+      timestamp: new Date(),
+    };
+
+    setNotifications((prev) => [...prev, newNotification]);
+    Alert.alert(
+      "🔔 Notification Set",
+      `You'll be notified 30 minutes before the ${bus.routeName} bus departs at ${bus.departureTime}.`
+    );
+  };
+
+  const removeNotification = (notificationId: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+  };
+
+  const clearAllNotifications = () => {
+    Alert.alert(
+      "Clear All Notifications",
+      "Are you sure you want to remove all bus notifications?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: () => setNotifications([]),
+        },
+      ]
+    );
+  };
 
   // Comprehensive Bus Schedules - Real LNMIIT Monday-Friday Timetable
   const weekdaySchedules: BusSchedule[] = [
@@ -631,7 +723,7 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
 
   // Redesigned bus card with ride card inspiration - better spacing and hierarchy
   const renderBusCard = (bus: BusSchedule) => {
-    // Enhanced departure status logic
+    // Status logic for departure
     const getDepartureStatus = () => {
       const now = new Date();
       const departure = new Date();
@@ -650,32 +742,27 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
           status: "departed",
           message: "Departed",
           color: "#9CA3AF",
-          bgColor: "#F9FAFB",
-          borderColor: "#E5E7EB",
+          bg: "#F9FAFB",
+          border: "#E5E7EB",
+          accent: "#6B7280",
         };
       } else if (diffMinutes <= 30) {
         return {
           status: "boarding",
-          message: "Boarding Now",
+          message: "Boarding",
           color: "#F59E0B",
-          bgColor: "#FEF3C7",
-          borderColor: "#FCD34D",
-        };
-      } else if (diffMinutes <= 60) {
-        return {
-          status: "soon",
-          message: "Departing Soon",
-          color: "#10B981",
-          bgColor: "#D1FAE5",
-          borderColor: "#6EE7B7",
+          bg: "#FEF3C7",
+          border: "#FDE68A",
+          accent: "#D97706",
         };
       } else {
         return {
           status: "scheduled",
           message: "Scheduled",
-          color: "#3B82F6",
-          bgColor: "#DBEAFE",
-          borderColor: "#93C5FD",
+          color: "#EAB308",
+          bg: "#FFFBEB",
+          border: "#FEF3C7",
+          accent: "#CA8A04",
         };
       }
     };
@@ -683,192 +770,205 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
     const statusInfo = getDepartureStatus();
 
     return (
-      <View
+      <TouchableOpacity
         key={bus.id}
         style={[
           styles.busCard,
           {
-            backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-            borderLeftColor: statusInfo.color,
-            borderLeftWidth: 4,
-            opacity: statusInfo.status === "departed" ? 0.8 : 1,
-            shadowColor: statusInfo.color,
+            backgroundColor: statusInfo.bg,
+            borderWidth: 2,
+            borderColor: statusInfo.border,
+            shadowColor: statusInfo.accent,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
             shadowRadius: 4,
             elevation: 3,
+            opacity: statusInfo.status === "departed" ? 0.7 : 1,
           },
         ]}
+        onPress={() =>
+          Alert.alert(
+            "🔔 Bus Notification",
+            `Set notification for ${bus.routeName}?\n\nYou'll be notified 30 minutes before departure at ${bus.departureTime}.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Set Notification",
+                onPress: () => addNotification(bus),
+              },
+            ]
+          )
+        }
       >
-        {/* Header with bus info and status */}
-        <View style={styles.busHeader}>
-          <View style={styles.busIconSection}>
+        {/* Bus Stripe Pattern */}
+        <View style={styles.busStripePattern}>
+          {[...Array(6)].map((_, i) => (
             <View
+              key={i}
               style={[
-                styles.busIcon,
+                styles.busStripe,
                 {
-                  backgroundColor: statusInfo.color,
+                  backgroundColor: i % 2 === 0 ? "#000000" : "#FFFFFF",
+                  opacity: 0.15,
                 },
               ]}
-            >
-              <Bus size={20} color="#FFFFFF" />
-            </View>
-            <View style={styles.busTitleSection}>
-              <Text
-                style={[
-                  styles.busTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
-                ]}
-              >
-                {bus.routeName}
-              </Text>
-              <Text
-                style={[
-                  styles.busRoute,
-                  { color: isDarkMode ? "#D1D5DB" : "#6B7280" },
-                ]}
-              >
-                {bus.origin} → {bus.destination}
-              </Text>
-            </View>
-          </View>
+            />
+          ))}
+        </View>
 
+        {/* Header with route and status */}
+        <View style={styles.busHeader}>
+          <View style={styles.busInfo}>
+            <Text style={styles.busCompanyName}>LNMIIT Transport</Text>
+            <Text style={[styles.busRouteName, { color: statusInfo.accent }]}>
+              {bus.origin} → {bus.destination}
+            </Text>
+          </View>
           <View
             style={[
-              styles.statusBadge,
+              styles.busStatusBadge,
               {
                 backgroundColor: statusInfo.color,
               },
             ]}
           >
-            <Text style={styles.statusText}>{statusInfo.message}</Text>
+            <Text style={styles.busStatusText}>{statusInfo.message}</Text>
           </View>
         </View>
 
-        {/* Time and seat information */}
-        <View
-          style={[
-            styles.busDetails,
-            {
-              backgroundColor: isDarkMode ? "#374151" : statusInfo.bgColor,
-            },
-          ]}
-        >
-          <View style={styles.busDetailItem}>
-            <View style={styles.detailIcon}>
-              <Clock size={16} color={statusInfo.color} />
-            </View>
-            <View>
-              <Text style={styles.detailLabel}>Departure</Text>
-              <Text
-                style={[
-                  styles.detailValue,
-                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
-                ]}
-              >
-                {bus.departureTime}
-              </Text>
-            </View>
+        {/* Time tags */}
+        <View style={styles.busTagsContainer}>
+          <View
+            style={[
+              styles.busTag,
+              { backgroundColor: statusInfo.accent + "20" },
+            ]}
+          >
+            <Clock size={14} color={statusInfo.accent} />
+            <Text style={[styles.busTagText, { color: statusInfo.accent }]}>
+              {bus.departureTime}
+            </Text>
           </View>
-
-          <View style={styles.busDetailItem}>
-            <View style={styles.detailIcon}>
-              <MapPin size={16} color={statusInfo.color} />
-            </View>
-            <View>
-              <Text style={styles.detailLabel}>Arrival</Text>
-              <Text
-                style={[
-                  styles.detailValue,
-                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
-                ]}
-              >
-                {bus.arrivalTime}
-              </Text>
-            </View>
+          <View
+            style={[
+              styles.busTag,
+              { backgroundColor: statusInfo.accent + "20" },
+            ]}
+          >
+            <MapPin size={14} color={statusInfo.accent} />
+            <Text style={[styles.busTagText, { color: statusInfo.accent }]}>
+              {bus.arrivalTime}
+            </Text>
           </View>
-
-          <View style={styles.busDetailItem}>
-            <View style={styles.detailIcon}>
-              <Users size={16} color={statusInfo.color} />
-            </View>
-            <View>
-              <Text style={styles.detailLabel}>Available</Text>
-              <Text
-                style={[
-                  styles.detailValue,
-                  { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
-                ]}
-              >
-                {bus.availableSeats}/{bus.totalSeats}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Action button */}
-        <View style={styles.busActions}>
-          {statusInfo.status === "departed" ? (
-            <View style={styles.departedIndicator}>
-              <Check size={16} color="#9CA3AF" />
-              <Text style={styles.departedText}>Departed</Text>
-            </View>
-          ) : statusInfo.status === "boarding" ? (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.boardingButton]}
-              onPress={() => {
-                Alert.alert(
-                  "🚌 Boarding Alert",
-                  `Bus ${bus.routeName} is boarding now! Hurry to the boarding point.`,
-                  [{ text: "Got it!", style: "default" }]
-                );
-              }}
+          {bus.driverNotification && (
+            <View
+              style={[styles.busTag, { backgroundColor: "#FF9800" + "20" }]}
             >
-              <Bus size={16} color="#FFFFFF" />
-              <Text style={styles.boardingButtonText}>Board Now</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.notifyButton]}
-              onPress={() => {
-                Alert.alert(
-                  "🔔 Notification Set",
-                  `You'll be notified 30 minutes before ${bus.routeName} departure at ${bus.departureTime}`,
-                  [{ text: "Perfect!", style: "default" }]
-                );
-              }}
-            >
-              <AlertCircle size={16} color={statusInfo.color} />
-              <Text
-                style={[styles.notifyButtonText, { color: statusInfo.color }]}
-              >
-                Notify Me
+              <AlertCircle size={14} color="#FF9800" />
+              <Text style={[styles.busTagText, { color: "#FF9800" }]}>
+                {bus.driverNotification}
               </Text>
-            </TouchableOpacity>
+            </View>
           )}
         </View>
-      </View>
+
+        {/* Bottom section with notification action */}
+        <View style={styles.busBottomSection}>
+          <View style={styles.busTimeInfo}>
+            <Text
+              style={[
+                styles.busRouteText,
+                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+              ]}
+            >
+              Route: {bus.routeName}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.busNotifyButton,
+              { backgroundColor: statusInfo.color },
+            ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              addNotification(bus);
+            }}
+          >
+            <Bell size={16} color="#FFFFFF" />
+            <Text style={styles.busNotifyText}>Notify</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
     );
   };
 
   // Render main bus list with enhanced filtering
   const renderBusList = () => (
     <View style={styles.busList}>
-      {/* Header with Search and Bookings */}
+      {/* Perfect Header */}
       <View
         style={[
-          styles.headerWithSearch,
+          styles.perfectHeader,
           {
             backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
             borderBottomColor: isDarkMode ? "#374151" : "#E5E7EB",
           },
         ]}
       >
-        {/* Main Header Row */}
-        <View style={styles.mainHeaderRow}>
+        {/* Title Row */}
+        <View style={styles.perfectHeaderRow}>
+          <View style={styles.perfectHeaderLeft}>
+            <Text
+              style={[
+                styles.perfectHeaderTitle,
+                { color: isDarkMode ? "#FFFFFF" : "#000000" },
+              ]}
+            >
+              🚌 Bus Schedule
+            </Text>
+          </View>
+          <View style={styles.perfectHeaderActions}>
+            <TouchableOpacity
+              style={[
+                styles.perfectActionButton,
+                {
+                  backgroundColor: isDarkMode
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(0,0,0,0.05)",
+                },
+              ]}
+              onPress={() => setShowNotifications(true)}
+            >
+              <Bell size={18} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+              {notifications.length > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {notifications.length}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.perfectActionButton,
+                {
+                  backgroundColor: isDarkMode
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(0,0,0,0.05)",
+                },
+              ]}
+              onPress={() => setShowFilterModal(true)}
+            >
+              <Filter size={18} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.perfectSearchContainer}>
           <View
             style={[
-              styles.searchContainer,
+              styles.perfectSearchInput,
               {
                 backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
                 borderColor: isDarkMode ? "#4B5563" : "#E5E7EB",
@@ -878,10 +978,10 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
             <Search size={18} color={isDarkMode ? "#9CA3AF" : "#6B7280"} />
             <TextInput
               style={[
-                styles.searchInput,
+                styles.perfectSearchText,
                 { color: isDarkMode ? "#FFFFFF" : "#000000" },
               ]}
-              placeholder="Search routes, destinations, times..."
+              placeholder="Search routes and destinations..."
               placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -895,181 +995,7 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
               </TouchableOpacity>
             )}
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.notificationButton,
-              {
-                backgroundColor: isDarkMode ? "#3B82F6" : "#3B82F6",
-              },
-            ]}
-            onPress={() =>
-              Alert.alert(
-                "Notifications",
-                "Get notified 30 minutes before departure for selected routes"
-              )
-            }
-          >
-            <Bus size={16} color="#FFFFFF" />
-            <Text style={styles.notificationButtonText}>Schedule</Text>
-          </TouchableOpacity>
         </View>
-
-        {/* Search Results Count */}
-        {searchQuery.length > 0 && (
-          <View style={styles.searchResultsRow}>
-            <Text
-              style={[
-                styles.searchResultsText,
-                { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-              ]}
-            >
-              Found {filteredBuses.length} bus
-              {filteredBuses.length !== 1 ? "es" : ""} matching "{searchQuery}"
-            </Text>
-            <TouchableOpacity
-              onPress={() => setSearchQuery("")}
-              style={styles.clearAllButton}
-            >
-              <Text
-                style={[
-                  styles.clearAllText,
-                  { color: isDarkMode ? "#4CAF50" : "#4CAF50" },
-                ]}
-              >
-                Clear
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Enhanced Time Filter Section */}
-      <View style={styles.enhancedTimeFilterSection}>
-        <View style={styles.filterHeader}>
-          <Text
-            style={[
-              styles.filterTitle,
-              { color: isDarkMode ? "#FFFFFF" : "#1F2937" },
-            ]}
-          >
-            ⏰ Filter by Time
-          </Text>
-          <Text
-            style={[
-              styles.filterDescription,
-              { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-            ]}
-          >
-            Select your preferred travel time
-          </Text>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScrollHorizontal}
-          contentContainerStyle={styles.enhancedFilterScrollContent}
-        >
-          {[
-            {
-              key: "all",
-              label: "All Times",
-              emoji: "🚌",
-              color: "#4CAF50",
-              description: "View all",
-            },
-            {
-              key: "morning",
-              label: "Morning",
-              emoji: "🌅",
-              color: "#FF9800",
-              description: "6AM - 12PM",
-            },
-            {
-              key: "afternoon",
-              label: "Afternoon",
-              emoji: "☀️",
-              color: "#2196F3",
-              description: "12PM - 6PM",
-            },
-            {
-              key: "evening",
-              label: "Evening",
-              emoji: "🌆",
-              color: "#9C27B0",
-              description: "6PM - 10PM",
-            },
-          ].map((filter, index) => (
-            <TouchableOpacity
-              key={filter.key}
-              style={[
-                styles.enhancedFilterChip,
-                timeFilter === filter.key && styles.enhancedActiveFilterChip,
-                index === 0 && { marginLeft: -8 },
-                {
-                  backgroundColor:
-                    timeFilter === filter.key
-                      ? filter.color
-                      : isDarkMode
-                      ? "#374151"
-                      : "#FFFFFF",
-                  borderColor:
-                    timeFilter === filter.key
-                      ? filter.color
-                      : isDarkMode
-                      ? "#4B5563"
-                      : "#E5E7EB",
-                  shadowColor: filter.color,
-                  shadowOpacity: timeFilter === filter.key ? 0.3 : 0.1,
-                  shadowRadius: timeFilter === filter.key ? 8 : 4,
-                  elevation: timeFilter === filter.key ? 6 : 2,
-                },
-              ]}
-              onPress={() => setTimeFilter(filter.key as any)}
-            >
-              <View style={styles.filterChipContent}>
-                <Text style={styles.enhancedFilterEmoji}>{filter.emoji}</Text>
-                <Text
-                  style={[
-                    styles.enhancedFilterLabel,
-                    {
-                      color:
-                        timeFilter === filter.key
-                          ? "#FFFFFF"
-                          : isDarkMode
-                          ? "#FFFFFF"
-                          : "#1F2937",
-                    },
-                  ]}
-                >
-                  {filter.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.enhancedFilterDescription,
-                    {
-                      color:
-                        timeFilter === filter.key
-                          ? "#FFFFFF"
-                          : isDarkMode
-                          ? "#9CA3AF"
-                          : "#6B7280",
-                    },
-                  ]}
-                >
-                  {filter.description}
-                </Text>
-                {timeFilter === filter.key && (
-                  <View style={styles.enhancedFilterBadge}>
-                    <Text style={styles.enhancedFilterBadgeText}>
-                      {filteredBuses.length}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
       </View>
 
       {/* Bus Cards */}
@@ -1761,7 +1687,333 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
       >
         <View style={styles.container}>{renderBusList()}</View>
 
-        {/* Removed seat unavailable modal - schedule-only view */}
+        {/* Filter Modal */}
+        <Modal
+          visible={showFilterModal}
+          transparent={true}
+          animationType="slide"
+          presentationStyle="overFullScreen"
+          onRequestClose={() => setShowFilterModal(false)}
+        >
+          <View style={styles.filterModalOverlay}>
+            <View
+              style={[
+                styles.filterModalContainer,
+                { backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF" },
+              ]}
+            >
+              <View style={styles.filterModalHeader}>
+                <Text
+                  style={[
+                    styles.filterModalTitle,
+                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                  ]}
+                >
+                  🚌 Filter Buses
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowFilterModal(false)}
+                  style={styles.filterModalClose}
+                >
+                  <X size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.filterModalContent}>
+                {/* Schedule Type Filter */}
+                <View style={styles.filterSection}>
+                  <Text
+                    style={[
+                      styles.filterSectionTitle,
+                      { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                    ]}
+                  >
+                    Schedule Type
+                  </Text>
+                  <View style={styles.filterButtonRow}>
+                    {[
+                      { key: "weekday", label: "Weekday", emoji: "📅" },
+                      { key: "weekend", label: "Weekend", emoji: "🏖️" },
+                    ].map((type) => (
+                      <TouchableOpacity
+                        key={type.key}
+                        style={[
+                          styles.filterButton,
+                          scheduleType === type.key &&
+                            styles.activeFilterButton,
+                          {
+                            backgroundColor:
+                              scheduleType === type.key
+                                ? "#FACC15"
+                                : isDarkMode
+                                ? "#374151"
+                                : "#F9FAFB",
+                          },
+                        ]}
+                        onPress={() => setScheduleType(type.key as any)}
+                      >
+                        <Text style={styles.filterButtonEmoji}>
+                          {type.emoji}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.filterButtonText,
+                            {
+                              color:
+                                scheduleType === type.key
+                                  ? "#000000"
+                                  : isDarkMode
+                                  ? "#FFFFFF"
+                                  : "#000000",
+                            },
+                          ]}
+                        >
+                          {type.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Time Filter */}
+                <View style={styles.filterSection}>
+                  <Text
+                    style={[
+                      styles.filterSectionTitle,
+                      { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                    ]}
+                  >
+                    Time Filter
+                  </Text>
+                  <View style={styles.filterButtonGrid}>
+                    {[
+                      {
+                        key: "all",
+                        label: "All Times",
+                        emoji: "🚌",
+                        desc: "View all",
+                      },
+                      {
+                        key: "morning",
+                        label: "Morning",
+                        emoji: "🌅",
+                        desc: "6AM - 12PM",
+                      },
+                      {
+                        key: "afternoon",
+                        label: "Afternoon",
+                        emoji: "☀️",
+                        desc: "12PM - 6PM",
+                      },
+                      {
+                        key: "evening",
+                        label: "Evening",
+                        emoji: "🌆",
+                        desc: "6PM - 10PM",
+                      },
+                    ].map((filter) => (
+                      <TouchableOpacity
+                        key={filter.key}
+                        style={[
+                          styles.filterGridButton,
+                          timeFilter === filter.key &&
+                            styles.activeFilterGridButton,
+                          {
+                            backgroundColor:
+                              timeFilter === filter.key
+                                ? "#FACC15"
+                                : isDarkMode
+                                ? "#374151"
+                                : "#F9FAFB",
+                          },
+                        ]}
+                        onPress={() => setTimeFilter(filter.key as any)}
+                      >
+                        <Text style={styles.filterGridEmoji}>
+                          {filter.emoji}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.filterGridText,
+                            {
+                              color:
+                                timeFilter === filter.key
+                                  ? "#000000"
+                                  : isDarkMode
+                                  ? "#FFFFFF"
+                                  : "#000000",
+                            },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.filterGridDesc,
+                            {
+                              color:
+                                timeFilter === filter.key
+                                  ? "#000000"
+                                  : isDarkMode
+                                  ? "#CCCCCC"
+                                  : "#666666",
+                            },
+                          ]}
+                        >
+                          {filter.desc}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.filterModalFooter}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterApplyButton,
+                    { backgroundColor: "#FACC15" },
+                  ]}
+                  onPress={() => setShowFilterModal(false)}
+                >
+                  <Text style={styles.filterApplyText}>Apply Filters</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Notification Modal */}
+        <Modal
+          visible={showNotifications}
+          transparent={true}
+          animationType="slide"
+          presentationStyle="overFullScreen"
+          onRequestClose={() => setShowNotifications(false)}
+        >
+          <View style={styles.notificationModalOverlay}>
+            <View
+              style={[
+                styles.notificationModalContainer,
+                { backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF" },
+              ]}
+            >
+              <View style={styles.notificationModalHeader}>
+                <Text
+                  style={[
+                    styles.notificationModalTitle,
+                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                  ]}
+                >
+                  🔔 Bus Notifications
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowNotifications(false)}
+                  style={styles.notificationModalClose}
+                >
+                  <X size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.notificationModalContent}>
+                {notifications.length === 0 ? (
+                  <View style={styles.emptyNotifications}>
+                    <Text style={styles.emptyNotificationIcon}>🔕</Text>
+                    <Text
+                      style={[
+                        styles.emptyNotificationTitle,
+                        { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                      ]}
+                    >
+                      No Notifications Set
+                    </Text>
+                    <Text
+                      style={[
+                        styles.emptyNotificationText,
+                        { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                      ]}
+                    >
+                      Tap "Notify" on any bus card to get departure alerts
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView>
+                    <View style={styles.notificationHeader}>
+                      <Text
+                        style={[
+                          styles.notificationCount,
+                          { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                        ]}
+                      >
+                        {notifications.length} active notification
+                        {notifications.length > 1 ? "s" : ""}
+                      </Text>
+                      {notifications.length > 1 && (
+                        <TouchableOpacity
+                          onPress={clearAllNotifications}
+                          style={styles.clearAllButton}
+                        >
+                          <Text style={styles.clearAllButtonText}>
+                            Clear All
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {notifications.map((notification, index) => (
+                      <View
+                        key={notification.id}
+                        style={[
+                          styles.notificationItem,
+                          {
+                            backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
+                            borderColor: isDarkMode ? "#4B5563" : "#E5E7EB",
+                          },
+                        ]}
+                      >
+                        <View style={styles.notificationIcon}>
+                          <Bell size={20} color="#FACC15" />
+                        </View>
+                        <View style={styles.notificationContent}>
+                          <Text
+                            style={[
+                              styles.notificationRoute,
+                              { color: isDarkMode ? "#FFFFFF" : "#000000" },
+                            ]}
+                          >
+                            {notification.origin} → {notification.destination}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.notificationTime,
+                              { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                            ]}
+                          >
+                            Departure: {notification.departureTime}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.notificationSubtext,
+                              { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
+                            ]}
+                          >
+                            You'll be notified 30 minutes before departure
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => removeNotification(notification.id)}
+                          style={styles.removeNotificationButton}
+                        >
+                          <X size={18} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </>
   );
@@ -1784,6 +2036,294 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
+  },
+
+  // Perfect Header Styles
+  perfectHeader: {
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  perfectHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  perfectHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  perfectHeaderTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  perfectLiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  perfectLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  perfectLiveText: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  perfectHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  perfectActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  perfectSearchContainer: {
+    paddingHorizontal: 20,
+  },
+  perfectSearchInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  perfectSearchText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+
+  // Perfect Bus Card Styles
+  busCard: {
+    marginHorizontal: 20,
+    marginVertical: 8,
+    borderRadius: 16,
+    padding: 16,
+    position: "relative",
+    overflow: "hidden",
+  },
+  busStripePattern: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    flexDirection: "row",
+  },
+  busStripe: {
+    flex: 1,
+    height: "100%",
+  },
+  busHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  busInfo: {
+    flex: 1,
+  },
+  busCompanyName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666666",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  busRouteName: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  busStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  busStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  busTagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  busTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  busTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  busBottomSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  busTimeInfo: {
+    flex: 1,
+  },
+  busRouteText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  busNotifyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  busNotifyText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+
+  // Modern Bus Header Styles
+  modernBusHeader: {
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  busHeaderTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  busHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  busHeaderTitleSection: {
+    marginLeft: 16,
+  },
+  busHeaderTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  liveIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  busHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  busHeaderActionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  busSearchSection: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  busSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  busSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  busStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  busStatItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  statIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  statContent: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 
   // Modern Header Styles
@@ -1916,14 +2456,6 @@ const styles = StyleSheet.create({
   searchResultsText: {
     fontSize: 14,
     fontWeight: "500",
-  },
-  clearAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  clearAllText: {
-    fontSize: 14,
-    fontWeight: "600",
   },
 
   // Schedule Toggle Section
@@ -2328,6 +2860,165 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontWeight: "500",
   },
+
+  // Modern Bus Card Styles
+  modernBusCard: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  busCardGradient: {
+    padding: 20,
+    position: "relative",
+  },
+  busStripePattern: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 8,
+    flexDirection: "row",
+  },
+  busStripe: {
+    flex: 1,
+    height: "100%",
+  },
+  modernBusHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  modernBusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  modernBusTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  routeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modernBusRoute: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  modernStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modernStatusText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  modernBusDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  modernDetailItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  modernDetailIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  modernDetailContent: {
+    alignItems: "center",
+  },
+  modernDetailLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  modernDetailValue: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  seatAvailabilitySection: {
+    marginBottom: 16,
+  },
+  seatAvailabilityBar: {
+    height: 6,
+    borderRadius: 3,
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  seatAvailabilityFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  seatAvailabilityText: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  modernBusActions: {
+    alignItems: "center",
+  },
+  modernActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modernActionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  modernNotifyButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  modernDepartedIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    opacity: 0.6,
+  },
+  modernDepartedText: {
+    color: "#9CA3AF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   busCardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -2545,72 +3236,39 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Enhanced Time Filter Styles
-  enhancedTimeFilterSection: {
-    paddingLeft: 20,
-    paddingRight: 0,
-    paddingVertical: 16,
-    backgroundColor: "transparent",
+  // Compact Filter Section
+  compactFilterSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  filterHeader: {
-    marginBottom: 16,
+  compactFilterScroll: {
+    flexGrow: 0,
   },
-  filterTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  filterDescription: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  enhancedFilterScrollContent: {
-    paddingLeft: 0,
-    paddingRight: 20,
+  compactFilterContent: {
     gap: 12,
   },
-  enhancedFilterChip: {
+  compactFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 2,
-    marginRight: 12,
-    minWidth: 120,
-    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
   },
-  enhancedActiveFilterChip: {
-    transform: [{ scale: 1.02 }],
+  activeCompactChip: {
+    shadowColor: "#FACC15",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  filterChipContent: {
-    alignItems: "center",
-    gap: 2,
+  compactFilterEmoji: {
+    fontSize: 16,
   },
-  enhancedFilterEmoji: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  enhancedFilterLabel: {
+  compactFilterText: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  enhancedFilterDescription: {
-    fontSize: 11,
-    fontWeight: "400",
-    textAlign: "center",
-  },
-  enhancedFilterBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginTop: 4,
-    minWidth: 24,
-    alignItems: "center",
-  },
-  enhancedFilterBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "700",
   },
 
   // Enhanced Section Header Styles
@@ -4096,6 +4754,261 @@ const styles = StyleSheet.create({
     height: 4,
     width: "100%",
     marginTop: "auto",
+  },
+
+  // Filter Modal Styles
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 9999,
+  },
+  filterModalContainer: {
+    borderRadius: 16,
+    height: "90%",
+    width: "100%",
+    maxWidth: "100%",
+  },
+  filterModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  filterModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  filterModalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.1)",
+  },
+  filterModalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  filterButtonRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
+  },
+  activeFilterButton: {
+    borderColor: "#FACC15",
+  },
+  filterButtonEmoji: {
+    fontSize: 20,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  filterButtonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  filterGridButton: {
+    width: "48%",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+  },
+  activeFilterGridButton: {
+    borderColor: "#FACC15",
+  },
+  filterGridEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  filterGridText: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  filterGridDesc: {
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  filterModalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  filterApplyButton: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  filterApplyText: {
+    color: "#000000",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  // Notification Styles
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#EF4444",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  notificationModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 9999,
+  },
+  notificationModalContainer: {
+    borderRadius: 16,
+    height: "90%",
+    width: "100%",
+    maxWidth: "100%",
+  },
+  notificationModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  notificationModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  notificationModalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.1)",
+  },
+  notificationModalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  emptyNotifications: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyNotificationIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyNotificationTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  emptyNotificationText: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  notificationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  notificationCount: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  clearAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+  },
+  clearAllButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  notificationItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+    gap: 12,
+  },
+  notificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(250, 204, 21, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationRoute: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  notificationTime: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  notificationSubtext: {
+    fontSize: 12,
+    fontWeight: "400",
+    lineHeight: 16,
+  },
+  removeNotificationButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
   },
 });
 

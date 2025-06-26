@@ -475,7 +475,11 @@ export default function CreateRideScreen({
                 value === location && styles.locationChipTextSelected,
                 {
                   color:
-                    value === location ? "#FFF" : isDarkMode ? "#FFF" : "#000",
+                    value === location
+                      ? "#4CAF50"
+                      : isDarkMode
+                      ? "#FFF"
+                      : "#333",
                 },
               ]}
             >
@@ -788,10 +792,10 @@ export default function CreateRideScreen({
                         {
                           color:
                             formData.availableSeats === seats.toString()
-                              ? "#FFF"
+                              ? "#4CAF50"
                               : isDarkMode
                               ? "#FFF"
-                              : "#000",
+                              : "#333",
                         },
                       ]}
                     >

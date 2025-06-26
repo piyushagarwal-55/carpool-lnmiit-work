@@ -160,11 +160,16 @@ const StudentCarpoolSystem = ({
   const [filteredRides, setFilteredRides] = useState<CarpoolRide[]>([]);
   const [expiredRides, setExpiredRides] = useState<CarpoolRide[]>([]);
   const [allExpiredRides, setAllExpiredRides] = useState<CarpoolRide[]>([]);
+  // NEW: Joined rides state
+  const [joinedRides, setJoinedRides] = useState<CarpoolRide[]>([]);
+  const [userCreatedRidesCount, setUserCreatedRidesCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
   const [showRideDetails, setShowRideDetails] = useState(false);
+  // NEW: Disable ride details viewing
+  const [enableRideDetails] = useState(false);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [rideToJoin, setRideToJoin] = useState<CarpoolRide | null>(null);
   const [chatModalVisible, setChatModalVisible] = useState(false);
@@ -185,6 +190,7 @@ const StudentCarpoolSystem = ({
   const [showJoinRequestModal, setShowJoinRequestModal] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [scrollX, setScrollX] = useState(new Animated.Value(0));
   const [filters, setFilters] = useState<FilterOptions>({
     dateFilter: "all",
     timeFilter: "all",
@@ -329,6 +335,11 @@ const StudentCarpoolSystem = ({
       setExpiredRides(expiredRidesList);
       setAllExpiredRides(expiredRidesList);
 
+      // Auto-flush expired rides that are 2+ hours old
+      if (expiredRidesList.length > 0) {
+        await autoFlushExpiredRides(expiredRidesList);
+      }
+
       // Apply current filters to available rides only
       const filtered = availableRides.filter(
         (ride) =>
@@ -340,10 +351,161 @@ const StudentCarpoolSystem = ({
             .includes((searchQuery || "").toLowerCase())
       );
       setFilteredRides(filtered);
+
+      // Also fetch joined rides and check daily limit
+      await fetchJoinedRides();
+      await checkDailyRideLimit(currentUser.id);
     } catch (error) {
       console.error("Error in fetchRides:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // NEW: Auto-flush expired rides function
+  const autoFlushExpiredRides = async (expiredRidesArray: CarpoolRide[]) => {
+    try {
+      const now = new Date();
+      const ridesToDelete = expiredRidesArray.filter((ride) => {
+        const departureDateTime = new Date(
+          `${ride.date} ${ride.departureTime}`
+        );
+        const hoursSinceExpiry =
+          (now.getTime() - departureDateTime.getTime()) / (1000 * 60 * 60);
+        return hoursSinceExpiry >= 2;
+      });
+
+      if (ridesToDelete.length > 0) {
+        console.log(`Auto-flushing ${ridesToDelete.length} expired rides`);
+
+        for (const ride of ridesToDelete) {
+          await supabase.from("carpool_rides").delete().eq("id", ride.id);
+        }
+
+        console.log("Successfully auto-flushed expired rides");
+      }
+    } catch (error) {
+      console.error("Error auto-flushing expired rides:", error);
+    }
+  };
+
+  // NEW: Check user's daily ride creation count
+  const checkDailyRideLimit = async (userId: string): Promise<boolean> => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+
+      const { data, error } = await supabase
+        .from("carpool_rides")
+        .select("id")
+        .eq("driver_id", userId)
+        .gte("created_at", `${today}T00:00:00.000Z`)
+        .lt("created_at", `${today}T23:59:59.999Z`);
+
+      if (error) {
+        console.error("Error checking daily ride limit:", error);
+        return false;
+      }
+
+      const todayRidesCount = data?.length || 0;
+      setUserCreatedRidesCount(todayRidesCount);
+
+      return todayRidesCount < 2;
+    } catch (error) {
+      console.error("Error in checkDailyRideLimit:", error);
+      return false;
+    }
+  };
+
+  // NEW: Fetch joined rides
+  const fetchJoinedRides = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("ride_passengers")
+        .select(
+          `
+          ride_id,
+          status,
+          seats_booked,
+          joined_at,
+          carpool_rides!inner (
+            id,
+            driver_id,
+            driver_name,
+            from_location,
+            to_location,
+            departure_date,
+            departure_time,
+            status,
+            price_per_seat,
+            available_seats,
+            total_seats,
+            chat_enabled
+          )
+        `
+        )
+        .eq("passenger_id", currentUser.id)
+        .in("status", ["accepted", "confirmed"])
+        .eq("carpool_rides.status", "active");
+
+      if (error) {
+        return;
+      }
+
+      const joinedRidesData =
+        data
+          ?.filter((item: any) => item.carpool_rides !== null)
+          .map((item: any) => {
+            const ride = item.carpool_rides;
+
+            // Additional safety check
+            if (!ride || !ride.id) {
+              return null;
+            }
+
+            return {
+              id: ride.id,
+              driverId: ride.driver_id,
+              driverName: ride.driver_name || "Unknown Driver",
+              driverRating: 4.8,
+              driverPhoto: generateAvatarFromName(
+                ride.driver_name || "Unknown"
+              ),
+              driverBranch: "",
+              driverYear: "",
+              from: ride.from_location || "Unknown",
+              to: ride.to_location || "Unknown",
+              departureTime: ride.departure_time || "",
+              date: ride.departure_date || "",
+              availableSeats: ride.available_seats || 0,
+              totalSeats: ride.total_seats || 0,
+              pricePerSeat: ride.price_per_seat || 0,
+              vehicleInfo: {
+                make: "Unknown",
+                model: "Car",
+                color: "Unknown",
+                isAC: false,
+              },
+              route: [],
+              preferences: {
+                smokingAllowed: false,
+                musicAllowed: true,
+              },
+              status: ride.status || "active",
+              passengers: [],
+              pendingRequests: [],
+              instantBooking: false,
+              chatEnabled: ride.chat_enabled || true,
+              createdAt: item.joined_at,
+              passengerStatus: item.status,
+              seatsBooked: item.seats_booked,
+            };
+          })
+          .filter((ride: any) => ride !== null) || [];
+
+      setJoinedRides(joinedRidesData);
+    } catch (error) {
+      // Set empty array on error to prevent crashes
+      setJoinedRides([]);
     }
   };
 
@@ -811,7 +973,19 @@ const StudentCarpoolSystem = ({
     setShowChat(true);
   };
 
-  const handleCreateRide = () => {
+  const handleCreateRide = async () => {
+    // Check daily ride creation limit
+    const canCreateRide = await checkDailyRideLimit(currentUser.id);
+
+    if (!canCreateRide) {
+      Alert.alert(
+        "Daily Limit Reached",
+        `You can only create 2 rides per day. You've already created ${userCreatedRidesCount} ride(s) today.`,
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     setShowCreateRide(true);
   };
 
@@ -869,6 +1043,10 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCardPress = (ride: CarpoolRide) => {
+    // Disabled ride details viewing as requested
+    if (!enableRideDetails) {
+      return;
+    }
     setSelectedRideId(ride.id);
     setShowRideDetails(true);
   };
@@ -1058,6 +1236,125 @@ const StudentCarpoolSystem = ({
           </View>
         </View>
       </TouchableOpacity>
+    );
+  };
+
+  // NEW: Render Instagram-style circular joined ride
+  const renderJoinedRideCircle = (ride: any, index: number) => {
+    const colors = isDarkMode
+      ? {
+          bg: "#2A2A2A",
+          border: "#4CAF50",
+          text: "#FFFFFF",
+          subtext: "#CCCCCC",
+          shadow: "#000000",
+        }
+      : {
+          bg: "#FFFFFF",
+          border: "#4CAF50",
+          text: "#000000",
+          subtext: "#666666",
+          shadow: "#000000",
+        };
+
+    const gradientColors =
+      ride.passengerStatus === "confirmed"
+        ? ["#4CAF50", "#45A049", "#388E3C"]
+        : ["#FF9800", "#F57C00", "#E65100"];
+
+    // Calculate card position and scale based on scroll
+    const CARD_WIDTH = 104; // Width + margin
+    const inputRange = [
+      (index - 1) * CARD_WIDTH, // Previous card
+      index * CARD_WIDTH, // Current card
+      (index + 1) * CARD_WIDTH, // Next card
+    ];
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.75, 1, 0.75], // Scale down when not in center
+      extrapolate: "clamp",
+    });
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.7, 1, 0.7], // Fade when not in center
+      extrapolate: "clamp",
+    });
+
+    const textOpacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.2, 1, 0.2], // Hide text when scaled down
+      extrapolate: "clamp",
+    });
+
+    const chatIconScale = scrollX.interpolate({
+      inputRange,
+      outputRange: [1.8, 1, 1.8], // Enlarge chat icon when scaled down
+      extrapolate: "clamp",
+    });
+
+    return (
+      <Animated.View
+        key={ride.id}
+        style={[
+          styles.joinedRideCircle,
+          {
+            backgroundColor: colors.bg,
+            borderColor: colors.border,
+            shadowColor: colors.shadow,
+            transform: [{ scale }],
+            opacity,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={() => handleStartChat(ride.id, `${ride.from} → ${ride.to}`)}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={gradientColors}
+            style={styles.joinedRideGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Animated.View
+              style={[styles.joinedRideContent, { opacity: textOpacity }]}
+            >
+              <View style={styles.joinedRideHeader}>
+                <Text style={styles.joinedRideTime}>
+                  {formatTime(ride.departureTime)}
+                </Text>
+                <Text style={styles.joinedRideDate}>
+                  {new Date(ride.date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </Text>
+              </View>
+
+              <View style={styles.joinedRideFooter}>
+                <Text style={styles.joinedRidePrice}>₹{ride.pricePerSeat}</Text>
+              </View>
+            </Animated.View>
+
+            {/* Enhanced chat indicator with pulse animation */}
+            <Animated.View
+              style={[
+                styles.chatIndicator,
+                {
+                  transform: [{ scale: chatIconScale }],
+                },
+              ]}
+            >
+              <View style={styles.chatIconContainer}>
+                <MessageCircle size={16} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
+            </Animated.View>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -1376,7 +1673,7 @@ const StudentCarpoolSystem = ({
       key: "bus_schedule",
       label: "Bus Schedule",
       count: "Live",
-      color: "#4CAF50",
+      color: "#FEF3C7",
       icon: "🚌",
     },
     {
@@ -1493,50 +1790,95 @@ const StudentCarpoolSystem = ({
           </TouchableOpacity>
         </View>
 
-        {/* Quick Tips */}
-        {!searchQuery && filteredRides.length === 0 && (
-          <View style={styles.quickTips}>
-            <Text
-              style={[
-                styles.tipsTitle,
-                { color: isDarkMode ? "#FFF" : "#000" },
-              ]}
+        {/* Joined Rides Section - Enhanced Instagram Stories Style */}
+        {joinedRides.length > 0 && (
+          <View style={styles.joinedRidesSection}>
+            <View style={styles.joinedRidesSectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Text
+                  style={[
+                    styles.joinedRidesSectionTitle,
+                    { color: isDarkMode ? "#FFF" : "#000" },
+                  ]}
+                >
+                  My Joined Rides
+                </Text>
+                <View
+                  style={[
+                    styles.rideCountBadge,
+                    { backgroundColor: isDarkMode ? "#4CAF50" : "#4CAF50" },
+                  ]}
+                >
+                  <Text style={styles.rideCountText}>{joinedRides.length}</Text>
+                </View>
+              </View>
+              <Text
+                style={[
+                  styles.joinedRidesSectionSubtitle,
+                  { color: isDarkMode ? "#CCC" : "#666" },
+                ]}
+              >
+                Tap to open group chat
+              </Text>
+            </View>
+
+            <Animated.ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.joinedRidesScrollView}
+              contentContainerStyle={styles.joinedRidesContainer}
+              decelerationRate="fast"
+              snapToInterval={104} // Width of card (92px) + margin (12px)
+              snapToAlignment="center"
+              bounces={true}
+              bouncesZoom={false}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                { useNativeDriver: true }
+              )}
+              scrollEventThrottle={16}
             >
-              💡 Quick Tips for Finding Rides:
-            </Text>
-            <Text
-              style={[styles.tipsText, { color: isDarkMode ? "#CCC" : "#666" }]}
-            >
-              • Most rides are posted 1-2 hours before departure{"\n"}• Check
-              "Tomorrow" and "This Week" filters{"\n"}• Try searching popular
-              destinations like "Railway Station", "Airport", or "Mall"
-            </Text>
+              {joinedRides.map((ride, index) =>
+                renderJoinedRideCircle(ride, index)
+              )}
+
+              {/* Add ride prompt at the end */}
+              <TouchableOpacity
+                style={[
+                  styles.addRidePrompt,
+                  {
+                    backgroundColor: isDarkMode
+                      ? "rgba(255, 255, 255, 0.1)"
+                      : "rgba(0, 0, 0, 0.05)",
+                    borderColor: isDarkMode
+                      ? "rgba(255, 255, 255, 0.2)"
+                      : "rgba(0, 0, 0, 0.1)",
+                  },
+                ]}
+                onPress={handleCreateRide}
+                activeOpacity={0.7}
+              >
+                <Plus
+                  size={24}
+                  color={isDarkMode ? "#FFF" : "#666"}
+                  strokeWidth={2}
+                />
+                <Text
+                  style={[
+                    styles.addRideText,
+                    { color: isDarkMode ? "#FFF" : "#666" },
+                  ]}
+                >
+                  Add Ride
+                </Text>
+              </TouchableOpacity>
+            </Animated.ScrollView>
           </View>
         )}
 
-        {/* Available Rides Section */}
-        <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: isDarkMode ? "#FFF" : "#000" },
-            ]}
-          >
-            Available Rides
-          </Text>
-          <Text
-            style={[
-              styles.sectionSubtitle,
-              { color: isDarkMode ? "#CCC" : "#666" },
-            ]}
-          >
-            {filteredRides.length} rides found
-          </Text>
-        </View>
-
-        {/* Rides List */}
+        {/* Main Content ScrollView */}
         <ScrollView
-          style={styles.ridesList}
+          style={styles.mainScrollView}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -1547,6 +1889,60 @@ const StudentCarpoolSystem = ({
             />
           }
         >
+          {/* Quick Tips */}
+          {!searchQuery &&
+            filteredRides.length === 0 &&
+            joinedRides.length === 0 && (
+              <View style={styles.quickTips}>
+                <Text
+                  style={[
+                    styles.tipsTitle,
+                    { color: isDarkMode ? "#FFF" : "#000" },
+                  ]}
+                >
+                  💡 Quick Tips
+                </Text>
+                <Text
+                  style={[
+                    styles.tipsText,
+                    { color: isDarkMode ? "#CCC" : "#666" },
+                  ]}
+                >
+                  • Try searching for specific locations like "Railway Station"
+                  {"\n"}• Create your own ride to build your network{"\n"}• Use
+                  destinations like "Railway Station", "Airport", or "Mall"
+                </Text>
+              </View>
+            )}
+
+          {/* Available Rides Section */}
+          <View
+            style={[
+              styles.sectionHeader,
+              {
+                marginTop: joinedRides.length > 0 ? 12 : 0,
+                paddingTop: joinedRides.length > 0 ? 0 : 0,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: isDarkMode ? "#FFF" : "#000" },
+              ]}
+            >
+              Available Rides
+            </Text>
+            <Text
+              style={[
+                styles.sectionSubtitle,
+                { color: isDarkMode ? "#CCC" : "#666" },
+              ]}
+            >
+              {filteredRides.length} rides found
+            </Text>
+          </View>
+
           {filteredRides.length > 0 ? (
             filteredRides.map(renderJobStyleCard)
           ) : (
@@ -3343,6 +3739,195 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
+  },
+  // NEW: Enhanced Joined Rides Section Styles
+  joinedRidesSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginBottom: 4,
+  },
+  joinedRidesSectionHeader: {
+    marginBottom: 12,
+  },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  joinedRidesSectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginRight: 10,
+  },
+  rideCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rideCountText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  joinedRidesSectionSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    opacity: 0.8,
+  },
+  joinedRidesScrollView: {
+    flexGrow: 0,
+  },
+  joinedRidesContainer: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    alignItems: "center",
+  },
+  joinedRideCircle: {
+    width: 92,
+    height: 120,
+    borderRadius: 18,
+    marginHorizontal: 6,
+    borderWidth: 2.5,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 8,
+    position: "relative",
+  },
+  joinedRideGradient: {
+    flex: 1,
+    padding: 12,
+    justifyContent: "space-between",
+  },
+  joinedRideContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  joinedRideHeader: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  joinedRideTime: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  joinedRideDate: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    opacity: 0.9,
+    marginTop: 4,
+  },
+  joinedRideRoute: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 6,
+  },
+  locationContainer: {
+    flex: 1,
+    alignItems: "center",
+  },
+  arrowContainer: {
+    paddingHorizontal: 6,
+  },
+  joinedRideFrom: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  joinedRideTo: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  joinedRideFooter: {
+    alignItems: "center",
+  },
+  joinedRidePrice: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  chatIndicator: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.4)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  chatIconContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  addRidePrompt: {
+    width: 92,
+    height: 120,
+    borderRadius: 18,
+    marginHorizontal: 6,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+  },
+  addRideText: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  mainScrollView: {
+    flex: 1,
+  },
+  ridesList: {
+    flex: 1,
+    paddingHorizontal: 0,
   },
 });
 
