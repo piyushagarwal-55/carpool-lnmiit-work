@@ -1936,18 +1936,18 @@ const StudentCarpoolSystem = ({
       >
         {/* Enhanced Search Bar with Menu and Notifications */}
         <View style={styles.searchContainer}>
+          {/* Modern Sidebar Menu with Purple Background */}
           <TouchableOpacity
             onPress={onToggleSidebar}
             style={[
-              styles.menuBtn,
+              styles.modernMenuBtn,
               {
-                backgroundColor: isDarkMode
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
+                backgroundColor: isDarkMode ? "#9C27B0" : "#BA68C8",
+                shadowColor: "#9C27B0",
               },
             ]}
           >
-            <Menu size={22} color={isDarkMode ? "#FFF" : "#333"} />
+            <Menu size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
           <View
@@ -1985,21 +1985,20 @@ const StudentCarpoolSystem = ({
             )}
           </View>
 
-          {/* Notification Bell */}
+          {/* Modern Notification Bell with Yellow Background */}
           <TouchableOpacity
             style={[
-              styles.notificationIcon,
+              styles.modernNotificationIcon,
               {
-                backgroundColor: isDarkMode
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
+                backgroundColor: isDarkMode ? "#FFC107" : "#FFD54F",
+                shadowColor: "#FFC107",
               },
             ]}
             onPress={() => setShowNotifications(true)}
           >
-            <Bell size={18} color={isDarkMode ? "#FFF" : "#333"} />
+            <Bell size={18} color="#FFFFFF" />
             {unreadNotifications > 0 && (
-              <View style={styles.notificationBadge}>
+              <View style={styles.modernNotificationBadge}>
                 <Text style={styles.notificationBadgeText}>
                   {unreadNotifications > 9 ? "9+" : unreadNotifications}
                 </Text>
@@ -2007,18 +2006,18 @@ const StudentCarpoolSystem = ({
             )}
           </TouchableOpacity>
 
+          {/* Modern Filter Icon with Blue Background */}
           <TouchableOpacity
             style={[
-              styles.filterIcon,
+              styles.modernFilterIcon,
               {
-                backgroundColor: isDarkMode
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
+                backgroundColor: isDarkMode ? "#2196F3" : "#42A5F5",
+                shadowColor: "#2196F3",
               },
             ]}
             onPress={() => setShowFilterModal(true)}
           >
-            <Filter size={18} color={isDarkMode ? "#FFF" : "#333"} />
+            <Filter size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -3267,6 +3266,45 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  // Modern Icon Styles
+  modernMenuBtn: {
+    padding: 12,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernNotificationIcon: {
+    padding: 12,
+    borderRadius: 16,
+    position: "relative",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernFilterIcon: {
+    padding: 12,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernNotificationBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "#FF3030",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   notificationIcon: {
     padding: 12,

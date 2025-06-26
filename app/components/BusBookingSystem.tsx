@@ -928,38 +928,38 @@ const BusBookingSystem: React.FC<BusBookingSystemProps> = ({
             </Text>
           </View>
           <View style={styles.perfectHeaderActions}>
+            {/* Modern Notification Bell with Yellow Background */}
             <TouchableOpacity
               style={[
-                styles.perfectActionButton,
+                styles.modernNotificationButton,
                 {
-                  backgroundColor: isDarkMode
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.05)",
+                  backgroundColor: isDarkMode ? "#FFC107" : "#FFD54F",
+                  shadowColor: "#FFC107",
                 },
               ]}
               onPress={() => setShowNotifications(true)}
             >
-              <Bell size={18} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+              <Bell size={18} color="#FFFFFF" />
               {notifications.length > 0 && (
-                <View style={styles.notificationBadge}>
+                <View style={styles.modernNotificationBadge}>
                   <Text style={styles.notificationBadgeText}>
                     {notifications.length}
                   </Text>
                 </View>
               )}
             </TouchableOpacity>
+            {/* Modern Filter Icon with Blue Background */}
             <TouchableOpacity
               style={[
-                styles.perfectActionButton,
+                styles.modernFilterButton,
                 {
-                  backgroundColor: isDarkMode
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.05)",
+                  backgroundColor: isDarkMode ? "#2196F3" : "#42A5F5",
+                  shadowColor: "#2196F3",
                 },
               ]}
               onPress={() => setShowFilterModal(true)}
             >
-              <Filter size={18} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+              <Filter size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
@@ -4873,6 +4873,37 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
+  // Modern Button Styles
+  modernNotificationButton: {
+    padding: 12,
+    borderRadius: 16,
+    position: "relative",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernFilterButton: {
+    padding: 12,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernNotificationBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "#FF3030",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
   // Notification Styles
   notificationBadge: {
     position: "absolute",
