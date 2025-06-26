@@ -11,13 +11,18 @@
     "statusBarStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "statusBarStyle": "light"
+      "statusBarStyle": "light",
+      "bundleIdentifier": "tripIt",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.amrendravs.lnmiitcarpool"
     },
     "web": {
       "bundler": "metro",
@@ -40,6 +45,18 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6c73d7b3-033c-47cf-8b51-3e7baf48397b"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6c73d7b3-033c-47cf-8b51-3e7baf48397b"
     }
   }
 }
