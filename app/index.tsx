@@ -1120,34 +1120,6 @@ const AppContent = ({ session }: { session: Session }) => {
                           >
                             {user?.name || "Student"}
                           </Text>
-                          {/* <Text
-                            style={{
-                              fontSize: 14,
-                              color: "#667eea",
-                              fontWeight: "600",
-                              marginBottom: 4,
-                            }}
-                          >
-                            {user?.branch || "Computer Science"} •{" "}
-                            {user?.year || "3rd Year"}
-                          </Text> */}
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 13,
-                                color: "#764ba2",
-                                fontWeight: "500",
-                              }}
-                            >
-                              {user?.branch || "Computer Science"} •{" "}
-                              {user?.year || "3rd Year"}
-                            </Text>
-                          </View>
                         </View>
                         <View
                           style={{
