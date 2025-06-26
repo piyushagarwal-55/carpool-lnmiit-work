@@ -1977,6 +1977,7 @@ const StudentCarpoolSystem = ({
       count: "Help",
       color: "#4CAF50",
       icon: "📖",
+      isSpecial: true,
     },
     {
       key: "notifications",
@@ -1984,6 +1985,7 @@ const StudentCarpoolSystem = ({
       count: `${unreadNotifications}`,
       color: "#FF5722",
       icon: "🔔",
+      isSpecial: true,
     },
     {
       key: "bus_schedule",
@@ -2006,6 +2008,7 @@ const StudentCarpoolSystem = ({
       count: "Edit",
       color: "#8B5CF6",
       icon: "👤",
+      isSpecial: true,
     },
     {
       key: "history",
@@ -2013,6 +2016,7 @@ const StudentCarpoolSystem = ({
       count: `${userRideHistory.length}`,
       color: "#9C27B0",
       icon: "📋",
+      isSpecial: true,
     },
   ];
 
@@ -2336,7 +2340,13 @@ const StudentCarpoolSystem = ({
                   styles.categoryCard,
                   { backgroundColor: category.color },
                   category.key === "bus_schedule" && styles.busThemeCard,
-                  category.isSpecial && styles.specialCreateCard,
+                  category.isSpecial && [
+                    styles.specialCreateCard,
+                    {
+                      shadowColor: category.color,
+                      borderColor: `${category.color}30`, // 30% opacity
+                    },
+                  ],
                 ]}
                 onPress={() => {
                   if (category.key === "instructions") {
@@ -2365,8 +2375,15 @@ const StudentCarpoolSystem = ({
                   </View>
                 )}
 
-                {/* Special glow effect for create ride card */}
-                {category.isSpecial && <View style={styles.createRideGlow} />}
+                {/* Special glow effect for special cards */}
+                {category.isSpecial && (
+                  <View
+                    style={[
+                      styles.createRideGlow,
+                      { backgroundColor: `${category.color}1A` }, // 10% opacity
+                    ]}
+                  />
+                )}
 
                 <Text
                   style={[
@@ -2396,10 +2413,16 @@ const StudentCarpoolSystem = ({
                     ? category.count
                     : category.key === "profile"
                     ? category.count
+                    : category.key === "notifications"
+                    ? `${category.count} new`
+                    : category.key === "history"
+                    ? `${category.count} rides`
+                    : category.key === "instructions"
+                    ? category.count
                     : `${category.count} available`}
                 </Text>
 
-                {/* Pulse animation indicator for create ride */}
+                {/* Pulse animation indicator for special cards */}
                 {category.isSpecial && <View style={styles.createRidePulse} />}
               </TouchableOpacity>
             ))}
@@ -3682,13 +3705,11 @@ const styles = StyleSheet.create({
   specialCreateCard: {
     borderRadius: 20,
     padding: 20,
-    shadowColor: "#FF6B35",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 2,
-    borderColor: "rgba(255, 107, 53, 0.3)",
     position: "relative",
     overflow: "hidden",
   },
@@ -3699,7 +3720,6 @@ const styles = StyleSheet.create({
     right: -10,
     bottom: -10,
     borderRadius: 25,
-    backgroundColor: "rgba(255, 107, 53, 0.1)",
     opacity: 0.7,
   },
   createRidePulse: {
