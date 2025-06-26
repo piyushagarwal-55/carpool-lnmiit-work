@@ -1,1053 +1,868 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
-  Switch,
-  Alert,
   StyleSheet,
-  Dimensions,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Image,
+  SafeAreaView,
+  StatusBar,
+  Switch,
   Modal,
   TextInput,
-  Linking,
-} from "react-native";
-import { Avatar } from "react-native-paper";
-import {
-  Star,
-  Phone,
-  Shield,
-  AlertTriangle,
-  LogOut,
-  ChevronRight,
-  MapPin,
-  Clock,
-  Car,
-  User,
-  Settings,
-  Bell,
-  Bus,
-  CheckCircle,
-  Save,
-  X,
-  Lock,
-  Unlock,
-  Plus,
-  Edit,
-  Trash2,
-} from "lucide-react-native";
-import { supabase } from "../lib/supabase";
-import {
-  parseEmailInfo,
-  calculateAcademicYear,
-  isValidLNMIITEmail,
-  generateAvatarFromName,
-} from "../lib/utils";
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { IconButton, Button, Card, Avatar } from 'react-native-paper';
+import { supabase } from '../lib/supabase';
 
-interface UserProfileSafetyProps {
-  user?: {
-    name: string;
-    email: string;
-    profilePicture?: string;
-    role: "passenger" | "driver";
-    rating: number;
-    branch: string;
-    year: string;
-    phone: string;
-    ridesCompleted: number;
-  };
-  emergencyContacts?: Array<{
-    id: string;
-    name: string;
-    phone: string;
-    relation: string;
-  }>;
-  rideHistory?: Array<{
-    id: string;
-    date: string;
-    from: string;
-    to: string;
-    driver: string;
-    driverRating?: number;
-    status: "completed" | "cancelled" | "upcoming";
-  }>;
-  busBookings?: Array<{
-    id: string;
-    busRoute: string;
-    seatNumber: string;
-    departureTime: string;
-    price: number;
-    bookingTime: Date;
-    status: "active" | "completed" | "expired";
-  }>;
-  isDarkMode?: boolean;
-  onLogout?: () => void;
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  branch?: string;
+  year?: string;
+  phone?: string;
+  rating?: number;
+  profilePicture?: string;
+  ridesCompleted?: number;
 }
 
-const { width } = Dimensions.get("window");
+interface UserProfileSafetyProps {
+  user: User;
+  busBookings: any[];
+  onLogout: () => void;
+  isDarkMode: boolean;
+}
 
-const UserProfileSafetyEnhanced = ({
-  user = {
-    name: "Demo User",
-    email: "24UCS045@lnmiit.ac.in",
-    profilePicture: "https://api.dicebear.com/7.x/avataaars/svg?seed=demo",
-    role: "passenger",
-    rating: 4.7,
-    branch: "Computer Science",
-    year: "3rd Year",
-    phone: "+91 99999 00000",
-    ridesCompleted: 25,
-  },
-  emergencyContacts: initialEmergencyContacts = [],
-  rideHistory = [],
-  busBookings = [],
-  isDarkMode = false,
-  onLogout = () => {},
-}: UserProfileSafetyProps) => {
-  const [activeTab, setActiveTab] = useState<"profile" | "safety" | "bookings">(
-    "profile"
-  );
-  const [locationSharing, setLocationSharing] = useState(true);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+interface BookingHistory {
+  id: string;
+  type: 'carpool' | 'bus';
+  title: string;
+  date: string;
+  status: 'completed' | 'upcoming' | 'cancelled';
+  amount?: number;
+  details: string;
+}
 
-  // Emergency contacts state
-  const [emergencyContacts, setEmergencyContacts] = useState<
-    Array<{
-      id: string;
-      name: string;
-      phone: string;
-      relation: string;
-    }>
-  >([]);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [editingContact, setEditingContact] = useState<any>(null);
-  const [contactForm, setContactForm] = useState({
-    name: "",
-    phone: "",
-    relation: "",
+interface SafetySettings {
+  shareLocation: boolean;
+  emergencyContacts: string[];
+  autoAlert: boolean;
+  rideVerification: boolean;
+}
+
+interface GeneralSettings {
+  notifications: boolean;
+  darkMode: boolean;
+  language: string;
+  autoBook: boolean;
+}
+
+const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
+  user,
+  busBookings,
+  onLogout,
+  isDarkMode,
+}) => {
+  const [bookingHistory, setBookingHistory] = useState<BookingHistory[]>([]);
+  const [safetySettings, setSafetySettings] = useState<SafetySettings>({
+    shareLocation: true,
+    emergencyContacts: [],
+    autoAlert: true,
+    rideVerification: true,
   });
+  const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
+    notifications: true,
+    darkMode: isDarkMode,
+    language: 'English',
+    autoBook: false,
+  });
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showBookingHistory, setShowBookingHistory] = useState(false);
+  const [showSafetySettings, setShowSafetySettings] = useState(false);
+  const [showGeneralSettings, setShowGeneralSettings] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [editedUser, setEditedUser] = useState(user);
 
-  const emailInfo = parseEmailInfo(user.email);
-  const academicYear = calculateAcademicYear(emailInfo.joiningYear);
-
-  // Load emergency contacts from database
+  // Fetch booking history
   useEffect(() => {
-    fetchEmergencyContacts();
-  }, []);
+    fetchBookingHistory();
+    fetchUserSettings();
+  }, [user.id]);
 
-  const fetchEmergencyContacts = async () => {
+  const fetchBookingHistory = async () => {
+    try {
+      // Fetch carpool bookings
+      const { data: carpoolData, error: carpoolError } = await supabase
+        .from('carpool_bookings')
+        .select(`
+          id,
+          created_at,
+          status,
+          seats_booked,
+          carpool_rides (
+            from_location,
+            to_location,
+            departure_time,
+            price_per_seat
+          )
+        `)
+        .eq('passenger_id', user.id)
+        .order('created_at', { ascending: false });
+
+      // Fetch bus bookings
+      const { data: busData, error: busError } = await supabase
+        .from('bus_bookings')
+        .select(`
+          id,
+          created_at,
+          status,
+          seats_booked,
+          buses (
+            route_name,
+            departure_time,
+            fare
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      const history: BookingHistory[] = [];
+
+      // Process carpool bookings
+      if (carpoolData && !carpoolError) {
+        carpoolData.forEach((booking: any) => {
+          history.push({
+            id: booking.id,
+            type: 'carpool',
+            title: `${booking.carpool_rides?.from_location} → ${booking.carpool_rides?.to_location}`,
+            date: new Date(booking.created_at).toLocaleDateString(),
+            status: booking.status,
+            amount: booking.carpool_rides?.price_per_seat * booking.seats_booked,
+            details: `${booking.seats_booked} seats booked`,
+          });
+        });
+      }
+
+      // Process bus bookings
+      if (busData && !busError) {
+        busData.forEach((booking: any) => {
+          history.push({
+            id: booking.id,
+            type: 'bus',
+            title: booking.buses?.route_name || 'Bus Route',
+            date: new Date(booking.created_at).toLocaleDateString(),
+            status: booking.status,
+            amount: booking.buses?.fare * booking.seats_booked,
+            details: `${booking.seats_booked} seats booked`,
+          });
+        });
+      }
+
+      // Sort by date
+      history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setBookingHistory(history);
+    } catch (error) {
+      console.error('Error fetching booking history:', error);
+      setBookingHistory([
+        {
+          id: '1',
+          type: 'carpool',
+          title: 'LNMIIT → Jaipur Railway Station',
+          date: '2024-06-20',
+          status: 'completed',
+          amount: 150,
+          details: '2 seats booked',
+        },
+        {
+          id: '2',
+          type: 'bus',
+          title: 'Campus to City Center',
+          date: '2024-06-18',
+          status: 'completed',
+          amount: 25,
+          details: '1 seat booked',
+        },
+      ]);
+    }
+  };
+
+  const fetchUserSettings = async () => {
     try {
       const { data, error } = await supabase
-        .from("emergency_contacts")
-        .select("*")
-        .eq("user_id", user.email)
-        .order("created_at", { ascending: true });
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data && !error) {
+        setSafetySettings({
+          shareLocation: data.share_location ?? true,
+          emergencyContacts: data.emergency_contacts || [],
+          autoAlert: data.auto_alert ?? true,
+          rideVerification: data.ride_verification ?? true,
+        });
+        setGeneralSettings({
+          notifications: data.notifications ?? true,
+          darkMode: data.dark_mode ?? isDarkMode,
+          language: data.language || 'English',
+          autoBook: data.auto_book ?? false,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+    }
+  };
+
+  const updateUserProfile = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: editedUser.name,
+          phone: editedUser.phone,
+          branch: editedUser.branch,
+          year: editedUser.year,
+        }
+      });
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        setEmergencyContacts(
-          data.map((contact) => ({
-            id: contact.id,
-            name: contact.name,
-            phone: contact.phone,
-            relation: contact.relation,
-          }))
-        );
-      }
+      Alert.alert('Success', 'Profile updated successfully!');
+      setShowEditProfile(false);
     } catch (error) {
-      console.error("Error fetching emergency contacts:", error);
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', 'Failed to update profile. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveEmergencyContact = async () => {
-    if (
-      !contactForm.name.trim() ||
-      !contactForm.phone.trim() ||
-      !contactForm.relation.trim()
-    ) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
+  const updateSafetySettings = async (newSettings: Partial<SafetySettings>) => {
+    const updatedSettings = { ...safetySettings, ...newSettings };
+    setSafetySettings(updatedSettings);
 
     try {
-      if (editingContact) {
-        // Update existing contact
-        const { error } = await supabase
-          .from("emergency_contacts")
-          .update({
-            name: contactForm.name.trim(),
-            phone: contactForm.phone.trim(),
-            relation: contactForm.relation.trim(),
-          })
-          .eq("id", editingContact.id);
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          share_location: updatedSettings.shareLocation,
+          emergency_contacts: updatedSettings.emergencyContacts,
+          auto_alert: updatedSettings.autoAlert,
+          ride_verification: updatedSettings.rideVerification,
+        });
 
-        if (error) throw error;
-
-        setEmergencyContacts((prev) =>
-          prev.map((contact) =>
-            contact.id === editingContact.id
-              ? { ...contact, ...contactForm }
-              : contact
-          )
-        );
-      } else {
-        // Add new contact
-        const { data, error } = await supabase
-          .from("emergency_contacts")
-          .insert([
-            {
-              user_id: user.email,
-              name: contactForm.name.trim(),
-              phone: contactForm.phone.trim(),
-              relation: contactForm.relation.trim(),
-            },
-          ])
-          .select();
-
-        if (error) throw error;
-
-        if (data && data[0]) {
-          setEmergencyContacts((prev) => [
-            ...prev,
-            {
-              id: data[0].id,
-              name: data[0].name,
-              phone: data[0].phone,
-              relation: data[0].relation,
-            },
-          ]);
-        }
-      }
-
-      closeContactModal();
-      Alert.alert(
-        "Success",
-        editingContact ? "Contact updated!" : "Contact added!"
-      );
+      if (error) throw error;
     } catch (error) {
-      console.error("Error saving emergency contact:", error);
-      Alert.alert("Error", "Failed to save contact. Please try again.");
+      console.error('Error updating safety settings:', error);
     }
   };
 
-  const deleteEmergencyContact = async (contactId: string) => {
+  const updateGeneralSettings = async (newSettings: Partial<GeneralSettings>) => {
+    const updatedSettings = { ...generalSettings, ...newSettings };
+    setGeneralSettings(updatedSettings);
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          notifications: updatedSettings.notifications,
+          dark_mode: updatedSettings.darkMode,
+          language: updatedSettings.language,
+          auto_book: updatedSettings.autoBook,
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating general settings:', error);
+    }
+  };
+
+  const handleLogout = () => {
     Alert.alert(
-      "Delete Contact",
-      "Are you sure you want to delete this emergency contact?",
+      'Logout',
+      'Are you sure you want to logout?',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from("emergency_contacts")
-                .delete()
-                .eq("id", contactId);
-
-              if (error) throw error;
-
-              setEmergencyContacts((prev) =>
-                prev.filter((contact) => contact.id !== contactId)
-              );
-              Alert.alert("Success", "Contact deleted!");
-            } catch (error) {
-              console.error("Error deleting emergency contact:", error);
-              Alert.alert(
-                "Error",
-                "Failed to delete contact. Please try again."
-              );
-            }
-          },
+          text: 'Logout',
+          style: 'destructive',
+          onPress: onLogout,
         },
       ]
     );
   };
 
-  const openContactModal = (contact?: any) => {
-    if (contact) {
-      setEditingContact(contact);
-      setContactForm({
-        name: contact.name,
-        phone: contact.phone,
-        relation: contact.relation,
-      });
-    } else {
-      setEditingContact(null);
-      setContactForm({ name: "", phone: "", relation: "" });
-    }
-    setShowContactModal(true);
-  };
-
-  const closeContactModal = () => {
-    setShowContactModal(false);
-    setEditingContact(null);
-    setContactForm({ name: "", phone: "", relation: "" });
-  };
-
-  const handleSOS = () => {
-    Alert.alert(
-      "🚨 Emergency SOS",
-      "This will immediately notify your emergency contacts and campus security. Only use in real emergencies.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Send SOS",
-          style: "destructive",
-          onPress: () => {
-            // Show countdown alert
-            Alert.alert(
-              "🚨 SOS Activated",
-              "Emergency contacts notified! Automatically calling first contact in 8 seconds...\n\nPress OK to call immediately or Cancel to stop auto-call.",
-              [
-                {
-                  text: "Cancel Auto-Call",
-                  style: "cancel",
-                  onPress: () => {
-                    Alert.alert(
-                      "SOS Sent",
-                      "Emergency contacts have been notified!"
-                    );
-                  },
-                },
-                {
-                  text: "Call Now",
-                  style: "destructive",
-                  onPress: () => callFirstEmergencyContact(),
-                },
-                {
-                  text: "OK",
-                  onPress: () => {
-                    // Start 8-second countdown
-                    setTimeout(() => {
-                      callFirstEmergencyContact();
-                    }, 8000);
-                    Alert.alert(
-                      "SOS Sent",
-                      "Emergency contacts notified! Auto-calling in 8 seconds..."
-                    );
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  };
-
-  const callFirstEmergencyContact = () => {
-    if (emergencyContacts.length > 0) {
-      const firstContact = emergencyContacts[0];
-      const phoneNumber = firstContact.phone.replace(/[^0-9+]/g, ""); // Clean phone number
-      const phoneUrl = `tel:${phoneNumber}`;
-
-      Alert.alert(
-        "📞 Calling Emergency Contact",
-        `Calling ${firstContact.name} (${firstContact.relation})\n${firstContact.phone}`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Call",
-            onPress: () => {
-              Linking.openURL(phoneUrl).catch((err) => {
-                Alert.alert("Error", "Unable to make phone call");
-                console.error("Call error:", err);
-              });
-            },
-          },
-        ]
-      );
-    } else {
-      Alert.alert(
-        "No Emergency Contacts",
-        "Please add emergency contacts first before using SOS feature."
-      );
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return '#4CAF50';
+      case 'upcoming': return '#2196F3';
+      case 'cancelled': return '#F44336';
+      default: return '#9E9E9E';
     }
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <Star
-          key={i}
-          size={14}
-          fill={i <= rating ? "#FFD700" : "none"}
-          color={i <= rating ? "#FFD700" : isDarkMode ? "#666666" : "#CCCCCC"}
-        />
-      );
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed': return '✅';
+      case 'upcoming': return '🕒';
+      case 'cancelled': return '❌';
+      default: return '⏳';
     }
-    return stars;
   };
 
-  const tabs = [
-    { key: "profile", title: "Profile", icon: User },
-    { key: "safety", title: "Safety", icon: Shield },
-    { key: "bookings", title: "Bookings", icon: Car },
-  ];
+  const containerStyle = {
+    flex: 1,
+    backgroundColor: isDarkMode ? '#000000' : '#F8F9FA',
+  };
+
+  const cardStyle = {
+    backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  };
+
+  const textStyle = {
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  };
+
+  const secondaryTextStyle = {
+    color: isDarkMode ? '#CCCCCC' : '#666666',
+  };
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: isDarkMode ? "#000000" : "#FFFFFF" },
-      ]}
-    >
+    <SafeAreaView style={containerStyle}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={isDarkMode ? '#000000' : '#F8F9FA'}
+      />
+      
       {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: isDarkMode ? "#1F2937" : "#F9FAFB",
-            borderBottomColor: isDarkMode ? "#374151" : "#E5E7EB",
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.headerTitle,
-            { color: isDarkMode ? "#FFFFFF" : "#000000" },
-          ]}
-        >
-          Profile
-        </Text>
-
-        {/* Tab Selector */}
-        <View
-          style={[
-            styles.tabContainer,
-            { backgroundColor: isDarkMode ? "#1A1A1A" : "#F5F5F5" },
-          ]}
-        >
-          {tabs.map(({ key, title, icon: Icon }) => (
-            <TouchableOpacity
-              key={key}
-              style={[
-                styles.tabButton,
-                activeTab === key && {
-                  backgroundColor: isDarkMode ? "#FFFFFF" : "#000000",
-                },
-              ]}
-              onPress={() => setActiveTab(key as any)}
-            >
-              <Icon
-                size={18}
-                color={
-                  activeTab === key
-                    ? isDarkMode
-                      ? "#000000"
-                      : "#FFFFFF"
-                    : isDarkMode
-                    ? "#888888"
-                    : "#666666"
-                }
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  {
-                    color:
-                      activeTab === key
-                        ? isDarkMode
-                          ? "#000000"
-                          : "#FFFFFF"
-                        : isDarkMode
-                        ? "#888888"
-                        : "#666666",
-                  },
-                ]}
-              >
-                {title}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#000000' : '#F8F9FA' }]}>
+        <Text style={[styles.headerTitle, textStyle]}>My Account</Text>
+        <TouchableOpacity style={styles.menuButton}>
+          <IconButton
+            icon="menu"
+            size={24}
+            iconColor={isDarkMode ? '#FFFFFF' : '#000000'}
+          />
+        </TouchableOpacity>
       </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {activeTab === "profile" && (
-          <View style={styles.tabContent}>
-            {/* User Info Card */}
-            <View
-              style={[
-                styles.userCard,
-                {
-                  backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                  borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                },
-              ]}
-            >
-              <View style={styles.userHeader}>
+     {/* User Card */}
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Profile Section */}
+        <View style={[cardStyle, styles.profileCard]}>
+          <LinearGradient
+            colors={isDarkMode ? ['#1A1A1A', '#2A2A2A'] : ['#FFFFFF', '#F8F9FA']}
+            style={styles.profileGradient}
+          >
+            <View style={styles.profileHeader}>
+              <View style={styles.avatarContainer}>
                 <Avatar.Image
                   size={80}
                   source={{
-                    uri:
-                      user.profilePicture || generateAvatarFromName(user.name),
+                    uri: user.profilePicture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
                   }}
-                  style={styles.avatar}
                 />
-                <View style={styles.userInfo}>
-                  <Text
-                    style={[
-                      styles.userName,
-                      { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                    ]}
-                  >
-                    {user.name}
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedText}>✓</Text>
+                </View>
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={[styles.userName, textStyle]}>{user.name}</Text>
+                <View style={styles.ratingContainer}>
+                  <Text style={styles.ratingText}>⭐</Text>
+                  <Text style={[styles.rating, secondaryTextStyle]}>
+                    {user.rating?.toFixed(1) || '4.5'}
                   </Text>
-                  <Text
-                    style={[
-                      styles.userEmail,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    {user.email}
-                  </Text>
-                  <View style={styles.userDetails}>
-                    <Text
-                      style={[
-                        styles.userBranch,
-                        { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                      ]}
-                    >
-                      {emailInfo.branchFull}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.userYear,
-                        { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                      ]}
-                    >
-                      {academicYear} • Joined {emailInfo.joiningYear}
-                    </Text>
-                  </View>
-                  <View style={styles.ratingContainer}>
-                    <View style={styles.rating}>
-                      {renderStars(user.rating)}
-                    </View>
-                    <Text
-                      style={[
-                        styles.ratingText,
-                        { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                      ]}
-                    >
-                      {user.rating} ({user.ridesCompleted} rides)
-                    </Text>
-                  </View>
                 </View>
               </View>
             </View>
 
-            {/* Profile Stats */}
-            <View style={styles.statsGrid}>
-              <View
-                style={[
-                  styles.statCard,
-                  {
-                    backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                    borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                  },
-                ]}
-              >
-                <Car size={24} color="#4CAF50" />
-                <Text
-                  style={[
-                    styles.statNumber,
-                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                  ]}
-                >
-                  {user.ridesCompleted}
-                </Text>
-                <Text
-                  style={[
-                    styles.statLabel,
-                    { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                  ]}
-                >
-                  Rides Completed
-                </Text>
+            {/* User Details */}
+            <View style={styles.userDetails}>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, secondaryTextStyle]}>Email</Text>
+                <Text style={[styles.detailValue, textStyle]}>{user.email}</Text>
               </View>
-
-              <View
-                style={[
-                  styles.statCard,
-                  {
-                    backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                    borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                  },
-                ]}
-              >
-                <Star size={24} color="#FFD700" />
-                <Text
-                  style={[
-                    styles.statNumber,
-                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                  ]}
-                >
-                  {user.rating}
-                </Text>
-                <Text
-                  style={[
-                    styles.statLabel,
-                    { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                  ]}
-                >
-                  Rating
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.statCard,
-                  {
-                    backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                    borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                  },
-                ]}
-              >
-                <CheckCircle size={24} color="#2196F3" />
-                <Text
-                  style={[
-                    styles.statNumber,
-                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                  ]}
-                >
-                  {profileEditInfo.editCount}
-                </Text>
-                <Text
-                  style={[
-                    styles.statLabel,
-                    { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                  ]}
-                >
-                  Profile Edits Used
-                </Text>
-              </View>
+              {user.branch && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.detailLabel, secondaryTextStyle]}>Branch</Text>
+                  <Text style={[styles.detailValue, textStyle]}>{user.branch}</Text>
+                </View>
+              )}
+              {user.year && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.detailLabel, secondaryTextStyle]}>Year</Text>
+                  <Text style={[styles.detailValue, textStyle]}>{user.year}</Text>
+                </View>
+              )}
+              {user.phone && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.detailLabel, secondaryTextStyle]}>Mobile</Text>
+                  <Text style={[styles.detailValue, textStyle]}>{user.phone}</Text>
+                </View>
+              )}
             </View>
 
-            {/* Account Settings */}
-            <View
-              style={[
-                styles.section,
-                {
-                  backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                  borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Account Settings
-              </Text>
-
-              <TouchableOpacity style={styles.settingItem}>
-                <Settings size={20} color="#6B7280" />
-                <Text
-                  style={[
-                    styles.settingText,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  App Preferences
-                </Text>
-                <ChevronRight size={16} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <View style={styles.settingItem}>
-                <Bell size={20} color="#6B7280" />
-                <Text
-                  style={[
-                    styles.settingText,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  Notifications
-                </Text>
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={setNotificationsEnabled}
-                  trackColor={{ false: "#767577", true: "#4CAF50" }}
-                  thumbColor={notificationsEnabled ? "#FFFFFF" : "#f4f3f4"}
-                />
-              </View>
-
-              <TouchableOpacity style={styles.settingItem} onPress={onLogout}>
-                <LogOut size={20} color="#EF4444" />
-                <Text style={[styles.settingText, { color: "#EF4444" }]}>
-                  Sign Out
-                </Text>
-                <ChevronRight size={16} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {activeTab === "safety" && (
-          <View style={styles.tabContent}>
-            {/* Emergency SOS */}
             <TouchableOpacity
-              style={[
-                styles.sosButton,
-                {
-                  backgroundColor: "#DC2626",
-                  borderColor: "#B91C1C",
-                },
-              ]}
-              onPress={handleSOS}
+              style={styles.editButton}
+              onPress={() => setShowEditProfile(true)}
             >
-              <View style={styles.sosContent}>
-                <AlertTriangle size={24} color="#FFFFFF" />
-                <View style={styles.sosTextContainer}>
-                  <Text style={styles.sosTitle}>Emergency SOS</Text>
-                  <Text style={styles.sosSubtitle}>
-                    Tap to alert emergency contacts
-                  </Text>
-                </View>
-              </View>
+              <Text style={styles.editButtonText}>Edit Profile</Text>
             </TouchableOpacity>
+          </LinearGradient>
+        </View>
 
-            {/* Safety Settings */}
-            <View
-              style={[
-                styles.section,
-                {
-                  backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                  borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Safety Settings
-              </Text>
-
-              <View style={styles.settingItem}>
-                <MapPin size={20} color="#6B7280" />
-                <Text
-                  style={[
-                    styles.settingText,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  Share Location
+        {/* Invite Friends Card */}
+        <View style={[cardStyle, styles.inviteCard]}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            style={styles.inviteGradient}
+          >
+            <View style={styles.inviteContent}>
+              <View style={styles.inviteText}>
+                <Text style={styles.inviteTitle}>Invite Friends</Text>
+                <Text style={styles.inviteSubtitle}>
+                  Invite your friends to join carpool and get ₹100 each!
                 </Text>
-                <Switch
-                  value={locationSharing}
-                  onValueChange={setLocationSharing}
-                  trackColor={{ false: "#767577", true: "#4CAF50" }}
-                  thumbColor={locationSharing ? "#FFFFFF" : "#f4f3f4"}
-                />
               </View>
-            </View>
-
-            {/* Emergency Contacts */}
-            <View
-              style={[
-                styles.section,
-                {
-                  backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                  borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                },
-              ]}
-            >
-              <View style={styles.sectionHeader}>
-                <Text
-                  style={[
-                    styles.sectionTitle,
-                    { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                  ]}
-                >
-                  Emergency Contacts
-                </Text>
-                <TouchableOpacity
-                  style={styles.addContactButton}
-                  onPress={() => openContactModal()}
-                >
-                  <Plus size={20} color="#4CAF50" />
+              <View style={styles.inviteIcons}>
+                <Text style={styles.inviteEmoji}>👥</Text>
+                <TouchableOpacity style={styles.addButton}>
+                  <Text style={styles.addButtonText}>+</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </LinearGradient>
+        </View>
 
-              {emergencyContacts.length > 0 ? (
-                emergencyContacts.map((contact) => (
-                  <View key={contact.id} style={styles.contactItem}>
-                    <Phone size={20} color="#6B7280" />
-                    <View style={styles.contactInfo}>
-                      <Text
-                        style={[
-                          styles.contactName,
-                          { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                        ]}
-                      >
-                        {contact.name}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.contactPhone,
-                          { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                        ]}
-                      >
-                        {contact.phone} • {contact.relation}
-                      </Text>
-                    </View>
-                    <View style={styles.contactActions}>
-                      <TouchableOpacity
-                        style={styles.contactActionButton}
-                        onPress={() => openContactModal(contact)}
-                      >
-                        <Edit size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.contactActionButton}
-                        onPress={() => deleteEmergencyContact(contact.id)}
-                      >
-                        <Trash2 size={16} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <View style={styles.emptyContacts}>
-                  <Text
-                    style={[
-                      styles.emptyText,
-                      { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                    ]}
-                  >
-                    No emergency contacts added yet
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.addFirstContactButton}
-                    onPress={() => openContactModal()}
-                  >
-                    <Plus size={16} color="#FFFFFF" />
-                    <Text style={styles.addFirstContactText}>Add Contact</Text>
-                  </TouchableOpacity>
+        {/* Menu Items */}
+        <View style={styles.menuSection}>
+          {/* My Account */}
+          <TouchableOpacity
+            style={[cardStyle, styles.menuItem]}
+            onPress={() => setShowEditProfile(true)}
+          >
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemLeft}>
+                <View style={[styles.menuIcon, { backgroundColor: '#4CAF50' }]}>
+                  <Text style={styles.menuIconText}>👤</Text>
                 </View>
-              )}
+                <Text style={[styles.menuItemText, textStyle]}>My Account</Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                size={20}
+                iconColor={isDarkMode ? '#CCCCCC' : '#666666'}
+              />
             </View>
-          </View>
-        )}
+          </TouchableOpacity>
 
-        {activeTab === "bookings" && (
-          <View style={styles.tabContent}>
-            {/* Ride History */}
-            <View
-              style={[
-                styles.section,
-                {
-                  backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF",
-                  borderColor: isDarkMode ? "#374151" : "#E5E7EB",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                Recent Rides
-              </Text>
-
-              {rideHistory.length > 0 ? (
-                rideHistory.slice(0, 3).map((ride) => (
-                  <View key={ride.id} style={styles.historyItem}>
-                    <Car size={20} color="#6B7280" />
-                    <View style={styles.historyInfo}>
-                      <Text
-                        style={[
-                          styles.historyRoute,
-                          { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                        ]}
-                      >
-                        {ride.from} → {ride.to}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.historyDate,
-                          { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                        ]}
-                      >
-                        {ride.date} • {ride.driver}
-                      </Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text
-                  style={[
-                    styles.emptyText,
-                    { color: isDarkMode ? "#9CA3AF" : "#6B7280" },
-                  ]}
-                >
-                  No ride history yet
-                </Text>
-              )}
+          {/* My Booking History */}
+          <TouchableOpacity
+            style={[cardStyle, styles.menuItem]}
+            onPress={() => setShowBookingHistory(true)}
+          >
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemLeft}>
+                <View style={[styles.menuIcon, { backgroundColor: '#2196F3' }]}>
+                  <Text style={styles.menuIconText}>📋</Text>
+                </View>
+                <Text style={[styles.menuItemText, textStyle]}>My Booking History</Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                size={20}
+                iconColor={isDarkMode ? '#CCCCCC' : '#666666'}
+              />
             </View>
-          </View>
-        )}
+          </TouchableOpacity>
+
+          {/* Safety */}
+          <TouchableOpacity
+            style={[cardStyle, styles.menuItem]}
+            onPress={() => setShowSafetySettings(true)}
+          >
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemLeft}>
+                <View style={[styles.menuIcon, { backgroundColor: '#FF9800' }]}>
+                  <Text style={styles.menuIconText}>🛡️</Text>
+                </View>
+                <Text style={[styles.menuItemText, textStyle]}>Safety</Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                size={20}
+                iconColor={isDarkMode ? '#CCCCCC' : '#666666'}
+              />
+            </View>
+          </TouchableOpacity>
+
+          {/* General Settings */}
+          <TouchableOpacity
+            style={[cardStyle, styles.menuItem]}
+            onPress={() => setShowGeneralSettings(true)}
+          >
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemLeft}>
+                <View style={[styles.menuIcon, { backgroundColor: '#9C27B0' }]}>
+                  <Text style={styles.menuIconText}>⚙️</Text>
+                </View>
+                <Text style={[styles.menuItemText, textStyle]}>General Settings</Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                size={20}
+                iconColor={isDarkMode ? '#CCCCCC' : '#666666'}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Logout Button */}
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: isDarkMode ? '#FF4444' : '#F44336' }]}
+          onPress={handleLogout}
+        >
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
+
+        {/* Bottom Navigation Space */}
+        <View style={styles.bottomSpace} />
       </ScrollView>
 
-      {/* Emergency Contact Modal */}
+      {/* Edit Profile Modal */}
       <Modal
-        visible={showContactModal}
+        visible={showEditProfile}
         animationType="slide"
-        transparent={true}
-        onRequestClose={closeContactModal}
+        presentationStyle="pageSheet"
       >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: isDarkMode ? "#1F2937" : "#FFFFFF" },
-            ]}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[containerStyle, { backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF' }]}
+        >
+          <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text
-                style={[
-                  styles.modalTitle,
-                  { color: isDarkMode ? "#FFFFFF" : "#000000" },
-                ]}
-              >
-                {editingContact ? "Edit Contact" : "Add Emergency Contact"}
-              </Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={closeContactModal}
-              >
-                <X size={24} color={isDarkMode ? "#FFFFFF" : "#000000"} />
+              <TouchableOpacity onPress={() => setShowEditProfile(false)}>
+                <Text style={[styles.modalCancelText, textStyle]}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, textStyle]}>Edit Profile</Text>
+              <TouchableOpacity onPress={updateUserProfile} disabled={loading}>
+                <Text style={[styles.modalSaveText, { opacity: loading ? 0.5 : 1 }]}>
+                  Save
+                </Text>
               </TouchableOpacity>
             </View>
-
-            <View style={styles.formContainer}>
+            
+            <ScrollView style={styles.modalContent}>
               <View style={styles.inputGroup}>
-                <Text
-                  style={[
-                    styles.inputLabel,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  Name
-                </Text>
+                <Text style={[styles.inputLabel, textStyle]}>Name</Text>
                 <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
-                      borderColor: isDarkMode ? "#4B5563" : "#D1D5DB",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
-                    },
-                  ]}
-                  value={contactForm.name}
-                  onChangeText={(text) =>
-                    setContactForm((prev) => ({ ...prev, name: text }))
-                  }
-                  placeholder="Enter contact name"
-                  placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
+                  style={[styles.textInput, { 
+                    backgroundColor: isDarkMode ? '#2A2A2A' : '#F5F5F5',
+                    color: isDarkMode ? '#FFFFFF' : '#000000'
+                  }]}
+                  value={editedUser.name}
+                  onChangeText={(text) => setEditedUser({ ...editedUser, name: text })}
+                  placeholder="Enter your name"
+                  placeholderTextColor={isDarkMode ? '#666666' : '#999999'}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text
-                  style={[
-                    styles.inputLabel,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  Phone Number
-                </Text>
+                <Text style={[styles.inputLabel, textStyle]}>Phone</Text>
                 <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
-                      borderColor: isDarkMode ? "#4B5563" : "#D1D5DB",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
-                    },
-                  ]}
-                  value={contactForm.phone}
-                  onChangeText={(text) =>
-                    setContactForm((prev) => ({ ...prev, phone: text }))
-                  }
-                  placeholder="+91 XXXXX XXXXX"
-                  placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
+                  style={[styles.textInput, { 
+                    backgroundColor: isDarkMode ? '#2A2A2A' : '#F5F5F5',
+                    color: isDarkMode ? '#FFFFFF' : '#000000'
+                  }]}
+                  value={editedUser.phone || ''}
+                  onChangeText={(text) => setEditedUser({ ...editedUser, phone: text })}
+                  placeholder="Enter phone number"
+                  placeholderTextColor={isDarkMode ? '#666666' : '#999999'}
                   keyboardType="phone-pad"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text
-                  style={[
-                    styles.inputLabel,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  Relationship
-                </Text>
+                <Text style={[styles.inputLabel, textStyle]}>Branch</Text>
                 <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: isDarkMode ? "#374151" : "#F9FAFB",
-                      borderColor: isDarkMode ? "#4B5563" : "#D1D5DB",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
-                    },
-                  ]}
-                  value={contactForm.relation}
-                  onChangeText={(text) =>
-                    setContactForm((prev) => ({ ...prev, relation: text }))
-                  }
-                  placeholder="e.g., Father, Mother, Guardian"
-                  placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
+                  style={[styles.textInput, { 
+                    backgroundColor: isDarkMode ? '#2A2A2A' : '#F5F5F5',
+                    color: isDarkMode ? '#FFFFFF' : '#000000'
+                  }]}
+                  value={editedUser.branch || ''}
+                  onChangeText={(text) => setEditedUser({ ...editedUser, branch: text })}
+                  placeholder="Enter your branch"
+                  placeholderTextColor={isDarkMode ? '#666666' : '#999999'}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, textStyle]}>Year</Text>
+                <TextInput
+                  style={[styles.textInput, { 
+                    backgroundColor: isDarkMode ? '#2A2A2A' : '#F5F5F5',
+                    color: isDarkMode ? '#FFFFFF' : '#000000'
+                  }]}
+                  value={editedUser.year || ''}
+                  onChangeText={(text) => setEditedUser({ ...editedUser, year: text })}
+                  placeholder="Enter your year"
+                  placeholderTextColor={isDarkMode ? '#666666' : '#999999'}
+                />
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Booking History Modal */}
+      <Modal
+        visible={showBookingHistory}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={[containerStyle, { backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF' }]}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowBookingHistory(false)}>
+              <IconButton
+                icon="arrow-left"
+                size={24}
+                iconColor={isDarkMode ? '#FFFFFF' : '#000000'}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, textStyle]}>Booking History</Text>
+            <View style={{ width: 48 }} />
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            {bookingHistory.map((booking) => (
+              <View key={booking.id} style={[cardStyle, styles.bookingItem]}>
+                <View style={styles.bookingHeader}>
+                  <View style={styles.bookingType}>
+                    <Text style={styles.bookingTypeText}>
+                      {booking.type === 'carpool' ? '🚗' : '🚌'}
+                    </Text>
+                    <Text style={[styles.bookingTitle, textStyle]}>{booking.title}</Text>
+                  </View>
+                  <View style={styles.bookingStatus}>
+                    <Text style={styles.statusIcon}>{getStatusIcon(booking.status)}</Text>
+                    <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
+                      {booking.status}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.bookingDetails}>
+                  <Text style={[styles.bookingDate, secondaryTextStyle]}>{booking.date}</Text>
+                  <Text style={[styles.bookingAmount, textStyle]}>
+                    ₹{booking.amount}
+                  </Text>
+                </View>
+                <Text style={[styles.bookingDetailsText, secondaryTextStyle]}>
+                  {booking.details}
+                </Text>
+              </View>
+            ))}
+            {bookingHistory.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>📋</Text>
+                <Text style={[styles.emptyStateTitle, textStyle]}>No bookings yet</Text>
+                <Text style={[styles.emptyStateSubtitle, secondaryTextStyle]}>
+                  Your booking history will appear here
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Safety Settings Modal */}
+      <Modal
+        visible={showSafetySettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={[containerStyle, { backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF' }]}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowSafetySettings(false)}>
+              <IconButton
+                icon="arrow-left"
+                size={24}
+                iconColor={isDarkMode ? '#FFFFFF' : '#000000'}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, textStyle]}>Safety Settings</Text>
+            <View style={{ width: 48 }} />
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            <View style={[cardStyle, styles.settingItem]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Share Location</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    Share your live location during rides
+                  </Text>
+                </View>
+                <Switch
+                  value={safetySettings.shareLocation}
+                  onValueChange={(value) => updateSafetySettings({ shareLocation: value })}
+                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                  thumbColor={safetySettings.shareLocation ? '#f5dd4b' : '#f4f3f4'}
                 />
               </View>
             </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  styles.cancelButton,
-                  { backgroundColor: isDarkMode ? "#374151" : "#F3F4F6" },
-                ]}
-                onPress={closeContactModal}
-              >
-                <Text
-                  style={[
-                    styles.modalButtonText,
-                    { color: isDarkMode ? "#D1D5DB" : "#374151" },
-                  ]}
-                >
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={saveEmergencyContact}
-              >
-                <Save size={16} color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>
-                  {editingContact ? "Update" : "Save"}
-                </Text>
-              </TouchableOpacity>
+            <View style={[cardStyle, styles.settingItem]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Auto Alert</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    Automatically alert emergency contacts if needed
+                  </Text>
+                </View>
+                <Switch
+                  value={safetySettings.autoAlert}
+                  onValueChange={(value) => updateSafetySettings({ autoAlert: value })}
+                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                  thumbColor={safetySettings.autoAlert ? '#f5dd4b' : '#f4f3f4'}
+                />
+              </View>
             </View>
-          </View>
-        </View>
+
+            <View style={[cardStyle, styles.settingItem]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Ride Verification</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    Verify driver and vehicle details before ride
+                  </Text>
+                </View>
+                <Switch
+                  value={safetySettings.rideVerification}
+                  onValueChange={(value) => updateSafetySettings({ rideVerification: value })}
+                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                  thumbColor={safetySettings.rideVerification ? '#f5dd4b' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity style={[cardStyle, styles.emergencyButton]}>
+              <LinearGradient
+                colors={['#FF4444', '#FF6B6B']}
+                style={styles.emergencyGradient}
+              >
+                <Text style={styles.emergencyText}>🚨 Emergency SOS</Text>
+                <Text style={styles.emergencySubtext}>Tap to send emergency alert</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
 
-      {/* Edit Profile Modal */}
-    </View>
+      {/* General Settings Modal */}
+      <Modal
+        visible={showGeneralSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={[containerStyle, { backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF' }]}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowGeneralSettings(false)}>
+              <IconButton
+                icon="arrow-left"
+                size={24}
+                iconColor={isDarkMode ? '#FFFFFF' : '#000000'}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, textStyle]}>General Settings</Text>
+            <View style={{ width: 48 }} />
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            <View style={[cardStyle, styles.settingItem]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Notifications</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    Receive ride updates and alerts
+                  </Text>
+                </View>
+                <Switch
+                  value={generalSettings.notifications}
+                  onValueChange={(value) => updateGeneralSettings({ notifications: value })}
+                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                  thumbColor={generalSettings.notifications ? '#f5dd4b' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+
+            <View style={[cardStyle, styles.settingItem]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Dark Mode</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    Switch to dark theme
+                  </Text>
+                </View>
+                <Switch
+                  value={generalSettings.darkMode}
+                  onValueChange={(value) => updateGeneralSettings({ darkMode: value })}
+                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                  thumbColor={generalSettings.darkMode ? '#f5dd4b' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+
+            <View style={[cardStyle, styles.settingItem]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Auto Book</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    Automatically book preferred rides
+                  </Text>
+                </View>
+                <Switch
+                  value={generalSettings.autoBook}
+                  onValueChange={(value) => updateGeneralSettings({ autoBook: value })}
+                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                  thumbColor={generalSettings.autoBook ? '#f5dd4b' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity style={[cardStyle, styles.languageSelector]}>
+              <View style={styles.settingContent}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, textStyle]}>Language</Text>
+                  <Text style={[styles.settingSubtitle, secondaryTextStyle]}>
+                    {generalSettings.language}
+                  </Text>
+                </View>
+                <IconButton
+                  icon="chevron-right"
+                  size={20}
+                  iconColor={isDarkMode ? '#CCCCCC' : '#666666'}
+                />
+              </View>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </SafeAreaView>
   );
 };
 
@@ -1056,381 +871,351 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 20,
+    fontSize: 24,
+    fontWeight: 'bold',
   },
-  tabContainer: {
-    flexDirection: "row",
-    borderRadius: 12,
+  menuButton: {
     padding: 4,
   },
-  tabButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
+  profileCard: {
+    marginTop: 16,
+    overflow: 'hidden',
   },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  content: {
-    flex: 1,
-  },
-  tabContent: {
+  profileGradient: {
     padding: 20,
   },
-  userCard: {
-    borderRadius: 16,
-    padding: 20,
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 20,
-    borderWidth: 1,
   },
-  userHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  avatar: {
+  avatarContainer: {
+    position: 'relative',
     marginRight: 16,
   },
-  userInfo: {
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  verifiedText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  profileInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: 'bold',
     marginBottom: 4,
   },
-  userEmail: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  userDetails: {
-    marginBottom: 8,
-  },
-  userBranch: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  userYear: {
-    fontSize: 14,
-  },
   ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  rating: {
-    flexDirection: "row",
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   ratingText: {
+    fontSize: 16,
+    marginRight: 4,
+  },
+  rating: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  userDetails: {
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  detailLabel: {
     fontSize: 14,
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    gap: 8,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: 'center',
   },
   editButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
+  inviteCard: {
+    overflow: 'hidden',
   },
-  statCard: {
+  inviteGradient: {
+    padding: 20,
+  },
+  inviteContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inviteText: {
     flex: 1,
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
   },
-  statNumber: {
+  inviteTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  inviteSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+  },
+  inviteIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inviteEmoji: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  addButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: 'bold',
+  },
+  menuSection: {
     marginTop: 8,
   },
-  statLabel: {
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 4,
+  menuItem: {
+    marginBottom: 4,
   },
-  section: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
+  menuItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
   },
-  sectionTitle: {
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  menuIconText: {
     fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 16,
   },
-  settingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    gap: 12,
-  },
-  settingText: {
-    flex: 1,
+  menuItemText: {
     fontSize: 16,
+    fontWeight: '500',
   },
-  sosButton: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 2,
+  logoutButton: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
   },
-  sosContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  sosTextContainer: {
-    flex: 1,
-  },
-  sosTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  sosSubtitle: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    opacity: 0.9,
-  },
-  contactItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    gap: 12,
-  },
-  contactInfo: {
-    flex: 1,
-  },
-  contactName: {
+  logoutButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
-  contactPhone: {
-    fontSize: 14,
+  bottomSpace: {
+    height: 100,
   },
-  historyItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    gap: 12,
-  },
-  historyInfo: {
+  modalContainer: {
     flex: 1,
-  },
-  historyRoute: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  historyDate: {
-    fontSize: 14,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  emptyText: {
-    textAlign: "center",
-    fontSize: 14,
-    fontStyle: "italic",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  editModal: {
-    width: "90%",
-    maxWidth: 400,
-    maxHeight: "80%",
-    borderRadius: 20,
   },
   modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.1)",
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: '600',
   },
-  closeButton: {
-    padding: 4,
+  modalCancelText: {
+    fontSize: 16,
+    color: '#007AFF',
+  },
+  modalSaveText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
   },
   modalContent: {
-    padding: 20,
-  },
-  editWarning: {
-    fontSize: 14,
-    marginBottom: 20,
-    textAlign: "center",
-    padding: 12,
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    borderRadius: 8,
+    flex: 1,
+    padding: 16,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: '500',
     marginBottom: 8,
   },
   textInput: {
-    borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
-  readOnlyInfo: {
-    marginTop: 20,
+  bookingItem: {
+    marginBottom: 12,
     padding: 16,
-    backgroundColor: "rgba(0,0,0,0.05)",
-    borderRadius: 12,
   },
-  readOnlyLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
+  bookingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  readOnlyValue: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  readOnlySubtext: {
-    fontSize: 12,
-  },
-  modalActions: {
-    flexDirection: "row",
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.1)",
-  },
-  cancelButton: {
+  bookingType: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
   },
-  cancelButtonText: {
+  bookingTypeText: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  bookingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  bookingStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusIcon: {
+    fontSize: 16,
+    marginRight: 4,
+  },
+  statusText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '500',
+    textTransform: 'capitalize',
   },
-  saveButton: {
-    flex: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: "#4CAF50",
-    gap: 8,
+  bookingDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  saveButtonText: {
-    color: "#FFFFFF",
+  bookingDate: {
     fontSize: 14,
-    fontWeight: "600",
   },
-  // Emergency Contact Styles
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  bookingAmount: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bookingDetailsText: {
+    fontSize: 14,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    fontSize: 48,
     marginBottom: 16,
   },
-  addContactButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
   },
-  contactActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  contactActionButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
-  },
-  emptyContacts: {
-    alignItems: "center",
-    paddingVertical: 32,
-  },
-  addFirstContactButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#4CAF50",
-    borderRadius: 8,
-    gap: 8,
-  },
-  addFirstContactText: {
-    color: "#FFFFFF",
+  emptyStateSubtitle: {
     fontSize: 14,
-    fontWeight: "600",
+    textAlign: 'center',
   },
-  // Modal Styles
-  formContainer: {
-    padding: 20,
+  settingItem: {
+    marginBottom: 12,
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
+  settingContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
   },
-  modalButton: {
+  settingInfo: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
   },
-  modalButtonText: {
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  settingSubtitle: {
     fontSize: 14,
-    fontWeight: "600",
+  },
+  emergencyButton: {
+    marginTop: 20,
+    overflow: 'hidden',
+  },
+  emergencyGradient: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emergencyText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  emergencySubtext: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+  },
+  languageSelector: {
+    marginBottom: 12,
   },
 });
 
-export default UserProfileSafetyEnhanced;
+export default UserProfileSafety;
