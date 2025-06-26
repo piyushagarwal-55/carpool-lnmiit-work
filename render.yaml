@@ -1,8 +1,7 @@
 services:
   - type: web
     name: lnmiit-carpool
-    env: node
-    plan: free
+    runtime: static
     buildCommand: npm install && npx expo export --platform web --output-dir web-build
     staticPublishPath: ./web-build
     headers:
