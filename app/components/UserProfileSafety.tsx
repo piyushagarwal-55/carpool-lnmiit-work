@@ -583,6 +583,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
   const usernamePart = user?.email?.split("@")[0] || "";
   const year = usernamePart.substring(0, 2).toUpperCase();
   let branch = usernamePart.substring(2, 5).toUpperCase();
+  const userRating = user?.rating || 4.5;
 
   if (branch == "UEC") {
     branch = "Electronics";
@@ -605,14 +606,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
       />
 
       {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: isDarkMode ? "#000000" : "#F8F9FA" },
-        ]}
-      >
-        <Text style={[styles.headerTitle, textStyle]}>My Account</Text>
-      </View>
+
       {/* User Card */}
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Profile Section */}
@@ -626,16 +620,24 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
             <View style={styles.profileHeader}>
               <View style={styles.avatarContainer}>
                 <Avatar.Image
-                  size={80}
+                  size={90}
                   source={{
                     uri:
                       profileImageUri ||
                       `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
                   }}
                 />
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedText}>✓</Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.cameraButton}
+                  onPress={showImagePickerOptions}
+                >
+                  <LinearGradient
+                    colors={["#667eea", "#764ba2"]}
+                    style={styles.cameraGradient}
+                  >
+                    <Text style={styles.cameraIcon}>📷</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
               <View style={styles.profileInfo}>
                 <Text style={[styles.userName, textStyle]}>
@@ -896,28 +898,61 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={[
             containerStyle,
-            { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
+            { backgroundColor: isDarkMode ? "#000000" : "#FFFFFF" },
           ]}
         >
           <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+            <View
+              style={[
+                styles.modalHeader,
+                { backgroundColor: isDarkMode ? "#1A1A1A" : "#F8F9FA" },
+              ]}
+            >
               <TouchableOpacity
                 onPress={() => {
                   setShowEditProfile(false);
                   setSelectedImage(null);
                 }}
+                style={styles.modalHeaderButton}
               >
-                <Text style={[styles.modalCancelText, textStyle]}>Cancel</Text>
+                <Text
+                  style={[
+                    styles.modalCancelText,
+                    { color: isDarkMode ? "#FF6B6B" : "#FF4444" },
+                  ]}
+                >
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <Text style={[styles.modalTitle, textStyle]}>Edit Profile</Text>
               <TouchableOpacity
                 onPress={updateUserProfile}
                 disabled={loading || uploadingImage}
+                style={[
+                  styles.modalHeaderButton,
+                  styles.saveButton,
+                  {
+                    backgroundColor:
+                      loading || uploadingImage
+                        ? isDarkMode
+                          ? "#333"
+                          : "#E5E7EB"
+                        : "#4CAF50",
+                  },
+                ]}
               >
                 <Text
                   style={[
                     styles.modalSaveText,
-                    { opacity: loading || uploadingImage ? 0.5 : 1 },
+                    {
+                      color:
+                        loading || uploadingImage
+                          ? isDarkMode
+                            ? "#666"
+                            : "#999"
+                          : "#FFFFFF",
+                      opacity: 1,
+                    },
                   ]}
                 >
                   {loading || uploadingImage ? "Saving..." : "Save"}
@@ -925,9 +960,12 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent}>
+            <ScrollView
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Profile Picture Section */}
-              <View style={styles.inputGroup}>
+              <View style={[styles.inputGroup, styles.profilePictureSection]}>
                 <Text style={[styles.inputLabel, textStyle]}>
                   Profile Picture
                 </Text>
@@ -976,76 +1014,128 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                 </View>
               </View>
 
+              {/* Name Section */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, textStyle]}>Name</Text>
-                <Text
+                <View
                   style={[
                     styles.textInput,
+                    styles.readOnlyInput,
                     {
                       backgroundColor: isDarkMode ? "#2A2A2A" : "#F5F5F5",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                      borderColor: isDarkMode ? "#333" : "#E5E7EB",
                     },
                   ]}
                 >
-                  {displayName || user.email}
+                  <Text style={[styles.readOnlyText, textStyle]}>
+                    {displayName || user.email}
+                  </Text>
+                </View>
+                <Text style={[styles.helpText, secondaryTextStyle]}>
+                  Name is automatically synced from your account
                 </Text>
               </View>
 
+              {/* Phone Number Section */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, textStyle]}>Phone</Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: isDarkMode ? "#2A2A2A" : "#F5F5F5",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
-                    },
-                  ]}
-                  value={editedUser.phone || ""}
-                  onChangeText={(text) =>
-                    setEditedUser({ ...editedUser, phone: text })
-                  }
-                  placeholder="Enter phone number"
-                  placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
-                  keyboardType="phone-pad"
-                  editable={!editedUser.phone} // 🔒 disable after set
-                />
-                {editedUser.phone && (
-                  <Text style={{ fontSize: 12, color: "gray", marginTop: 4 }}>
-                    Phone number can only be set once and cannot be changed.
+                <Text style={[styles.inputLabel, textStyle]}>Phone Number</Text>
+                <View style={styles.phoneInputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      styles.phoneInput,
+                      {
+                        backgroundColor: isDarkMode ? "#2A2A2A" : "#F5F5F5",
+                        color: isDarkMode ? "#FFFFFF" : "#000000",
+                        borderColor:
+                          editedUser.phone && editedUser.phone.length === 10
+                            ? "#4CAF50"
+                            : isDarkMode
+                            ? "#333"
+                            : "#E5E7EB",
+                      },
+                    ]}
+                    value={editedUser.phone || ""}
+                    onChangeText={(text) => {
+                      // Only allow digits and limit to 10 characters
+                      const cleanText = text
+                        .replace(/[^0-9]/g, "")
+                        .slice(0, 10);
+                      setEditedUser({ ...editedUser, phone: cleanText });
+                    }}
+                    placeholder="Enter 10-digit phone number"
+                    placeholderTextColor={isDarkMode ? "#666666" : "#999999"}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    editable={!editedUser.phone || editedUser.phone.length < 10}
+                  />
+                  {editedUser.phone && editedUser.phone.length === 10 && (
+                    <View style={styles.phoneValidIcon}>
+                      <Text style={styles.phoneValidText}>✓</Text>
+                    </View>
+                  )}
+                </View>
+                {editedUser.phone &&
+                  editedUser.phone.length > 0 &&
+                  editedUser.phone.length < 10 && (
+                    <Text style={[styles.helpText, { color: "#FF6B6B" }]}>
+                      Please enter a complete 10-digit phone number
+                    </Text>
+                  )}
+                {editedUser.phone && editedUser.phone.length === 10 && (
+                  <Text style={[styles.helpText, { color: "#4CAF50" }]}>
+                    ✓ Phone number is valid and can only be set once
+                  </Text>
+                )}
+                {!editedUser.phone && (
+                  <Text style={[styles.helpText, secondaryTextStyle]}>
+                    Your phone number will be used for ride coordination
                   </Text>
                 )}
               </View>
 
+              {/* Branch Section */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, textStyle]}>Branch</Text>
-                <Text
+                <View
                   style={[
                     styles.textInput,
+                    styles.readOnlyInput,
                     {
                       backgroundColor: isDarkMode ? "#2A2A2A" : "#F5F5F5",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                      borderColor: isDarkMode ? "#333" : "#E5E7EB",
                     },
                   ]}
                 >
-                  {branch}
+                  <Text style={[styles.readOnlyText, textStyle]}>{branch}</Text>
+                </View>
+                <Text style={[styles.helpText, secondaryTextStyle]}>
+                  Branch is automatically detected from your email
                 </Text>
               </View>
 
+              {/* Year Section */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, textStyle]}>Year</Text>
-                <Text
+                <View
                   style={[
                     styles.textInput,
+                    styles.readOnlyInput,
                     {
                       backgroundColor: isDarkMode ? "#2A2A2A" : "#F5F5F5",
-                      color: isDarkMode ? "#FFFFFF" : "#000000",
+                      borderColor: isDarkMode ? "#333" : "#E5E7EB",
                     },
                   ]}
                 >
-                  20{year}
+                  <Text style={[styles.readOnlyText, textStyle]}>20{year}</Text>
+                </View>
+                <Text style={[styles.helpText, secondaryTextStyle]}>
+                  Year is automatically detected from your email
                 </Text>
               </View>
+
+              {/* Bottom spacing for keyboard */}
+              <View style={{ height: 100 }} />
             </ScrollView>
           </SafeAreaView>
         </KeyboardAvoidingView>
@@ -1615,6 +1705,61 @@ const styles = StyleSheet.create({
     color: "#007AFF",
     fontWeight: "600",
   },
+  modalHeaderButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  saveButton: {
+    backgroundColor: "#4CAF50",
+    borderRadius: 8,
+  },
+  readOnlyInput: {
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 48,
+    paddingHorizontal: 16,
+  },
+  readOnlyText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  helpText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  phoneInputContainer: {
+    position: "relative",
+  },
+  phoneInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  phoneValidIcon: {
+    position: "absolute",
+    right: 12,
+    top: "50%",
+    marginTop: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#4CAF50",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  phoneValidText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  profilePictureSection: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
   modalContent: {
     flex: 1,
     padding: 16,
@@ -1787,6 +1932,29 @@ const styles = StyleSheet.create({
   changePhotoText: {
     fontSize: 16,
     fontWeight: "500",
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  cameraGradient: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraIcon: {
+    fontSize: 16,
   },
 });
 

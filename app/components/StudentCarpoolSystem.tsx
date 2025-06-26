@@ -266,6 +266,27 @@ const StudentCarpoolSystem = ({
         .select("*")
         .in("ride_id", rideIds);
 
+      // Fetch user profiles for ride creators
+      const creatorIds = ridesData.map((ride) => ride.ride_creator_id);
+      const { data: creatorProfiles } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, avatar_url, branch, year, rating")
+        .in("id", creatorIds);
+
+      // Fetch user profiles for passengers
+      const passengerIds = (passengersData || []).map((p) => p.passenger_id);
+      const { data: passengerProfiles } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, avatar_url, branch, year")
+        .in("id", passengerIds);
+
+      // Fetch user profiles for requesters
+      const requesterIds = (requestsData || []).map((r) => r.passenger_id);
+      const { data: requesterProfiles } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, avatar_url, branch, year")
+        .in("id", requesterIds);
+
       if (passengersError) {
         if (passengersError.message.includes("Network request failed")) {
           console.warn("Network error fetching passengers, using empty data");
@@ -286,40 +307,59 @@ const StudentCarpoolSystem = ({
         const emailInfo = parseEmailInfo(ride.ride_creator_email || "");
         const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
+        // Get creator profile
+        const creatorProfile = (creatorProfiles || []).find(
+          (profile) => profile.id === ride.ride_creator_id
+        );
+
         // Get passengers for this ride
         const ridePassengers = (passengersData || [])
           .filter((p) => p.ride_id === ride.id)
-          .map((p) => ({
-            id: p.passenger_id,
-            name: p.passenger_name,
-            photo: generateAvatarFromName(p.passenger_name),
-            joinedAt: p.joined_at || p.created_at,
-            status: p.status as "pending" | "accepted" | "confirmed",
-            seatsBooked: p.seats_booked || 1,
-          }));
+          .map((p) => {
+            const passengerProfile = (passengerProfiles || []).find(
+              (profile) => profile.id === p.passenger_id
+            );
+            return {
+              id: p.passenger_id,
+              name: passengerProfile?.full_name || p.passenger_name,
+              photo:
+                passengerProfile?.avatar_url ||
+                generateAvatarFromName(p.passenger_name),
+              joinedAt: p.joined_at || p.created_at,
+              status: p.status as "pending" | "accepted" | "confirmed",
+              seatsBooked: p.seats_booked || 1,
+            };
+          });
 
         // Get pending requests for this ride
         const ridePendingRequests = (requestsData || [])
           .filter((r) => r.ride_id === ride.id)
-          .map((r) => ({
-            id: r.id,
-            passengerId: r.passenger_id,
-            passengerName: r.passenger_name,
-            passengerPhoto: generateAvatarFromName(r.passenger_name),
-            seatsRequested: r.seats_requested || 1,
-            message: r.message,
-            requestedAt: r.created_at,
-            status: r.status as "pending" | "accepted" | "rejected",
-          }));
+          .map((r) => {
+            const requesterProfile = (requesterProfiles || []).find(
+              (profile) => profile.id === r.passenger_id
+            );
+            return {
+              id: r.id,
+              passengerId: r.passenger_id,
+              passengerName: requesterProfile?.full_name || r.passenger_name,
+              passengerPhoto:
+                requesterProfile?.avatar_url ||
+                generateAvatarFromName(r.passenger_name),
+              seatsRequested: r.seats_requested || 1,
+              message: r.message,
+              requestedAt: r.created_at,
+              status: r.status as "pending" | "accepted" | "rejected",
+            };
+          });
 
         return {
           id: ride.id,
           rideCreatorId: ride.ride_creator_id,
-          rideCreatorName: ride.ride_creator_name,
-          rideCreatorRating: 4.8, // Default rating
-          rideCreatorPhoto: getDriverPhoto(ride),
-          rideCreatorBranch: emailInfo.branchFull,
-          rideCreatorYear: academicYear,
+          rideCreatorName: creatorProfile?.full_name || ride.ride_creator_name,
+          rideCreatorRating: creatorProfile?.rating || 4.8,
+          rideCreatorPhoto: creatorProfile?.avatar_url || getDriverPhoto(ride),
+          rideCreatorBranch: creatorProfile?.branch || emailInfo.branchFull,
+          rideCreatorYear: creatorProfile?.year || academicYear,
           rideCreatorPhone: ride.ride_creator_phone,
           from: ride.from_location,
           to: ride.to_location,
@@ -495,12 +535,35 @@ const StudentCarpoolSystem = ({
         .in("status", ["accepted", "confirmed"])
         .eq("carpool_rides.status", "active");
 
-      // Fetch rides where user is the driver
+      // Fetch driver rides (rides created by the user)
       const { data: driverRidesData, error: driverError } = await supabase
         .from("carpool_rides")
         .select("*")
         .eq("ride_creator_id", currentUser.id)
         .eq("status", "active");
+
+      // Get all unique creator IDs for profile fetching
+      const creatorIds = new Set();
+
+      if (passengerRidesData) {
+        passengerRidesData.forEach((item: any) => {
+          if (item.carpool_rides?.ride_creator_id) {
+            creatorIds.add(item.carpool_rides.ride_creator_id);
+          }
+        });
+      }
+
+      if (driverRidesData) {
+        driverRidesData.forEach((ride: any) => {
+          creatorIds.add(ride.ride_creator_id);
+        });
+      }
+
+      // Fetch creator profiles
+      const { data: creatorProfiles } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, avatar_url, branch, year, rating")
+        .in("id", Array.from(creatorIds));
 
       let allJoinedRides: any[] = [];
 
@@ -512,17 +575,23 @@ const StudentCarpoolSystem = ({
             .map((item: any) => {
               if (!item.carpool_rides) return null;
 
+              const creatorProfile = (creatorProfiles || []).find(
+                (profile) => profile.id === item.carpool_rides.ride_creator_id
+              );
+
               return {
                 id: item.carpool_rides.id,
                 rideCreatorId: item.carpool_rides.ride_creator_id,
                 rideCreatorName:
-                  item.carpool_rides.ride_creator_name || "Unknown Creator",
-                rideCreatorRating: 4.5,
-                rideCreatorPhoto: getDriverPhoto(item.carpool_rides),
-                rideCreatorBranch:
-                  item.carpool_rides.ride_creator_branch || "Unknown",
-                rideCreatorYear:
-                  item.carpool_rides.ride_creator_year || "Unknown",
+                  creatorProfile?.full_name ||
+                  item.carpool_rides.ride_creator_name ||
+                  "Unknown Creator",
+                rideCreatorRating: creatorProfile?.rating || 4.5,
+                rideCreatorPhoto:
+                  creatorProfile?.avatar_url ||
+                  getDriverPhoto(item.carpool_rides),
+                rideCreatorBranch: creatorProfile?.branch || "Unknown",
+                rideCreatorYear: creatorProfile?.year || "Unknown",
                 rideCreatorPhone: item.carpool_rides.ride_creator_phone || "",
                 from: item.carpool_rides.from_location,
                 to: item.carpool_rides.to_location,
@@ -572,14 +641,20 @@ const StudentCarpoolSystem = ({
           );
           const academicYear = calculateAcademicYear(emailInfo.joiningYear);
 
+          const creatorProfile = (creatorProfiles || []).find(
+            (profile) => profile.id === ride.ride_creator_id
+          );
+
           return {
             id: ride.id,
             rideCreatorId: ride.ride_creator_id,
-            rideCreatorName: ride.ride_creator_name,
-            rideCreatorRating: 4.8,
-            rideCreatorPhoto: getDriverPhoto(ride),
-            rideCreatorBranch: emailInfo.branchFull,
-            rideCreatorYear: academicYear,
+            rideCreatorName:
+              creatorProfile?.full_name || ride.ride_creator_name,
+            rideCreatorRating: creatorProfile?.rating || 4.8,
+            rideCreatorPhoto:
+              creatorProfile?.avatar_url || getDriverPhoto(ride),
+            rideCreatorBranch: creatorProfile?.branch || emailInfo.branchFull,
+            rideCreatorYear: creatorProfile?.year || academicYear,
             rideCreatorPhone: ride.ride_creator_phone,
             from: ride.from_location,
             to: ride.to_location,
@@ -807,16 +882,29 @@ const StudentCarpoolSystem = ({
       }
     );
 
-    // Set up auto-refresh every 30 seconds when app is active
-    const autoRefreshInterval = setInterval(() => {
-      fetchRides();
-      fetchNotifications();
-    }, 30000); // 30 seconds
+    // Set up real-time subscription for notifications
+    const notificationSubscription = supabase
+      .channel("notifications_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          console.log("Notification change:", payload);
+          // Refresh notifications on any change
+          fetchNotifications();
+        }
+      )
+      .subscribe();
 
     return () => {
       socketService.disconnect();
       cleanup();
-      clearInterval(autoRefreshInterval);
+      notificationSubscription.unsubscribe();
     };
   }, []);
 
@@ -1498,32 +1586,32 @@ const StudentCarpoolSystem = ({
     );
   };
 
-  // NEW: Render Instagram-style circular joined ride
+  // Clean and modern joined ride card
   const renderJoinedRideCircle = (ride: any, index: number) => {
     const isDriver = ride.userRole === "driver";
 
     const colors = isDarkMode
       ? {
-          bg: "#2A2A2A",
-          border: isDriver ? "#2196F3" : "#4CAF50", // Blue for driver, green for passenger
+          bg: "#1F2937",
+          border: isDriver ? "#3B82F6" : "#10B981",
           text: "#FFFFFF",
-          subtext: "#CCCCCC",
+          subtext: "#D1D5DB",
           shadow: "#000000",
         }
       : {
           bg: "#FFFFFF",
-          border: isDriver ? "#2196F3" : "#4CAF50", // Blue for driver, green for passenger
-          text: "#000000",
-          subtext: "#666666",
+          border: isDriver ? "#3B82F6" : "#10B981",
+          text: "#1F2937",
+          subtext: "#6B7280",
           shadow: "#000000",
         };
 
-    // Different gradient colors for driver vs passenger
+    // Clean gradient colors
     const gradientColors: [string, string, ...string[]] = isDriver
-      ? ["#2196F3", "#1976D2", "#1565C0"] // Blue gradient for driver
+      ? ["#3B82F6", "#2563EB", "#1D4ED8"] // Clean blue gradient for driver
       : ride.passengerStatus === "confirmed"
-      ? ["#4CAF50", "#45A049", "#388E3C"] // Green gradient for confirmed passenger
-      : ["#FF9800", "#F57C00", "#E65100"]; // Orange gradient for pending passenger
+      ? ["#10B981", "#059669", "#047857"] // Clean green gradient for confirmed passenger
+      : ["#F59E0B", "#D97706", "#B45309"]; // Clean amber gradient for pending
 
     return (
       <View
@@ -1535,13 +1623,17 @@ const StudentCarpoolSystem = ({
             borderColor: colors.border,
             borderWidth: 2,
             shadowColor: colors.shadow,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
           },
         ]}
       >
         <TouchableOpacity
           style={{ flex: 1 }}
           onPress={() => handleStartChat(ride.id, `${ride.from} → ${ride.to}`)}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
         >
           <LinearGradient
             colors={gradientColors}
@@ -1550,9 +1642,9 @@ const StudentCarpoolSystem = ({
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.joinedRideContent}>
-              {/* Role indicator */}
+              {/* Clean role indicator */}
               <View style={styles.roleIndicator}>
-                <Text style={styles.roleText}>{isDriver ? "🚗" : "🧑‍🤝‍🧑"}</Text>
+                <Text style={styles.roleText}>{isDriver ? "🚗" : "👤"}</Text>
               </View>
 
               <Text style={styles.joinedRideTime}>
@@ -1560,12 +1652,12 @@ const StudentCarpoolSystem = ({
               </Text>
               <Text style={styles.joinedRidePrice}>₹{ride.pricePerSeat}</Text>
 
-              {/* Status indicator */}
+              {/* Clean status indicator */}
               <Text style={styles.statusIndicator}>
                 {isDriver
-                  ? "Driver"
+                  ? "Creator"
                   : ride.passengerStatus === "confirmed"
-                  ? "Confirmed"
+                  ? "Joined"
                   : "Pending"}
               </Text>
             </View>
@@ -2911,6 +3003,7 @@ const StudentCarpoolSystem = ({
           onBack={() => setShowNotifications(false)}
           currentUser={currentUser}
           isDarkMode={isDarkMode}
+          onNotificationUpdate={fetchNotifications}
         />
       </Modal>
 

@@ -17,6 +17,7 @@ export interface NotificationData {
     chatId?: string;
     passengerName?: string;
     driverName?: string;
+    rideCreatorName?: string;
     from?: string;
     to?: string;
   };

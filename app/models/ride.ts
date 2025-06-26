@@ -221,6 +221,11 @@ export interface CarpoolNotification {
     rideId?: string;
     requestId?: string;
     chatId?: string;
+    passengerName?: string;
+    driverName?: string;
+    rideCreatorName?: string;
+    from?: string;
+    to?: string;
   };
   read: boolean;
   createdAt: string;

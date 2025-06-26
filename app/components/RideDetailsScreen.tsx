@@ -20,6 +20,7 @@ import { socketService, RideRequest } from "../services/SocketService";
 import { supabase } from "../lib/supabase";
 import { CarpoolRide, JoinRequest, CarpoolPassenger } from "../models/ride";
 import NotificationService from "../services/NotificationService";
+import PushNotificationService from "../services/PushNotificationService";
 import {
   parseEmailInfo,
   calculateAcademicYear,
@@ -128,6 +129,17 @@ export default function RideDetailsScreen({
         .eq("id", rideId)
         .single();
 
+      // Fetch creator profile separately
+      let creatorProfile = null;
+      if (!rideError && rideData) {
+        const { data: profileData } = await supabase
+          .from("user_profiles")
+          .select("id, full_name, avatar_url, branch, year, rating, phone")
+          .eq("id", rideData.ride_creator_id)
+          .single();
+        creatorProfile = profileData;
+      }
+
       if (rideError) {
         console.error("Error fetching ride:", rideError);
         Alert.alert("Error", "Failed to load ride details");
@@ -142,15 +154,18 @@ export default function RideDetailsScreen({
       const transformedRide: CarpoolRide = {
         id: rideData.id,
         rideCreatorId: rideData.ride_creator_id,
-        rideCreatorName: rideData.ride_creator_name,
-        rideCreatorPhone: rideData.ride_creator_phone || "",
-        rideCreatorRating: 0, // No rating display
+        rideCreatorName:
+          creatorProfile?.full_name || rideData.ride_creator_name,
+        rideCreatorPhone:
+          creatorProfile?.phone || rideData.ride_creator_phone || "",
+        rideCreatorRating: creatorProfile?.rating || 0,
         rideCreatorPhoto:
           rideData.ride_creator_id === currentUser.id
             ? currentUser.photo
-            : generateAvatarFomName(rideData.ride_creator_name),
-        rideCreatorBranch: emailInfo.branchFull,
-        rideCreatorYear: academicYear,
+            : creatorProfile?.avatar_url ||
+              generateAvatarFomName(rideData.ride_creator_name),
+        rideCreatorBranch: creatorProfile?.branch || emailInfo.branchFull,
+        rideCreatorYear: creatorProfile?.year || academicYear,
         from: rideData.from_location,
         to: rideData.to_location,
         departureTime: formatTime(rideData.departure_time),
@@ -193,17 +208,36 @@ export default function RideDetailsScreen({
         .select("*")
         .eq("ride_id", rideId);
 
+      // Fetch passenger profiles separately
+      let passengerProfiles: any[] = [];
+      if (!passengersError && passengersData && passengersData.length > 0) {
+        const passengerIds = passengersData.map((p) => p.passenger_id);
+        const { data: profilesData } = await supabase
+          .from("user_profiles")
+          .select("id, full_name, avatar_url, branch, year")
+          .in("id", passengerIds);
+        passengerProfiles = profilesData || [];
+      }
+
       if (!passengersError && passengersData) {
         const transformedPassengers: CarpoolPassenger[] = passengersData.map(
-          (p) => ({
-            id: p.passenger_id,
-            name: p.passenger_name,
-            photo: generateAvatarFomName(p.passenger_name),
-            seatsBooked: p.seats_booked,
-            status: p.status as "pending" | "accepted" | "confirmed",
-            joinedAt: p.joined_at,
-            paymentStatus: "pending" as const,
-          })
+          (p) => {
+            const profile = passengerProfiles.find(
+              (prof) => prof.id === p.passenger_id
+            );
+            return {
+              id: p.passenger_id,
+              name: profile?.full_name || p.passenger_name,
+              photo:
+                profile?.avatar_url || generateAvatarFomName(p.passenger_name),
+              seatsBooked: p.seats_booked,
+              status: p.status as "pending" | "accepted" | "confirmed",
+              joinedAt: p.joined_at,
+              paymentStatus: "pending" as const,
+              branch: profile?.branch,
+              year: profile?.year,
+            };
+          }
         );
         setPassengers(transformedPassengers);
       }
@@ -216,17 +250,36 @@ export default function RideDetailsScreen({
           .eq("ride_id", rideId)
           .eq("status", "pending");
 
+        // Fetch requester profiles separately
+        let requesterProfiles: any[] = [];
+        if (!requestsError && requestsData && requestsData.length > 0) {
+          const requesterIds = requestsData.map((r) => r.passenger_id);
+          const { data: profilesData } = await supabase
+            .from("user_profiles")
+            .select("id, full_name, avatar_url, branch, year")
+            .in("id", requesterIds);
+          requesterProfiles = profilesData || [];
+        }
+
         if (!requestsError && requestsData) {
-          const transformedRequests: JoinRequest[] = requestsData.map((r) => ({
-            id: r.id,
-            passengerId: r.passenger_id,
-            passengerName: r.passenger_name,
-            passengerPhoto: generateAvatarFomName(r.passenger_name),
-            seatsRequested: r.seats_requested,
-            message: r.message || "",
-            status: r.status as "pending" | "accepted" | "rejected",
-            requestedAt: r.created_at,
-          }));
+          const transformedRequests: JoinRequest[] = requestsData.map((r) => {
+            const profile = requesterProfiles.find(
+              (prof) => prof.id === r.passenger_id
+            );
+            return {
+              id: r.id,
+              passengerId: r.passenger_id,
+              passengerName: profile?.full_name || r.passenger_name,
+              passengerPhoto:
+                profile?.avatar_url || generateAvatarFomName(r.passenger_name),
+              seatsRequested: r.seats_requested,
+              message: r.message || "",
+              status: r.status as "pending" | "accepted" | "rejected",
+              requestedAt: r.created_at,
+              passengerBranch: profile?.branch,
+              passengerYear: profile?.year,
+            };
+          });
           setJoinRequests(transformedRequests);
         }
       }
@@ -408,6 +461,15 @@ export default function RideDetailsScreen({
             joinRequestData.id,
             ride.from,
             ride.to
+          );
+
+          // Send push notification immediately
+          await PushNotificationService.sendRideRequestNotification(
+            ride.rideCreatorId,
+            currentUser.name,
+            ride.from,
+            ride.to,
+            joinRequestData.id
           );
 
           // Send ride request via Socket.IO for real-time updates
@@ -1425,6 +1487,19 @@ export default function RideDetailsScreen({
                             >
                               {passenger.name}
                             </Text>
+                            {(passenger.branch || passenger.year) && (
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  color: "#666",
+                                  fontWeight: "500",
+                                  marginBottom: 2,
+                                }}
+                              >
+                                {passenger.branch}{" "}
+                                {passenger.year && `• ${passenger.year}`}
+                              </Text>
+                            )}
                             <Text
                               style={{
                                 fontSize: 12,
@@ -1435,7 +1510,9 @@ export default function RideDetailsScreen({
                               ✓ Joined{" "}
                               {new Date(
                                 passenger.joinedAt
-                              ).toLocaleDateString()}
+                              ).toLocaleDateString()}{" "}
+                              • {passenger.seatsBooked} seat
+                              {passenger.seatsBooked > 1 ? "s" : ""}
                             </Text>
                           </View>
                         </View>
@@ -1493,10 +1570,26 @@ export default function RideDetailsScreen({
                             >
                               {request.passengerName}
                             </Text>
+                            {(request.passengerBranch ||
+                              request.passengerYear) && (
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  color: "#666",
+                                  marginBottom: 2,
+                                }}
+                              >
+                                {request.passengerBranch}{" "}
+                                {request.passengerYear &&
+                                  `• ${request.passengerYear}`}
+                              </Text>
+                            )}
                             <Text style={{ fontSize: 12, color: "#666" }}>
                               {request.message && request.message.length > 0
                                 ? request.message
-                                : "No message"}
+                                : "No message"}{" "}
+                              • {request.seatsRequested} seat
+                              {request.seatsRequested > 1 ? "s" : ""}
                             </Text>
                             <Text style={{ fontSize: 10, color: "#999" }}>
                               {new Date(

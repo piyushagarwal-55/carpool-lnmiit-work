@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  Dimensions,
-} from "react-native";
+import { View, Text, StyleSheet, Modal, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
@@ -91,8 +85,8 @@ export default function LoadingOverlay({
         <LinearGradient
           colors={
             isDarkMode
-              ? ["rgba(0,0,0,0.7)", "rgba(0,0,0,0.9)"]
-              : ["rgba(255,255,255,0.8)", "rgba(255,255,255,0.95)"]
+              ? ["rgba(0,0,0,1)", "rgba(0,0,0,1)"]
+              : ["rgba(255,255,255,1)", "rgba(255,255,255,1)"]
           }
           style={styles.gradient}
         >
@@ -100,9 +94,7 @@ export default function LoadingOverlay({
             style={[
               styles.container,
               {
-                backgroundColor: isDarkMode
-                  ? "rgba(31, 41, 55, 0.95)"
-                  : "rgba(249, 250, 251, 0.95)",
+                backgroundColor: isDarkMode ? "#1F2937" : "#F9FAFB",
                 borderColor: isDarkMode ? "#374151" : "#E5E7EB",
               },
             ]}

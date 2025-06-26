@@ -405,6 +405,29 @@ class PushNotificationService {
       return "unknown";
     }
   }
+
+  /**
+   * Show local notification when app is in foreground
+   */
+  async showLocalNotification(
+    title: string,
+    body: string,
+    data: any = {}
+  ): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data,
+          sound: "default",
+        },
+        trigger: null, // Show immediately
+      });
+    } catch (error) {
+      console.error("Error showing local notification:", error);
+    }
+  }
 }
 
 export default new PushNotificationService();

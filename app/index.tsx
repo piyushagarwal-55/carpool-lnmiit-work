@@ -140,27 +140,63 @@ export const useAuth = (session?: Session) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   useEffect(() => {
-    if (session?.user) {
-      const sessionUser = session.user;
-      const userFromSession = {
-        id: sessionUser.id,
-        email: sessionUser.email,
-        name: sessionUser.user_metadata.full_name || sessionUser.email,
-        role: sessionUser.user_metadata.role || "passenger",
-        branch: sessionUser.user_metadata.branch,
-        year: sessionUser.user_metadata.year,
-        rating: sessionUser.user_metadata.rating || 4.5,
-        profilePicture:
-          sessionUser.user_metadata.profile_picture ||
-          sessionUser.user_metadata.avatar_url,
-        phone: sessionUser.user_metadata.phone,
-        ridesCompleted: sessionUser.user_metadata.ridesCompleted || 0,
-      };
-      setUser(userFromSession);
-    }
-    setLoading(false);
-    const timer = setTimeout(() => setIsInitialLoading(false), 1000);
-    return () => clearTimeout(timer);
+    const fetchUserProfile = async () => {
+      if (session?.user) {
+        const sessionUser = session.user;
+
+        // First try to get user profile data from database
+        try {
+          const { data: profileData, error } = await supabase
+            .from("user_profiles")
+            .select("full_name, branch, year, rating, avatar_url, phone")
+            .eq("id", sessionUser.id)
+            .single();
+
+          const userFromSession = {
+            id: sessionUser.id,
+            email: sessionUser.email,
+            name:
+              profileData?.full_name ||
+              sessionUser.user_metadata.full_name ||
+              sessionUser.email,
+            role: sessionUser.user_metadata.role || "passenger",
+            branch: profileData?.branch || sessionUser.user_metadata.branch,
+            year: profileData?.year || sessionUser.user_metadata.year,
+            rating:
+              profileData?.rating || sessionUser.user_metadata.rating || 4.5,
+            profilePicture:
+              profileData?.avatar_url ||
+              sessionUser.user_metadata.profile_picture ||
+              sessionUser.user_metadata.avatar_url,
+            phone: profileData?.phone || sessionUser.user_metadata.phone,
+            ridesCompleted: sessionUser.user_metadata.ridesCompleted || 0,
+          };
+          setUser(userFromSession);
+        } catch (error) {
+          // Fallback to session metadata if database fetch fails
+          const userFromSession = {
+            id: sessionUser.id,
+            email: sessionUser.email,
+            name: sessionUser.user_metadata.full_name || sessionUser.email,
+            role: sessionUser.user_metadata.role || "passenger",
+            branch: sessionUser.user_metadata.branch,
+            year: sessionUser.user_metadata.year,
+            rating: sessionUser.user_metadata.rating || 4.5,
+            profilePicture:
+              sessionUser.user_metadata.profile_picture ||
+              sessionUser.user_metadata.avatar_url,
+            phone: sessionUser.user_metadata.phone,
+            ridesCompleted: sessionUser.user_metadata.ridesCompleted || 0,
+          };
+          setUser(userFromSession);
+        }
+      }
+      setLoading(false);
+      const timer = setTimeout(() => setIsInitialLoading(false), 1000);
+      return () => clearTimeout(timer);
+    };
+
+    fetchUserProfile();
   }, [session]);
 
   const login = (
@@ -1108,8 +1144,8 @@ const AppContent = ({ session }: { session: Session }) => {
                                 fontWeight: "500",
                               }}
                             >
-                              Student ID:{" "}
-                              {user?.email?.split("@")[0] || "21UCS000"}
+                              {user?.branch || "Computer Science"} •{" "}
+                              {user?.year || "3rd Year"}
                             </Text>
                           </View>
                         </View>

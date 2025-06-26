@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   RefreshControl,
   Dimensions,
+  Alert,
 } from "react-native";
 import {
   ArrowLeft,
@@ -23,8 +24,8 @@ import {
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../lib/supabase";
-import { createClient } from "@supabase/supabase-js";
 import { NotificationService } from "../services/NotificationService";
+import PushNotificationService from "../services/PushNotificationService";
 
 const { width } = Dimensions.get("window");
 
@@ -36,6 +37,7 @@ interface NotificationScreenProps {
     name: string;
     email: string;
   };
+  onNotificationUpdate?: () => void;
 }
 
 interface Notification {
@@ -52,14 +54,84 @@ export default function NotificationScreen({
   onBack,
   isDarkMode = false,
   currentUser,
+  onNotificationUpdate,
 }: NotificationScreenProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [processingRequests, setProcessingRequests] = useState<Set<string>>(
+    new Set()
+  );
+  const subscriptionRef = useRef<any>(null);
 
   useEffect(() => {
+    if (!currentUser?.id) return;
+
     fetchNotifications();
-  }, []);
+    setupRealtimeSubscription();
+
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
+    };
+  }, [currentUser?.id]);
+
+  const setupRealtimeSubscription = () => {
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+    }
+
+    // Subscribe to real-time notifications
+    subscriptionRef.current = supabase
+      .channel("notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          console.log("New notification received:", payload);
+          const newNotification = payload.new as Notification;
+          setNotifications((prev) => [newNotification, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          console.log("Notification updated:", payload);
+          const updatedNotification = payload.new as Notification;
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.id === updatedNotification.id ? updatedNotification : n
+            )
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "join_requests",
+        },
+        (payload) => {
+          console.log("Join request updated:", payload);
+          // Refresh notifications when join requests are updated
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -68,10 +140,20 @@ export default function NotificationScreen({
         setNotifications([]);
         return;
       }
-      const notifications = await NotificationService.fetchNotifications(
-        currentUser.id
-      );
-      setNotifications(notifications || []);
+
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching notifications:", error);
+        setNotifications([]);
+        return;
+      }
+
+      setNotifications(data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
       setNotifications([]);
@@ -88,10 +170,24 @@ export default function NotificationScreen({
 
   const markAsRead = async (notificationId: string) => {
     try {
-      await NotificationService.markAsRead(notificationId);
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("id", notificationId);
+
+      if (error) {
+        console.error("Error marking notification as read:", error);
+        return;
+      }
+
       setNotifications((prev) =>
         prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
       );
+
+      // Call the parent callback to update notification counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate();
+      }
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
@@ -99,64 +195,238 @@ export default function NotificationScreen({
 
   const markAllAsRead = async () => {
     try {
-      for (const notification of notifications.filter((n) => !n.read)) {
-        await NotificationService.markAsRead(notification.id);
+      const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+
+      if (unreadIds.length === 0) return;
+
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .in("id", unreadIds);
+
+      if (error) {
+        console.error("Error marking all notifications as read:", error);
+        return;
       }
+
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+      // Call the parent callback to update notification counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate();
+      }
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
   };
 
   const handleApproveRequest = async (notification: Notification) => {
+    const requestId = notification.data?.requestId;
+    if (!requestId || processingRequests.has(requestId)) return;
+
+    setProcessingRequests((prev) => new Set(prev).add(requestId));
+
     try {
-      const requestId = notification.data?.requestId;
-      if (!requestId) return;
+      // Get request details
+      const { data: requestData, error: requestError } = await supabase
+        .from("join_requests")
+        .select(
+          `
+          *,
+          carpool_rides!inner(
+            id,
+            ride_creator_id,
+            ride_creator_name,
+            from_location,
+            to_location,
+            available_seats
+          )
+        `
+        )
+        .eq("id", requestId)
+        .single();
 
-      // Update request status to accepted
-      const { error } = await supabase
-        .from("ride_requests")
-        .update({ status: "accepted" })
-        .eq("id", requestId);
-
-      if (error) {
-        console.error("Error approving request:", error);
+      if (requestError || !requestData) {
+        Alert.alert("Error", "Request not found");
         return;
       }
 
-      // Mark notification as read
+      // Check if ride has available seats
+      if (requestData.carpool_rides.available_seats < 1) {
+        Alert.alert("Error", "No available seats remaining");
+        return;
+      }
+
+      // Update request status to accepted
+      const { error: updateError } = await supabase
+        .from("join_requests")
+        .update({
+          status: "accepted",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", requestId);
+
+      if (updateError) {
+        console.error("Error accepting request:", updateError);
+        Alert.alert("Error", "Failed to accept request");
+        return;
+      }
+
+      // Update available seats
+      const { error: seatsError } = await supabase
+        .from("carpool_rides")
+        .update({
+          available_seats: requestData.carpool_rides.available_seats - 1,
+        })
+        .eq("id", requestData.ride_id);
+
+      if (seatsError) {
+        console.error("Error updating seats:", seatsError);
+      }
+
+      // Send notification to passenger
+      await NotificationService.createNotification({
+        userId: requestData.passenger_id,
+        type: "request_accepted",
+        title: "✅ Ride Request Accepted!",
+        message: `${requestData.carpool_rides.ride_creator_name} accepted your request for ${requestData.carpool_rides.from_location} to ${requestData.carpool_rides.to_location}`,
+        data: {
+          rideId: requestData.ride_id,
+          requestId: requestId,
+          rideCreatorName: requestData.carpool_rides.ride_creator_name,
+          from: requestData.carpool_rides.from_location,
+          to: requestData.carpool_rides.to_location,
+        },
+      });
+
+      // Send push notification
+      await PushNotificationService.sendRideRequestAcceptedNotification(
+        requestData.passenger_id,
+        requestData.carpool_rides.ride_creator_name,
+        requestData.carpool_rides.from_location,
+        requestData.carpool_rides.to_location,
+        requestData.ride_id
+      );
+
+      // Mark current notification as read`
       await markAsRead(notification.id);
 
-      // Refresh notifications
+      // Refresh notifications to update the list
       await fetchNotifications();
+
+      // Call parent callback to update counter immediately
+      if (onNotificationUpdate) {
+        onNotificationUpdate();
+      }
+
+      Alert.alert(
+        "Success",
+        "Request accepted! The passenger has been notified."
+      );
     } catch (error) {
       console.error("Error in handleApproveRequest:", error);
+      Alert.alert("Error", "Failed to accept request. Please try again.");
+    } finally {
+      setProcessingRequests((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
     }
   };
 
   const handleRejectRequest = async (notification: Notification) => {
+    const requestId = notification.data?.requestId;
+    if (!requestId || processingRequests.has(requestId)) return;
+
+    setProcessingRequests((prev) => new Set(prev).add(requestId));
+
     try {
-      const requestId = notification.data?.requestId;
-      if (!requestId) return;
+      // Get request details
+      const { data: requestData, error: requestError } = await supabase
+        .from("join_requests")
+        .select(
+          `
+          *,
+          carpool_rides!inner(
+            id,
+            ride_creator_id,
+            ride_creator_name,
+            from_location,
+            to_location
+          )
+        `
+        )
+        .eq("id", requestId)
+        .single();
 
-      // Update request status to rejected
-      const { error } = await supabase
-        .from("ride_requests")
-        .update({ status: "rejected" })
-        .eq("id", requestId);
-
-      if (error) {
-        console.error("Error rejecting request:", error);
+      if (requestError || !requestData) {
+        Alert.alert("Error", "Request not found");
         return;
       }
 
-      // Mark notification as read
+      // Update request status to rejected
+      const { error: updateError } = await supabase
+        .from("join_requests")
+        .update({
+          status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", requestId);
+
+      if (updateError) {
+        console.error("Error rejecting request:", updateError);
+        Alert.alert("Error", "Failed to reject request");
+        return;
+      }
+
+      // Send notification to passenger
+      await NotificationService.createNotification({
+        userId: requestData.passenger_id,
+        type: "request_rejected",
+        title: "❌ Ride Request Declined",
+        message: `${requestData.carpool_rides.ride_creator_name} declined your request for ${requestData.carpool_rides.from_location} to ${requestData.carpool_rides.to_location}`,
+        data: {
+          rideId: requestData.ride_id,
+          requestId: requestId,
+          rideCreatorName: requestData.carpool_rides.ride_creator_name,
+          from: requestData.carpool_rides.from_location,
+          to: requestData.carpool_rides.to_location,
+        },
+      });
+
+      // Send push notification
+      await PushNotificationService.sendRideRequestRejectedNotification(
+        requestData.passenger_id,
+        requestData.carpool_rides.ride_creator_name,
+        requestData.carpool_rides.from_location,
+        requestData.carpool_rides.to_location
+      );
+
+      // Mark current notification as read
       await markAsRead(notification.id);
 
-      // Refresh notifications
+      // Refresh notifications to update the list
       await fetchNotifications();
+
+      // Call parent callback to update counter immediately
+      if (onNotificationUpdate) {
+        onNotificationUpdate();
+      }
+
+      Alert.alert(
+        "Success",
+        "Request declined. The passenger has been notified."
+      );
     } catch (error) {
       console.error("Error in handleRejectRequest:", error);
+      Alert.alert("Error", "Failed to reject request. Please try again.");
+    } finally {
+      setProcessingRequests((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
     }
   };
 
@@ -436,7 +706,7 @@ export default function NotificationScreen({
                     </TouchableOpacity>
 
                     {/* Add approve/reject buttons for ride requests */}
-                    {notification.type === "ride_request" && (
+                    {notification.type === "join_request" && (
                       <View style={styles.actionButtons}>
                         <TouchableOpacity
                           style={[styles.actionButton, styles.rejectButton]}
