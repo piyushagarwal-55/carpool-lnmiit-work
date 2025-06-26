@@ -1993,6 +1993,7 @@ const StudentCarpoolSystem = ({
       count: "Live",
       color: "#FEF3C7",
       icon: "🚌",
+      isSpecial: true,
     },
     {
       key: "create",
@@ -2343,8 +2344,14 @@ const StudentCarpoolSystem = ({
                   category.isSpecial && [
                     styles.specialCreateCard,
                     {
-                      shadowColor: category.color,
-                      borderColor: `${category.color}30`, // 30% opacity
+                      shadowColor:
+                        category.key === "bus_schedule"
+                          ? "#FFD700"
+                          : category.color,
+                      borderColor:
+                        category.key === "bus_schedule"
+                          ? "#00000030"
+                          : `${category.color}30`, // 30% opacity
                     },
                   ],
                 ]}
@@ -2380,7 +2387,12 @@ const StudentCarpoolSystem = ({
                   <View
                     style={[
                       styles.createRideGlow,
-                      { backgroundColor: `${category.color}1A` }, // 10% opacity
+                      {
+                        backgroundColor:
+                          category.key === "bus_schedule"
+                            ? "#FFD7001A" // Gold glow for bus
+                            : `${category.color}1A`, // 10% opacity
+                      },
                     ]}
                   />
                 )}
@@ -2397,7 +2409,9 @@ const StudentCarpoolSystem = ({
                   style={[
                     styles.categoryCardTitle,
                     category.key === "bus_schedule" && { color: "#000000" },
-                    category.isSpecial && styles.specialCardTitle,
+                    category.isSpecial &&
+                      category.key !== "bus_schedule" &&
+                      styles.specialCardTitle,
                   ]}
                 >
                   {category.label}
@@ -2406,7 +2420,9 @@ const StudentCarpoolSystem = ({
                   style={[
                     styles.categoryCardCount,
                     category.key === "bus_schedule" && { color: "#000000" },
-                    category.isSpecial && styles.specialCardCount,
+                    category.isSpecial &&
+                      category.key !== "bus_schedule" &&
+                      styles.specialCardCount,
                   ]}
                 >
                   {category.key === "create"
