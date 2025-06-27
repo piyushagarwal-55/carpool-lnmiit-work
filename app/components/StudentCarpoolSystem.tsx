@@ -237,7 +237,18 @@ const StudentCarpoolSystem = ({
         .in("status", ["active", "expired"])
         .order("created_at", { ascending: false });
 
+      console.log("=== FETCH RIDES DEBUG ===");
+      console.log("Raw rides data from database:", ridesData);
+      console.log("Rides count:", ridesData?.length || 0);
+      if (ridesData && ridesData.length > 0) {
+        console.log(
+          "Sample ride IDs:",
+          ridesData.slice(0, 3).map((r) => r.id)
+        );
+      }
+
       if (error) {
+        console.error("Database error fetching rides:", error);
         if (
           error.message.includes("Network request failed") ||
           error.message.includes("fetch")
@@ -1337,6 +1348,14 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCreated = (rideData: any) => {
+    console.log("=== RIDE CREATED DEBUG ===");
+    console.log(
+      "Raw ride data from creation:",
+      JSON.stringify(rideData, null, 2)
+    );
+    console.log("Ride ID from creation:", rideData.id);
+    console.log("Ride ID type:", typeof rideData.id);
+
     // Transform database ride data to UI format
     const transformedRide: CarpoolRide = {
       id: rideData.id || `ride_${Date.now()}`,
@@ -1383,6 +1402,12 @@ const StudentCarpoolSystem = ({
       createdAt: rideData.created_at || new Date().toISOString(),
     };
 
+    console.log(
+      "Transformed ride for UI:",
+      JSON.stringify(transformedRide, null, 2)
+    );
+    console.log("Final ride ID:", transformedRide.id);
+
     setRides((prev) => [transformedRide, ...prev]);
     setFilteredRides((prev) => [transformedRide, ...prev]);
     setShowCreateRide(false);
@@ -1404,6 +1429,11 @@ const StudentCarpoolSystem = ({
   };
 
   const handleDeleteRide = (ride: CarpoolRide) => {
+    console.log("=== DELETE RIDE DEBUG ===");
+    console.log("UI Ride object:", JSON.stringify(ride, null, 2));
+    console.log("Ride ID from UI:", ride.id);
+    console.log("Ride ID type:", typeof ride.id);
+
     Alert.alert(
       "Delete Ride",
       `Are you sure you want to delete the ride from ${ride.from} to ${ride.to}?\n\nThis action cannot be undone. All passengers will be notified.`,
@@ -1412,11 +1442,16 @@ const StudentCarpoolSystem = ({
           text: "Cancel",
           style: "cancel",
         },
-        {
-          text: "Cancel Ride",
-          style: "default",
-          onPress: () => confirmDeleteRide(ride.id, "soft"),
-        },
+        // {
+        //   text: "Debug Database",
+        //   style: "default",
+        //   onPress: () => debugRideInDatabase(ride.id),
+        // },
+        // {
+        //   text: "Cancel Ride",
+        //   style: "default",
+        //   onPress: () => confirmDeleteRide(ride.id, "soft"),
+        // },
         {
           text: "Delete Permanently",
           style: "destructive",
@@ -1426,23 +1461,73 @@ const StudentCarpoolSystem = ({
     );
   };
 
+  const debugRideInDatabase = async (rideId: string) => {
+    try {
+      console.log("=== DEBUGGING RIDE IN DATABASE ===");
+
+      // First check database state
+      const dbState = await rideManagementAPI.debugDatabaseState();
+      console.log("Database state:", dbState);
+
+      // Then test specific ride access
+      const testResult = await rideManagementAPI.testRideAccess(rideId);
+      console.log("Test result:", testResult);
+
+      Alert.alert(
+        "Debug Results",
+        `Database has ${dbState.totalRides} total rides.\n\nRide ${rideId} ${
+          testResult.success ? "FOUND" : "NOT FOUND"
+        } in database.\n\nCheck console for detailed logs.`
+      );
+    } catch (error) {
+      console.error("Debug failed:", error);
+      Alert.alert(
+        "Debug Error",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  };
+
   const confirmDeleteRide = async (
     rideId: string,
     deleteType: "soft" | "hard"
   ) => {
     try {
       setLoading(true);
-      // Attempting ride deletion
+      console.log("=== CONFIRM DELETE RIDE DEBUG ===");
+      console.log("Attempting to delete ride ID:", rideId);
+      console.log("Delete type:", deleteType);
+      console.log("Ride ID type:", typeof rideId);
+
+      // First, debug the database state before deletion
+      console.log("Checking database state before deletion...");
+      const testResult = await rideManagementAPI.testRideAccess(rideId);
+      console.log("Pre-deletion test result:", testResult);
+
+      if (!testResult.success) {
+        Alert.alert(
+          "Database Error",
+          `Ride not found in database: ${testResult.error}\n\nThe ride may have already been deleted or doesn't exist in the database.`
+        );
+        // Remove from local state anyway since it's not in database
+        setRides((prev) => prev.filter((r) => r.id !== rideId));
+        setFilteredRides((prev) => prev.filter((r) => r.id !== rideId));
+        return;
+      }
 
       let result;
       if (deleteType === "hard") {
+        console.log("Calling deleteRideWithCleanup...");
         result = await rideManagementAPI.deleteRideWithCleanup(rideId);
       } else {
+        console.log("Calling cancelRideWithReason...");
         result = await rideManagementAPI.cancelRideWithReason(
           rideId,
           "Cancelled by driver"
         );
       }
+
+      console.log("Delete operation result:", result);
 
       if (result.error) {
         Alert.alert("Error", result.error);

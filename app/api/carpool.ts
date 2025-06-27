@@ -2,9 +2,9 @@ import { supabase } from "../lib/supabase";
 
 // Types
 export interface CreateRideData {
-  driver_id: string;
-  driver_name: string;
-  driver_email: string;
+  ride_creator_id: string;
+  ride_creator_name: string;
+  ride_creator_email: string;
   from_location: string;
   to_location: string;
   departure_date: string;
@@ -71,7 +71,7 @@ export const carpoolAPI = {
           .select(
             `
             *,
-            profiles:driver_id (
+            user_profiles:ride_creator_id (
               full_name,
               avatar_url,
               rating,
@@ -86,7 +86,7 @@ export const carpoolAPI = {
               seats_booked,
               status,
               created_at,
-              passenger_profiles:passenger_id (
+              user_profiles:passenger_id (
                 avatar_url
               )
             ),
@@ -98,7 +98,7 @@ export const carpoolAPI = {
               message,
               status,
               created_at,
-              passenger_profiles:passenger_id (
+              user_profiles:passenger_id (
                 avatar_url
               )
             )
@@ -136,7 +136,7 @@ export const carpoolAPI = {
         .select(
           `
           *,
-          profiles:driver_id (
+          user_profiles:ride_creator_id (
             full_name,
             avatar_url,
             rating,
@@ -194,7 +194,7 @@ export const carpoolAPI = {
             (ride) =>
               ride.from_location.toLowerCase().includes(searchQuery) ||
               ride.to_location.toLowerCase().includes(searchQuery) ||
-              ride.driver_name.toLowerCase().includes(searchQuery) ||
+              ride.ride_creator_name.toLowerCase().includes(searchQuery) ||
               ride.description?.toLowerCase().includes(searchQuery)
           ) || [];
       }
@@ -214,7 +214,7 @@ export const carpoolAPI = {
         .select(
           `
           *,
-          profiles:driver_id (
+          user_profiles:ride_creator_id (
             full_name,
             avatar_url,
             rating,
@@ -232,7 +232,7 @@ export const carpoolAPI = {
             status,
             message,
             created_at,
-            profiles:passenger_id (
+            user_profiles:passenger_id (
               full_name,
               avatar_url,
               student_id,
@@ -266,7 +266,7 @@ export const carpoolAPI = {
             passenger_name,
             seats_requested,
             status,
-            profiles:passenger_id (
+            user_profiles:passenger_id (
               full_name,
               avatar_url,
               student_id
@@ -274,7 +274,7 @@ export const carpoolAPI = {
           )
         `
         )
-        .eq("driver_id", driverId)
+        .eq("ride_creator_id", driverId)
         .order("departure_time", { ascending: false });
 
       if (error) throw error;
@@ -408,7 +408,7 @@ export const rideRequestsAPI = {
         .select(
           `
           *,
-          profiles:passenger_id (
+          user_profiles:passenger_id (
             full_name,
             avatar_url,
             rating,
@@ -483,7 +483,7 @@ export const rideRequestsAPI = {
       const { data: ride } = await supabase
         .from("carpool_rides")
         .select(
-          "available_seats, driver_id, driver_name, from_location, to_location"
+          "available_seats, ride_creator_id, ride_creator_name, from_location, to_location"
         )
         .eq("id", requestData.ride_id)
         .single();
@@ -506,7 +506,7 @@ export const rideRequestsAPI = {
       // Create notification for driver
       await supabase.from("notifications").insert([
         {
-          user_id: ride.driver_id,
+          user_id: ride.ride_creator_id,
           type: "ride_request",
           title: "New Ride Request",
           message: `${requestData.passenger_name} wants to join your ride from ${ride.from_location} to ${ride.to_location}`,
@@ -674,7 +674,7 @@ export const chatAPI = {
         .select(
           `
           *,
-          profiles:sender_id (
+          user_profiles:sender_id (
             full_name,
             avatar_url,
             student_id
@@ -769,7 +769,7 @@ export const analyticsAPI = {
         supabase
           .from("carpool_rides")
           .select("id, status")
-          .eq("driver_id", userId),
+          .eq("ride_creator_id", userId),
 
         // Rides taken as passenger
         supabase
@@ -782,7 +782,7 @@ export const analyticsAPI = {
         supabase
           .from("carpool_rides")
           .select("total_earnings")
-          .eq("driver_id", userId)
+          .eq("ride_creator_id", userId)
           .eq("status", "completed"),
       ]);
 
@@ -845,7 +845,7 @@ export const carpoolUtils = {
     ride: any,
     userId: string
   ): { canBook: boolean; reason?: string } {
-    if (ride.driver_id === userId) {
+    if (ride.ride_creator_id === userId) {
       return { canBook: false, reason: "You cannot book your own ride" };
     }
 
@@ -877,9 +877,9 @@ export const carpoolUtils = {
       price_formatted: `₹${ride.price_per_seat}`,
       seats_info: `${ride.available_seats}/${ride.total_seats} available`,
       driver_info: {
-        name: ride.profiles?.full_name || ride.driver_name,
+        name: ride.profiles?.full_name || ride.ride_creator_name,
         avatar: ride.profiles?.avatar_url,
-        rating: ride.profiles?.rating || ride.driver_rating,
+        rating: ride.profiles?.rating || ride.ride_creator_rating,
         student_id: ride.profiles?.student_id,
         branch: ride.profiles?.branch,
         year: ride.profiles?.year,
@@ -945,28 +945,253 @@ export const carpoolUtils = {
 
 // Enhanced ride deletion API
 export const rideManagementAPI = {
+  // Test function to debug database issues
+  async testRideAccess(rideId: string) {
+    try {
+      console.log("=== DEBUGGING RIDE ACCESS ===");
+      console.log("Testing database access for ride:", rideId);
+      console.log("Ride ID type:", typeof rideId);
+      console.log("Ride ID length:", rideId.length);
+
+      // Test 1: Basic query first
+      const { data: basicData, error: basicError } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("id", rideId);
+
+      console.log("Basic query result:", {
+        data: basicData,
+        error: basicError,
+        dataLength: basicData?.length || 0,
+      });
+
+      if (basicData && basicData.length > 0) {
+        console.log(
+          "✅ Ride found! Details:",
+          JSON.stringify(basicData[0], null, 2)
+        );
+        return { success: true, ride: basicData[0] };
+      }
+
+      // Test 2: Check if any rides exist at all
+      const { data: allRides, error: allError } = await supabase
+        .from("carpool_rides")
+        .select(
+          "id, ride_creator_name, from_location, to_location, status, created_at"
+        )
+        .limit(10);
+
+      console.log("=== ALL RIDES CHECK ===");
+      console.log("All rides query result:", {
+        data: allRides,
+        error: allError,
+        count: allRides?.length || 0,
+      });
+
+      if (allRides && allRides.length > 0) {
+        console.log(
+          "Available ride IDs:",
+          allRides.map((r) => r.id)
+        );
+        console.log("Looking for:", rideId);
+
+        // Check if the ride ID exists in a different format
+        const matchingRide = allRides.find(
+          (r) =>
+            r.id === rideId || r.id.includes(rideId) || rideId.includes(r.id)
+        );
+
+        if (matchingRide) {
+          console.log("⚠️ Found similar ride:", matchingRide);
+          return {
+            success: false,
+            error: "Ride ID mismatch",
+            similarRide: matchingRide,
+          };
+        }
+      }
+
+      console.log("❌ No ride found with ID:", rideId);
+      return { success: false, error: "Ride not found in database" };
+    } catch (error) {
+      console.error("❌ Test failed:", error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // New function to check database state
+  async debugDatabaseState() {
+    try {
+      console.log("=== DATABASE STATE DEBUG ===");
+
+      const { data: ridesCount, error: countError } = await supabase
+        .from("carpool_rides")
+        .select("id", { count: "exact" });
+
+      console.log("Total rides in database:", ridesCount?.length || 0);
+
+      if (countError) {
+        console.error("Error counting rides:", countError);
+        return { totalRides: 0, error: countError };
+      }
+
+      const { data: recentRides, error: recentError } = await supabase
+        .from("carpool_rides")
+        .select(
+          "id, ride_creator_name, from_location, to_location, status, created_at"
+        )
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      console.log("Recent rides:", recentRides);
+
+      return {
+        totalRides: ridesCount?.length || 0,
+        recentRides: recentRides || [],
+        error: recentError,
+      };
+    } catch (error) {
+      console.error("Database state check failed:", error);
+      return { totalRides: 0, error: error.message };
+    }
+  },
   // Delete ride with cleanup (hard delete)
   async deleteRideWithCleanup(rideId: string) {
     try {
       console.log("Attempting hard delete for ride:", rideId);
 
-      const { data, error } = await supabase.rpc("delete_ride_with_cleanup", {
-        ride_id_param: rideId,
-      });
-
-      if (error) {
-        console.error("Database error in deleteRideWithCleanup:", error);
-        throw error;
+      // First, test basic access to the ride
+      const testResult = await this.testRideAccess(rideId);
+      if (!testResult.success) {
+        throw new Error(testResult.error || "Cannot access ride");
       }
 
-      if (!data?.success) {
-        throw new Error(
-          data?.error || "Unknown error occurred during deletion"
+      // First, get ride details to notify passengers
+      const { data: ride, error: rideError } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("id", rideId)
+        .single();
+
+      if (rideError) {
+        console.error("Error fetching ride for deletion:", rideError);
+        throw new Error(`Database error: ${rideError.message}`);
+      }
+
+      if (!ride) {
+        console.error("Ride not found for deletion:", rideId);
+        throw new Error("Ride not found");
+      }
+
+      // Get passengers separately to avoid potential join issues
+      const { data: passengers, error: passengersError } = await supabase
+        .from("ride_passengers")
+        .select(
+          `
+          passenger_id,
+          user_profiles:passenger_id (
+            full_name
+          )
+        `
+        )
+        .eq("ride_id", rideId);
+
+      if (passengersError) {
+        console.error("Error fetching passengers:", passengersError);
+        // Don't fail the entire operation for passenger fetch errors
+      }
+
+      console.log(
+        "Found ride for deletion:",
+        ride.id,
+        "Creator:",
+        ride.ride_creator_id
+      );
+      console.log("Found passengers:", passengers?.length || 0);
+
+      // Send notifications to all passengers about ride deletion
+      if (passengers && passengers.length > 0) {
+        console.log(
+          "Sending notifications to",
+          passengers.length,
+          "passengers"
+        );
+        const notifications = passengers.map((passenger: any) => ({
+          user_id: passenger.passenger_id,
+          type: "ride_cancelled",
+          title: "Ride Deleted",
+          message: `The ride from ${ride.from_location} to ${ride.to_location} has been permanently deleted by the driver.`,
+          data: {
+            ride_id: rideId,
+            from: ride.from_location,
+            to: ride.to_location,
+            departure_time: ride.departure_time,
+          },
+        }));
+
+        const { error: notificationError } = await supabase
+          .from("notifications")
+          .insert(notifications);
+        if (notificationError) {
+          console.error("Failed to send notifications:", notificationError);
+        }
+      } else {
+        console.log("No passengers to notify for ride deletion");
+      }
+
+      // Delete related records in sequence with error handling
+      console.log("Starting cleanup sequence...");
+
+      // 1. Delete chat messages
+      const { error: chatError } = await supabase
+        .from("chat_messages")
+        .delete()
+        .eq("ride_id", rideId);
+      if (chatError) console.error("Error deleting chat messages:", chatError);
+
+      // 2. Delete ride passengers
+      const { error: passengersDeleteError } = await supabase
+        .from("ride_passengers")
+        .delete()
+        .eq("ride_id", rideId);
+      if (passengersDeleteError)
+        console.error("Error deleting ride passengers:", passengersDeleteError);
+
+      // 3. Delete ride requests
+      const { error: requestsError } = await supabase
+        .from("ride_requests")
+        .delete()
+        .eq("ride_id", rideId);
+      if (requestsError)
+        console.error("Error deleting ride requests:", requestsError);
+
+      // 4. Delete notifications related to this ride (skip errors as they're not critical)
+      try {
+        await supabase
+          .from("notifications")
+          .delete()
+          .eq("data->>ride_id", rideId);
+      } catch (notifError) {
+        console.log(
+          "Could not delete notifications (non-critical):",
+          notifError
         );
       }
 
-      console.log("Hard delete successful:", data);
-      return { data, error: null };
+      // 5. Finally delete the ride itself
+      console.log("Deleting main ride record...");
+      const { error: deleteError } = await supabase
+        .from("carpool_rides")
+        .delete()
+        .eq("id", rideId);
+
+      if (deleteError) {
+        console.error("Error deleting main ride record:", deleteError);
+        throw new Error(`Failed to delete ride: ${deleteError.message}`);
+      }
+
+      console.log("Hard delete successful");
+      return { data: { success: true }, error: null };
     } catch (error: any) {
       console.error("Error in deleteRideWithCleanup:", error);
       return {
@@ -984,24 +1209,101 @@ export const rideManagementAPI = {
     try {
       console.log("Attempting soft delete (cancel) for ride:", rideId);
 
-      const { data, error } = await supabase.rpc("cancel_ride_soft_delete", {
-        ride_id_param: rideId,
-        cancellation_reason: reason,
-      });
+      // First, get ride details and passengers to notify them
+      const { data: ride, error: rideError } = await supabase
+        .from("carpool_rides")
+        .select("*")
+        .eq("id", rideId)
+        .single();
 
-      if (error) {
-        console.error("Database error in cancelRideWithReason:", error);
-        throw error;
+      if (rideError) {
+        console.error("Error fetching ride for cancellation:", rideError);
+        throw new Error(`Database error: ${rideError.message}`);
       }
 
-      if (!data?.success) {
-        throw new Error(
-          data?.error || "Unknown error occurred during cancellation"
+      if (!ride) {
+        console.error("Ride not found for cancellation:", rideId);
+        throw new Error("Ride not found");
+      }
+
+      // Get passengers separately
+      const { data: passengers, error: passengersError } = await supabase
+        .from("ride_passengers")
+        .select(
+          `
+          passenger_id,
+          user_profiles:passenger_id (
+            full_name
+          )
+        `
+        )
+        .eq("ride_id", rideId);
+
+      if (passengersError) {
+        console.error("Error fetching passengers:", passengersError);
+        // Don't fail the entire operation for passenger fetch errors
+      }
+
+      console.log(
+        "Found ride for cancellation:",
+        ride.id,
+        "Creator:",
+        ride.ride_creator_id
+      );
+      console.log("Found passengers:", passengers?.length || 0);
+
+      // Update ride status to cancelled
+      const { error: updateError } = await supabase
+        .from("carpool_rides")
+        .update({
+          status: "cancelled",
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rideId);
+
+      if (updateError) {
+        console.error("Error updating ride status:", updateError);
+        throw new Error(`Failed to cancel ride: ${updateError.message}`);
+      }
+
+      // Send notifications to all passengers about ride cancellation
+      if (passengers && passengers.length > 0) {
+        console.log(
+          "Sending cancellation notifications to",
+          passengers.length,
+          "passengers"
         );
+        const notifications = passengers.map((passenger: any) => ({
+          user_id: passenger.passenger_id,
+          type: "ride_cancelled",
+          title: "Ride Cancelled",
+          message: `The ride from ${ride.from_location} to ${ride.to_location} has been cancelled. Reason: ${reason}`,
+          data: {
+            ride_id: rideId,
+            from: ride.from_location,
+            to: ride.to_location,
+            departure_time: ride.departure_time,
+            cancellation_reason: reason,
+          },
+        }));
+
+        const { error: notificationError } = await supabase
+          .from("notifications")
+          .insert(notifications);
+        if (notificationError) {
+          console.error(
+            "Failed to send cancellation notifications:",
+            notificationError
+          );
+        }
+      } else {
+        console.log("No passengers to notify for ride cancellation");
       }
 
-      console.log("Soft delete (cancel) successful:", data);
-      return { data, error: null };
+      console.log("Soft delete (cancel) successful");
+      return { data: { success: true }, error: null };
     } catch (error: any) {
       console.error("Error in cancelRideWithReason:", error);
       return {
@@ -1016,7 +1318,7 @@ export const rideManagementAPI = {
     try {
       const { data: ride, error } = await supabase
         .from("carpool_rides")
-        .select("driver_id, status, departure_time")
+        .select("ride_creator_id, status, departure_time")
         .eq("id", rideId)
         .single();
 
@@ -1024,7 +1326,7 @@ export const rideManagementAPI = {
         return { canDelete: false, reason: "Ride not found" };
       }
 
-      if (ride.driver_id !== userId) {
+      if (ride.ride_creator_id !== userId) {
         return {
           canDelete: false,
           reason: "Only the driver can delete the ride",

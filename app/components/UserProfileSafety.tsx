@@ -1396,7 +1396,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
               </View>
             </View>
 
-            <View style={[cardStyle, styles.settingItem]}>
+            {/* <View style={[cardStyle, styles.settingItem]}>
               <View style={styles.settingContent}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingTitle, textStyle]}>
@@ -1415,7 +1415,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                   thumbColor={generalSettings.autoBook ? "#f5dd4b" : "#f4f3f4"}
                 />
               </View>
-            </View>
+            </View> */}
 
             <TouchableOpacity style={[cardStyle, styles.languageSelector]}>
               <View style={styles.settingContent}>
