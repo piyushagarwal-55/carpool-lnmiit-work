@@ -1,13 +1,14 @@
-import 'react-native-reanimated';
+import "react-native-reanimated";
 import React, { useState, useEffect } from "react";
-import { 
-  View, 
-  StyleSheet, 
+import {
+  View,
+  StyleSheet,
   useColorScheme,
-  TouchableOpacity, 
-  ScrollView, 
-  Alert, 
-  Image
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Image,
+  Animated as RNAnimated,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -143,7 +144,7 @@ export const useAuth = (session?: Session) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
- 
+
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (session?.user) {
@@ -204,7 +205,6 @@ export const useAuth = (session?: Session) => {
     fetchUserProfile();
   }, [session]);
 
-
   const login = (
     email: string,
     password: string,
@@ -252,12 +252,12 @@ const AppContent = ({ session }: { session: Session }) => {
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
- const sidebarAnimation = useSharedValue(-400);
+  const sidebarAnimation = useState(new RNAnimated.Value(-400))[0];
   const [busBookings, setBusBookings] = useState<any[]>([]);
   const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>(
     {}
   );
-   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [availableRides, setAvailableRides] = useState(0);
   const [userRideHistory, setUserRideHistory] = useState(0);
   const [activeBusRoutes, setActiveBusRoutes] = useState(0);
@@ -293,7 +293,7 @@ const AppContent = ({ session }: { session: Session }) => {
     const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
   }, []);
-   useEffect(() => {
+  useEffect(() => {
     const fetchUserName = async () => {
       const {
         data: { user },
@@ -717,7 +717,7 @@ const AppContent = ({ session }: { session: Session }) => {
   const toggleSidebar = () => {
     const toValue = sidebarVisible ? -400 : 0;
     setSidebarVisible(!sidebarVisible);
-    Animated.spring(sidebarAnimation, {
+    RNAnimated.spring(sidebarAnimation, {
       toValue,
       useNativeDriver: true,
       damping: 18,
@@ -911,7 +911,7 @@ const AppContent = ({ session }: { session: Session }) => {
             {/* Global Sidebar */}
             {sidebarVisible && (
               <>
-                <Animated.View
+                <RNAnimated.View
                   style={[
                     {
                       position: "absolute",
@@ -1517,10 +1517,10 @@ const AppContent = ({ session }: { session: Session }) => {
                       </View>
                     </View>
                   </LinearGradient>
-                </Animated.View>
+                </RNAnimated.View>
 
                 {/* Enhanced Overlay */}
-                <Animated.View
+                <RNAnimated.View
                   style={[
                     {
                       position: "absolute",
@@ -1548,7 +1548,7 @@ const AppContent = ({ session }: { session: Session }) => {
                     activeOpacity={1}
                     onPress={toggleSidebar}
                   />
-                </Animated.View>
+                </RNAnimated.View>
               </>
             )}
 
