@@ -1732,36 +1732,29 @@ const StudentCarpoolSystem = ({
             </Text>
           </View>
           <View style={styles.toggleContainer}>
-            {/* Delete button - DISABLED (may be used in future) */}
-            {/* {isDriverCurrentUser && (
+            {/* Delete button - Only visible for ride creator */}
+            {isDriverCurrentUser && (
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation(); // Prevent card press
                   handleDeleteRide(ride);
                 }}
-                style={{
-                  backgroundColor: "#FF4444",
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  marginRight: 8,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 4,
-                }}
+                style={[
+                  styles.deleteButton,
+                  {
+                    backgroundColor: "#FF4444",
+                    shadowColor: "#FF4444",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 4,
+                    elevation: 4,
+                  },
+                ]}
+                activeOpacity={0.8}
               >
-                <X size={14} color="#FFF" />
-                <Text
-                  style={{
-                    color: "#FFF",
-                    fontSize: 10,
-                    fontWeight: "600",
-                  }}
-                >
-                  Delete
-                </Text>
+                <Text style={styles.deleteIcon}>🗑️</Text>
               </TouchableOpacity>
-            )} */}
+            )}
             <View style={[styles.toggle, { backgroundColor: colors.accent }]}>
               <View style={styles.toggleButton} />
             </View>
@@ -3545,6 +3538,19 @@ const styles = StyleSheet.create({
   },
   toggleContainer: {
     alignItems: "center",
+    flexDirection: "row",
+  },
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  deleteIcon: {
+    fontSize: 14,
   },
   toggle: {
     width: 32,

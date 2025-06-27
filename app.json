@@ -23,11 +23,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-<<<<<<< HEAD
-      "package": "com.amrendravs.lnmiitcarpool"
-=======
       "package": "com.piyushagarwal_55.lnmiitcarpool"
->>>>>>> 30952ac (production fixed 1)
     },
     "web": {
       "bundler": "metro",
@@ -54,19 +50,14 @@
     "extra": {
       "router": {},
       "eas": {
-<<<<<<< HEAD
-        "projectId": "6c73d7b3-033c-47cf-8b51-3e7baf48397b"
+        "projectId": "08a055f2-265b-406b-8336-4bfdda5515e1"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/6c73d7b3-033c-47cf-8b51-3e7baf48397b"
-=======
-        "projectId": "08a055f2-265b-406b-8336-4bfdda5515e1"
-      }
->>>>>>> 30952ac (production fixed 1)
+      "url": "https://u.expo.dev/08a055f2-265b-406b-8336-4bfdda5515e1"
     }
   }
 }

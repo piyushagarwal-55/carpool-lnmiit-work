@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   Modal,
   Dimensions,
+  Alert,
 } from "react-native";
-import { Car, Clock, MapPin, X } from "lucide-react-native";
+import { Car, Clock, MapPin, X, Trash2 } from "lucide-react-native";
 import { supabase } from "../lib/supabase";
+import { rideManagementAPI } from "../api/carpool";
 
 const { width } = Dimensions.get("window");
 
@@ -122,6 +124,65 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
     }
   };
 
+  const handleDeleteRide = (ride: any) => {
+    Alert.alert(
+      "Delete Ride",
+      `Are you sure you want to delete the ride from ${ride.from_location} to ${ride.to_location}?\n\nThis action cannot be undone. All passengers will be notified.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Cancel Ride",
+          style: "default",
+          onPress: () => confirmDeleteRide(ride.id, "soft"),
+        },
+        {
+          text: "Delete Permanently",
+          style: "destructive",
+          onPress: () => confirmDeleteRide(ride.id, "hard"),
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteRide = async (
+    rideId: string,
+    deleteType: "soft" | "hard"
+  ) => {
+    try {
+      let result;
+      if (deleteType === "hard") {
+        result = await rideManagementAPI.deleteRideWithCleanup(rideId);
+      } else {
+        result = await rideManagementAPI.cancelRideWithReason(
+          rideId,
+          "Cancelled by driver"
+        );
+      }
+
+      if (result.error) {
+        Alert.alert("Error", result.error);
+        return;
+      }
+
+      // Show success message
+      Alert.alert(
+        "Success",
+        deleteType === "hard"
+          ? "Ride deleted permanently!"
+          : "Ride cancelled successfully!"
+      );
+
+      // Refresh the ride history
+      await fetchUserRideHistory();
+    } catch (error: any) {
+      console.error("Error deleting ride:", error);
+      Alert.alert("Error", error.message || "Failed to delete ride");
+    }
+  };
+
   const activeRides = userRideHistory.filter(
     (ride) => ride.status === "active"
   );
@@ -222,13 +283,28 @@ const UserRideHistoryScreen: React.FC<UserRideHistoryScreenProps> = (props) => {
                               </Text>
                             </View>
                           </View>
-                          <View
-                            style={[
-                              styles.statusBadge,
-                              { backgroundColor: getStatusColor(ride.status) },
-                            ]}
-                          >
-                            <Text style={styles.statusText}>{ride.status}</Text>
+                          <View style={styles.rideHeaderActions}>
+                            {ride.userRole === "driver" && (
+                              <TouchableOpacity
+                                onPress={() => handleDeleteRide(ride)}
+                                style={styles.deleteButton}
+                                activeOpacity={0.8}
+                              >
+                                <Trash2 size={14} color="#FFF" />
+                              </TouchableOpacity>
+                            )}
+                            <View
+                              style={[
+                                styles.statusBadge,
+                                {
+                                  backgroundColor: getStatusColor(ride.status),
+                                },
+                              ]}
+                            >
+                              <Text style={styles.statusText}>
+                                {ride.status}
+                              </Text>
+                            </View>
                           </View>
                         </View>
                         <View style={styles.rideDetails}>
@@ -495,6 +571,24 @@ const styles = StyleSheet.create({
   rideLocation: {
     fontSize: 13,
     color: "#6B7280",
+  },
+  rideHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#FF4444",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   statusBadge: {
     paddingHorizontal: 8,
