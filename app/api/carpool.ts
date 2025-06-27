@@ -1086,14 +1086,7 @@ export const rideManagementAPI = {
       // Get passengers separately to avoid potential join issues
       const { data: passengers, error: passengersError } = await supabase
         .from("ride_passengers")
-        .select(
-          `
-          passenger_id,
-          user_profiles:passenger_id (
-            full_name
-          )
-        `
-        )
+        .select("passenger_id")
         .eq("ride_id", rideId);
 
       if (passengersError) {
@@ -1229,14 +1222,7 @@ export const rideManagementAPI = {
       // Get passengers separately
       const { data: passengers, error: passengersError } = await supabase
         .from("ride_passengers")
-        .select(
-          `
-          passenger_id,
-          user_profiles:passenger_id (
-            full_name
-          )
-        `
-        )
+        .select("passenger_id")
         .eq("ride_id", rideId);
 
       if (passengersError) {
