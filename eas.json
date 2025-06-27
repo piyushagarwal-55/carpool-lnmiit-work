@@ -1,11 +1,16 @@
 {
   "cli": {
+<<<<<<< HEAD
     "version": ">= 5.2.0",
+=======
+    "version": ">= 3.0.0",
+>>>>>>> 30952ac (production fixed 1)
     "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
+<<<<<<< HEAD
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium"
@@ -35,6 +40,18 @@
         "resourceClass": "large"
       },
       "channel": "production"
+=======
+      "distribution": "internal"
+    },
+    "preview": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "production": {
+      "developmentClient": false,
+      "distribution": "store",
+      "autoIncrement": true
+>>>>>>> 30952ac (production fixed 1)
     }
   },
   "submit": {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSharedValue, useAnimatedStyle, withTiming, withSpring } from 'react-native-reanimated';
 import {
   View,
   Text,
@@ -29,58 +30,6 @@ import {
   calculateRideExpiry,
   generateAvatarFromName,
 } from "../lib/utils";
-
-// Enhanced Image component with fallback
-const FallbackImage = ({
-  uri,
-  fallbackName,
-  style,
-  borderColor,
-}: {
-  uri: string | undefined;
-  fallbackName: string;
-  style: any;
-  borderColor?: string;
-}) => {
-  const [imageError, setImageError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fallbackUri = generateAvatarFomName(fallbackName, style.width || 48);
-
-  return (
-    <View
-      style={[
-        style,
-        {
-          backgroundColor: "#f0f0f0",
-          justifyContent: "center",
-          alignItems: "center",
-        },
-      ]}
-    >
-      {isLoading && (
-        <ActivityIndicator
-          size="small"
-          color="#666"
-          style={{ position: "absolute" }}
-        />
-      )}
-      <Image
-        source={{ uri: imageError || !uri ? fallbackUri : uri }}
-        style={[style, { borderColor: borderColor || "#ddd" }]}
-        onLoad={() => setIsLoading(false)}
-        onError={() => {
-          setImageError(true);
-          setIsLoading(false);
-          console.log(
-            `Failed to load image for ${fallbackName}, using fallback`
-          );
-        }}
-        onLoadStart={() => setIsLoading(true)}
-      />
-    </View>
-  );
-};
 import SecureChatSystem from "./SecureChatSystem";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -155,7 +104,7 @@ export default function RideDetailsScreen({
   const [joinRequestSent, setJoinRequestSent] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const sidebarAnimation = useSharedValue(-400);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   const isDriverCurrentUser = ride?.rideCreatorId === currentUser.id;
@@ -215,9 +164,6 @@ export default function RideDetailsScreen({
           rideData.ride_creator_id === currentUser.id
             ? currentUser.photo
             : creatorProfile?.avatar_url ||
-              `https://api.dicebear.com/7.x/avataaars/svg?seed=${
-                rideData.ride_creator_email || rideData.ride_creator_name
-              }` ||
               generateAvatarFomName(rideData.ride_creator_name),
         rideCreatorBranch: creatorProfile?.branch || emailInfo.branchFull,
         rideCreatorYear: creatorProfile?.year || academicYear,
@@ -260,7 +206,7 @@ export default function RideDetailsScreen({
       // Fetch passengers
       const { data: passengersData, error: passengersError } = await supabase
         .from("ride_passengers")
-        .select("*, passenger_email")
+        .select("*")
         .eq("ride_id", rideId);
 
       // Fetch passenger profiles separately
@@ -284,13 +230,7 @@ export default function RideDetailsScreen({
               id: p.passenger_id,
               name: profile?.full_name || p.passenger_name,
               photo:
-                p.passenger_id === currentUser.id
-                  ? currentUser.photo
-                  : profile?.avatar_url ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${
-                      p.passenger_email || p.passenger_name
-                    }` ||
-                    generateAvatarFomName(p.passenger_name),
+                profile?.avatar_url || generateAvatarFomName(p.passenger_name),
               seatsBooked: p.seats_booked,
               status: p.status as "pending" | "accepted" | "confirmed",
               joinedAt: p.joined_at,
@@ -307,7 +247,7 @@ export default function RideDetailsScreen({
       if (transformedRide.rideCreatorId === currentUser.id) {
         const { data: requestsData, error: requestsError } = await supabase
           .from("join_requests")
-          .select("*, passenger_email")
+          .select("*")
           .eq("ride_id", rideId)
           .eq("status", "pending");
 
@@ -332,13 +272,7 @@ export default function RideDetailsScreen({
               passengerId: r.passenger_id,
               passengerName: profile?.full_name || r.passenger_name,
               passengerPhoto:
-                r.passenger_id === currentUser.id
-                  ? currentUser.photo
-                  : profile?.avatar_url ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${
-                      r.passenger_email || r.passenger_name
-                    }` ||
-                    generateAvatarFomName(r.passenger_name),
+                profile?.avatar_url || generateAvatarFomName(r.passenger_name),
               seatsRequested: r.seats_requested,
               message: r.message || "",
               status: r.status as "pending" | "accepted" | "rejected",
@@ -935,6 +869,17 @@ export default function RideDetailsScreen({
                       elevation: 3,
                     }}
                   >
+                    <Image
+                      source={{ uri: ride?.rideCreatorPhoto }}
+                      style={{
+                        width: 70,
+                        height: 70,
+                        borderRadius: 35,
+                        marginRight: 16,
+                        borderWidth: 3,
+                        borderColor: "#1565C0",
+                      }}
+                    />
                     <View style={{ flex: 1 }}>
                       <View
                         style={{ flexDirection: "row", alignItems: "center" }}
@@ -1521,6 +1466,17 @@ export default function RideDetailsScreen({
                             elevation: 2,
                           }}
                         >
+                          <Image
+                            source={{ uri: passenger.photo }}
+                            style={{
+                              width: 48,
+                              height: 48,
+                              borderRadius: 24,
+                              marginRight: 12,
+                              borderWidth: 2,
+                              borderColor: "#4CAF50",
+                            }}
+                          />
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{
@@ -1596,6 +1552,15 @@ export default function RideDetailsScreen({
                             borderBottomColor: "#E0E0E0",
                           }}
                         >
+                          <Image
+                            source={{ uri: request.passengerPhoto }}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              marginRight: 12,
+                            }}
+                          />
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{

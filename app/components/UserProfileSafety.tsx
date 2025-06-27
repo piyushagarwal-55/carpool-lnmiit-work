@@ -627,6 +627,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                       `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
                   }}
                 />
+
                 {/* <TouchableOpacity
                   style={styles.cameraButton}
                   onPress={showImagePickerOptions}
@@ -638,10 +639,11 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                     <Text style={styles.cameraIcon}>📷</Text>
                   </LinearGradient>
                 </TouchableOpacity> */}
+
               </View>
               <View style={styles.profileInfo}>
                 <Text style={[styles.userName, textStyle]}>
-                  {displayName || user.email}
+                  {displayName || ""}
                 </Text>
                 <View style={styles.ratingContainer}></View>
               </View>

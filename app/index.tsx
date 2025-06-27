@@ -1,7 +1,14 @@
-//index.tsx code - FIXED VERSION
-
+import 'react-native-reanimated';
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, useColorScheme, Animated } from "react-native";
+import { 
+  View, 
+  StyleSheet, 
+  useColorScheme,
+  TouchableOpacity, 
+  ScrollView, 
+  Alert, 
+  Image
+} from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -10,14 +17,18 @@ import {
   MD3LightTheme,
   MD3DarkTheme,
   PaperProvider,
+  IconButton, // ✅ Moved from separate import
 } from "react-native-paper";
 import { useRouter } from "expo-router";
-import ReAnimated, {
+import {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   Easing,
 } from "react-native-reanimated";
+// ✅ Import Animated from reanimated if you need animated components
+import Animated from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 
 // Screens
 import { AuthContext } from "./AuthContext";
@@ -27,17 +38,11 @@ import StudentCarpoolSystem from "./components/StudentCarpoolSystem";
 import BusBookingSystem from "./components/BusBookingSystem";
 import UserProfileSafety from "./components/UserProfileSafety";
 
-// ✅ Add these missing imports at the top
-import { TouchableOpacity, ScrollView, Alert, Image } from "react-native";
-import { IconButton } from "react-native-paper";
-import { LinearGradient } from "expo-linear-gradient";
-
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import Auth from "./components/ModernAuthScreen";
 import CreateRideScreen from "./components/CreateRideScreen";
 import { formatDate, formatTime } from "./lib/utils";
-
 // Theme
 const lightTheme = {
   ...MD3LightTheme,
@@ -138,7 +143,7 @@ export const useAuth = (session?: Session) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-
+ 
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (session?.user) {
@@ -199,6 +204,7 @@ export const useAuth = (session?: Session) => {
     fetchUserProfile();
   }, [session]);
 
+
   const login = (
     email: string,
     password: string,
@@ -246,11 +252,12 @@ const AppContent = ({ session }: { session: Session }) => {
   const [index, setIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [sidebarAnimation] = useState(new Animated.Value(-400));
+ const sidebarAnimation = useSharedValue(-400);
   const [busBookings, setBusBookings] = useState<any[]>([]);
   const [bookedSeats, setBookedSeats] = useState<{ [busId: string]: string[] }>(
     {}
   );
+   const [displayName, setDisplayName] = useState<string | null>(null);
   const [availableRides, setAvailableRides] = useState(0);
   const [userRideHistory, setUserRideHistory] = useState(0);
   const [activeBusRoutes, setActiveBusRoutes] = useState(0);
@@ -285,6 +292,18 @@ const AppContent = ({ session }: { session: Session }) => {
     checkConnection();
     const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
+  }, []);
+   useEffect(() => {
+    const fetchUserName = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (user) {
+        setDisplayName(user.user_metadata?.name ?? null);
+      }
+    };
+    fetchUserName();
   }, []);
 
   // Fetch real data for sidebar
@@ -1121,7 +1140,7 @@ const AppContent = ({ session }: { session: Session }) => {
                               marginBottom: 4,
                             }}
                           >
-                            {user?.name || "Student"}
+                            {displayName || ""}
                           </Text>
                         </View>
                         <View
