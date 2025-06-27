@@ -272,11 +272,43 @@ export default function NotificationScreen({
         return;
       }
 
+      // Check if passenger already exists for this ride
+      const { data: existingPassenger } = await supabase
+        .from("ride_passengers")
+        .select("id")
+        .eq("ride_id", requestData.ride_id)
+        .eq("passenger_id", requestData.passenger_id)
+        .single();
+
+      if (!existingPassenger) {
+        // Add passenger to ride
+        const { error: passengerError } = await supabase
+          .from("ride_passengers")
+          .insert({
+            ride_id: requestData.ride_id,
+            passenger_id: requestData.passenger_id,
+            passenger_name: requestData.passenger_name,
+            passenger_email: requestData.passenger_email,
+            seats_booked: requestData.seats_requested || 1,
+            status: "confirmed",
+            joined_at: new Date().toISOString(),
+          });
+
+        if (passengerError) {
+          console.error("Error adding passenger:", passengerError);
+          Alert.alert("Error", "Failed to add passenger to ride");
+          return;
+        }
+      }
+
       // Update available seats
       const { error: seatsError } = await supabase
         .from("carpool_rides")
         .update({
-          available_seats: requestData.carpool_rides.available_seats - 1,
+          available_seats:
+            requestData.carpool_rides.available_seats -
+            (requestData.seats_requested || 1),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", requestData.ride_id);
 

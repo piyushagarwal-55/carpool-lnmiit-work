@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useSharedValue, useAnimatedStyle, withTiming, withSpring } from 'react-native-reanimated';
+import {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+} from "react-native-reanimated";
 import {
   View,
   Text,
@@ -106,6 +111,7 @@ export default function RideDetailsScreen({
 
   const sidebarAnimation = useSharedValue(-400);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const isDriverCurrentUser = ride?.rideCreatorId === currentUser.id;
   const hasJoined = passengers.some((p) => p.id === currentUser.id);
