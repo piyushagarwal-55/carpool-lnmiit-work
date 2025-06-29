@@ -990,8 +990,8 @@ export default function CreateRideScreen({
                 </View>
               ))}
 
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceInfo}>
+              {/* <View style={styles.preferenceItem}> */}
+                {/* <View style={styles.preferenceInfo}>
                   <Text style={styles.preferenceIcon}>⚡</Text>
                   <Text
                     style={[
@@ -1001,16 +1001,16 @@ export default function CreateRideScreen({
                   >
                     Instant Booking
                   </Text>
-                </View>
-                <Switch
+                </View> */}
+                {/* <Switch
                   value={formData.instantBooking}
                   onValueChange={(value) =>
                     setFormData({ ...formData, instantBooking: value })
                   }
                   trackColor={{ false: "#767577", true: "#4CAF50" }}
                   thumbColor={formData.instantBooking ? "#FFF" : "#f4f3f4"}
-                />
-              </View>
+                /> */}
+              {/* </View> */}
             </View>
           </View>
         );
