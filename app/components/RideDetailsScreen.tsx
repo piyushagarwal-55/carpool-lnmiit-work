@@ -34,46 +34,13 @@ import {
   formatDate,
   calculateRideExpiry,
   generateAvatarFromName,
+  getProfilePictureUrl,
 } from "../lib/utils";
 import SecureChatSystem from "./SecureChatSystem";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Avatar generation utility
-const generateAvatarFomName = (name: string, size: number = 40): string => {
-  const initials = name
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase())
-    .join("")
-    .substring(0, 2);
-
-  const colors = [
-    "#FF6B6B",
-    "#4ECDC4",
-    "#45B7D1",
-    "#96CEB4",
-    "#FECA57",
-    "#FF9FF3",
-    "#54A0FF",
-    "#5F27CD",
-    "#00D2D3",
-    "#FF9F43",
-    "#FFA502",
-    "#2ED573",
-    "#1E90FF",
-    "#3742FA",
-    "#FF6348",
-  ];
-
-  const colorIndex = name.length % colors.length;
-  const backgroundColor = colors[colorIndex];
-
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-    initials
-  )}&size=${size}&background=${backgroundColor.slice(
-    1
-  )}&color=fff&bold=true&format=svg`;
-};
+// Avatar generation utility is now imported from utils.ts
 
 interface RideDetailsProps {
   rideId: string;
@@ -169,8 +136,11 @@ export default function RideDetailsScreen({
         rideCreatorPhoto:
           rideData.ride_creator_id === currentUser.id
             ? currentUser.photo
-            : creatorProfile?.avatar_url ||
-              generateAvatarFomName(rideData.ride_creator_name),
+            : await getProfilePictureUrl(
+                supabase,
+                creatorProfile?.avatar_url,
+                creatorProfile?.full_name || rideData.ride_creator_name
+              ),
         rideCreatorBranch: creatorProfile?.branch || emailInfo.branchFull,
         rideCreatorYear: creatorProfile?.year || academicYear,
         from: rideData.from_location,
@@ -227,16 +197,23 @@ export default function RideDetailsScreen({
       }
 
       if (!passengersError && passengersData) {
-        const transformedPassengers: CarpoolPassenger[] = passengersData.map(
-          (p) => {
+        const transformedPassengers: CarpoolPassenger[] = await Promise.all(
+          passengersData.map(async (p) => {
             const profile = passengerProfiles.find(
               (prof) => prof.id === p.passenger_id
             );
+
+            // Get proper profile picture URL
+            const photoUrl = await getProfilePictureUrl(
+              supabase,
+              profile?.avatar_url,
+              profile?.full_name || p.passenger_name
+            );
+
             return {
               id: p.passenger_id,
               name: profile?.full_name || p.passenger_name,
-              photo:
-                profile?.avatar_url || generateAvatarFomName(p.passenger_name),
+              photo: photoUrl,
               seatsBooked: p.seats_booked,
               status: p.status as "pending" | "accepted" | "confirmed",
               joinedAt: p.joined_at,
@@ -244,7 +221,7 @@ export default function RideDetailsScreen({
               branch: profile?.branch,
               year: profile?.year,
             };
-          }
+          })
         );
         setPassengers(transformedPassengers);
       }
@@ -269,24 +246,33 @@ export default function RideDetailsScreen({
         }
 
         if (!requestsError && requestsData) {
-          const transformedRequests: JoinRequest[] = requestsData.map((r) => {
-            const profile = requesterProfiles.find(
-              (prof) => prof.id === r.passenger_id
-            );
-            return {
-              id: r.id,
-              passengerId: r.passenger_id,
-              passengerName: profile?.full_name || r.passenger_name,
-              passengerPhoto:
-                profile?.avatar_url || generateAvatarFomName(r.passenger_name),
-              seatsRequested: r.seats_requested,
-              message: r.message || "",
-              status: r.status as "pending" | "accepted" | "rejected",
-              requestedAt: r.created_at,
-              passengerBranch: profile?.branch,
-              passengerYear: profile?.year,
-            };
-          });
+          const transformedRequests: JoinRequest[] = await Promise.all(
+            requestsData.map(async (r) => {
+              const profile = requesterProfiles.find(
+                (prof) => prof.id === r.passenger_id
+              );
+
+              // Get proper profile picture URL
+              const photoUrl = await getProfilePictureUrl(
+                supabase,
+                profile?.avatar_url,
+                profile?.full_name || r.passenger_name
+              );
+
+              return {
+                id: r.id,
+                passengerId: r.passenger_id,
+                passengerName: profile?.full_name || r.passenger_name,
+                passengerPhoto: photoUrl,
+                seatsRequested: r.seats_requested,
+                message: r.message || "",
+                status: r.status as "pending" | "accepted" | "rejected",
+                requestedAt: r.created_at,
+                passengerBranch: profile?.branch,
+                passengerYear: profile?.year,
+              };
+            })
+          );
           setJoinRequests(transformedRequests);
         }
       }

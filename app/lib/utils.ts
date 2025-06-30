@@ -205,6 +205,41 @@ export function generateAvatarFromName(
 }
 
 /**
+ * Get profile picture URL from Supabase storage
+ * @param supabase - Supabase client instance
+ * @param avatarPath - Path to the avatar in storage bucket (can be null/undefined)
+ * @param fallbackName - Name to generate fallback avatar if no path provided
+ * @returns Promise<string> - Public URL for the profile picture or fallback avatar
+ */
+export async function getProfilePictureUrl(
+  supabase: any,
+  avatarPath: string | null | undefined,
+  fallbackName: string
+): Promise<string> {
+  // If no avatar path provided, return fallback
+  if (!avatarPath || avatarPath.trim() === "") {
+    return generateAvatarFromName(fallbackName);
+  }
+
+  // If it's already a full URL (starts with http), return as is
+  if (avatarPath.startsWith("http")) {
+    return avatarPath;
+  }
+
+  try {
+    // Get public URL from Supabase storage
+    const { data } = supabase.storage
+      .from("profile-pictures")
+      .getPublicUrl(avatarPath);
+
+    return data?.publicUrl || generateAvatarFromName(fallbackName);
+  } catch (error) {
+    console.error("Error getting profile picture URL:", error);
+    return generateAvatarFromName(fallbackName);
+  }
+}
+
+/**
  * Validate LNMIIT email format
  */
 export function isValidLNMIITEmail(email: string): boolean {
@@ -651,6 +686,7 @@ const utils = {
   deleteExpiredRides,
   cleanupOldData,
   markExpiredRidesAsCompleted,
+  getProfilePictureUrl,
 };
 
 export default utils;
