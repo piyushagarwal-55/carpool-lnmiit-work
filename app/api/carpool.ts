@@ -948,28 +948,13 @@ export const rideManagementAPI = {
   // Test function to debug database issues
   async testRideAccess(rideId: string) {
     try {
-      console.log("=== DEBUGGING RIDE ACCESS ===");
-      console.log("Testing database access for ride:", rideId);
-      console.log("Ride ID type:", typeof rideId);
-      console.log("Ride ID length:", rideId.length);
-
       // Test 1: Basic query first
       const { data: basicData, error: basicError } = await supabase
         .from("carpool_rides")
         .select("*")
         .eq("id", rideId);
 
-      console.log("Basic query result:", {
-        data: basicData,
-        error: basicError,
-        dataLength: basicData?.length || 0,
-      });
-
       if (basicData && basicData.length > 0) {
-        console.log(
-          "✅ Ride found! Details:",
-          JSON.stringify(basicData[0], null, 2)
-        );
         return { success: true, ride: basicData[0] };
       }
 
@@ -981,20 +966,7 @@ export const rideManagementAPI = {
         )
         .limit(10);
 
-      console.log("=== ALL RIDES CHECK ===");
-      console.log("All rides query result:", {
-        data: allRides,
-        error: allError,
-        count: allRides?.length || 0,
-      });
-
       if (allRides && allRides.length > 0) {
-        console.log(
-          "Available ride IDs:",
-          allRides.map((r) => r.id)
-        );
-        console.log("Looking for:", rideId);
-
         // Check if the ride ID exists in a different format
         const matchingRide = allRides.find(
           (r) =>
@@ -1002,7 +974,6 @@ export const rideManagementAPI = {
         );
 
         if (matchingRide) {
-          console.log("⚠️ Found similar ride:", matchingRide);
           return {
             success: false,
             error: "Ride ID mismatch",
@@ -1010,8 +981,6 @@ export const rideManagementAPI = {
           };
         }
       }
-
-      console.log("❌ No ride found with ID:", rideId);
       return { success: false, error: "Ride not found in database" };
     } catch (error) {
       console.error("❌ Test failed:", error);
@@ -1022,13 +991,9 @@ export const rideManagementAPI = {
   // New function to check database state
   async debugDatabaseState() {
     try {
-      console.log("=== DATABASE STATE DEBUG ===");
-
       const { data: ridesCount, error: countError } = await supabase
         .from("carpool_rides")
         .select("id", { count: "exact" });
-
-      console.log("Total rides in database:", ridesCount?.length || 0);
 
       if (countError) {
         console.error("Error counting rides:", countError);
@@ -1042,8 +1007,6 @@ export const rideManagementAPI = {
         )
         .order("created_at", { ascending: false })
         .limit(5);
-
-      console.log("Recent rides:", recentRides);
 
       return {
         totalRides: ridesCount?.length || 0,

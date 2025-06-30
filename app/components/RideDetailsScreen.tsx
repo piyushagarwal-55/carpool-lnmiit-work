@@ -14,7 +14,6 @@ import {
   Dimensions,
   Modal,
   SafeAreaView,
-  Image,
   Share,
   PanResponder,
   Linking,
@@ -628,10 +627,8 @@ export default function RideDetailsScreen({
 
   const handleStartChat = () => {
     if (!ride) {
-      console.log("No ride data available for chat");
       return;
     }
-    console.log("Opening chat for ride:", ride.id);
     setShowChat(true);
   };
 
@@ -650,7 +647,6 @@ export default function RideDetailsScreen({
       }
     } catch (error) {
       Alert.alert("Error", "Unable to make call. Please try again.");
-      console.log("Error calling:", error);
     }
   };
 
@@ -660,7 +656,7 @@ export default function RideDetailsScreen({
         message: `Check out this carpool ride from ${ride?.from} to ${ride?.to} on ${ride?.date} at ${ride?.departureTime}. Ride Creator: ${ride?.rideCreatorName} (${ride?.rideCreatorRating}⭐). Price: ₹${ride?.pricePerSeat} per seat.`,
       });
     } catch (error) {
-      console.log("Error sharing:", error);
+      // Silent error handling for sharing
     }
   };
 
@@ -861,8 +857,7 @@ export default function RideDetailsScreen({
                       elevation: 3,
                     }}
                   >
-                    <Image
-                      source={{ uri: ride?.rideCreatorPhoto }}
+                    <View
                       style={{
                         width: 70,
                         height: 70,
@@ -870,8 +865,21 @@ export default function RideDetailsScreen({
                         marginRight: 16,
                         borderWidth: 3,
                         borderColor: "#1565C0",
+                        backgroundColor: "#1565C0",
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
-                    />
+                    >
+                      <Text
+                        style={{
+                          color: "#FFF",
+                          fontSize: 24,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {ride?.rideCreatorName?.charAt(0)?.toUpperCase() || "D"}
+                      </Text>
+                    </View>
                     <View style={{ flex: 1 }}>
                       <View
                         style={{ flexDirection: "row", alignItems: "center" }}
@@ -1458,8 +1466,7 @@ export default function RideDetailsScreen({
                             elevation: 2,
                           }}
                         >
-                          <Image
-                            source={{ uri: passenger.photo }}
+                          <View
                             style={{
                               width: 48,
                               height: 48,
@@ -1467,8 +1474,21 @@ export default function RideDetailsScreen({
                               marginRight: 12,
                               borderWidth: 2,
                               borderColor: "#4CAF50",
+                              backgroundColor: "#4CAF50",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
-                          />
+                          >
+                            <Text
+                              style={{
+                                color: "#FFF",
+                                fontSize: 18,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {passenger.name?.charAt(0)?.toUpperCase() || "P"}
+                            </Text>
+                          </View>
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{
@@ -1544,15 +1564,29 @@ export default function RideDetailsScreen({
                             borderBottomColor: "#E0E0E0",
                           }}
                         >
-                          <Image
-                            source={{ uri: request.passengerPhoto }}
+                          <View
                             style={{
                               width: 40,
                               height: 40,
                               borderRadius: 20,
                               marginRight: 12,
+                              backgroundColor: "#FF9800",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
-                          />
+                          >
+                            <Text
+                              style={{
+                                color: "#FFF",
+                                fontSize: 16,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {request.passengerName
+                                ?.charAt(0)
+                                ?.toUpperCase() || "R"}
+                            </Text>
+                          </View>
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{

@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Platform,
 } from "react-native";
 import { Avatar, Chip, Searchbar } from "react-native-paper";
 import {
@@ -141,6 +142,8 @@ interface StudentCarpoolSystemProps {
   onShowBusBooking?: () => void;
   onToggleSidebar?: () => void;
   onShowProfile?: () => void;
+  onScroll?: (event: any) => void;
+  isBottomNavVisible?: boolean;
 }
 
 const StudentCarpoolSystem = ({
@@ -159,6 +162,8 @@ const StudentCarpoolSystem = ({
   onShowBusBooking = () => {},
   onToggleSidebar = () => {},
   onShowProfile = () => {},
+  onScroll = () => {},
+  isBottomNavVisible = true,
 }: StudentCarpoolSystemProps) => {
   const [rides, setRides] = useState<CarpoolRide[]>([]);
   const [filteredRides, setFilteredRides] = useState<CarpoolRide[]>([]);
@@ -236,16 +241,6 @@ const StudentCarpoolSystem = ({
         .select("*")
         .in("status", ["active", "expired"])
         .order("created_at", { ascending: false });
-
-      console.log("=== FETCH RIDES DEBUG ===");
-      console.log("Raw rides data from database:", ridesData);
-      console.log("Rides count:", ridesData?.length || 0);
-      if (ridesData && ridesData.length > 0) {
-        console.log(
-          "Sample ride IDs:",
-          ridesData.slice(0, 3).map((r) => r.id)
-        );
-      }
 
       if (error) {
         console.error("Database error fetching rides:", error);
@@ -1348,14 +1343,6 @@ const StudentCarpoolSystem = ({
   };
 
   const handleRideCreated = (rideData: any) => {
-    console.log("=== RIDE CREATED DEBUG ===");
-    console.log(
-      "Raw ride data from creation:",
-      JSON.stringify(rideData, null, 2)
-    );
-    console.log("Ride ID from creation:", rideData.id);
-    console.log("Ride ID type:", typeof rideData.id);
-
     // Transform database ride data to UI format
     const transformedRide: CarpoolRide = {
       id: rideData.id || `ride_${Date.now()}`,
@@ -1401,12 +1388,6 @@ const StudentCarpoolSystem = ({
         rideData.chat_enabled !== undefined ? rideData.chat_enabled : true,
       createdAt: rideData.created_at || new Date().toISOString(),
     };
-
-    console.log(
-      "Transformed ride for UI:",
-      JSON.stringify(transformedRide, null, 2)
-    );
-    console.log("Final ride ID:", transformedRide.id);
 
     setRides((prev) => [transformedRide, ...prev]);
     setFilteredRides((prev) => [transformedRide, ...prev]);
@@ -1624,21 +1605,57 @@ const StudentCarpoolSystem = ({
         {/* Driver avatars and time */}
         <View style={styles.bottomSection}>
           <View style={styles.avatarsContainer}>
-            <Avatar.Image
-              size={32}
-              source={{ uri: ride.rideCreatorPhoto }}
-              style={[styles.driverAvatar, { opacity: 0.7 }]}
-            />
+            <View
+              style={[
+                styles.driverAvatar,
+                {
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: "#1565C0",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: 0.7,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: "#FFF",
+                  fontSize: 14,
+                  fontWeight: "700",
+                }}
+              >
+                {ride.rideCreatorName?.charAt(0)?.toUpperCase() || "D"}
+              </Text>
+            </View>
             {ride.passengers.slice(0, 2).map((passenger, index) => (
-              <Avatar.Image
+              <View
                 key={passenger.id}
-                size={32}
-                source={{ uri: passenger.photo }}
                 style={[
                   styles.passengerAvatar,
-                  { marginLeft: -8, opacity: 0.7 },
+                  {
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: "#4CAF50",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginLeft: -8,
+                    opacity: 0.7,
+                  },
                 ]}
-              />
+              >
+                <Text
+                  style={{
+                    color: "#FFF",
+                    fontSize: 14,
+                    fontWeight: "700",
+                  }}
+                >
+                  {passenger.name?.charAt(0)?.toUpperCase() || "P"}
+                </Text>
+              </View>
             ))}
             {ride.passengers.length > 2 && (
               <View style={[styles.morePassengers, { opacity: 0.7 }]}>
@@ -1763,14 +1780,14 @@ const StudentCarpoolSystem = ({
       (r) => r.passengerId === currentUser.id
     );
 
+    // Fix overlapping button logic - make them mutually exclusive
     const hasJoined =
-      !!currentPassenger || currentRequest?.status === "accepted";
-    const isPending =
-      currentPassenger?.status === "pending" ||
-      currentRequest?.status === "pending";
+      currentPassenger?.status === "confirmed" ||
+      currentPassenger?.status === "accepted";
+    const isPending = currentRequest?.status === "pending" && !hasJoined;
     const isAccepted =
-      currentPassenger?.status === "accepted" ||
-      currentRequest?.status === "accepted";
+      currentRequest?.status === "accepted" ||
+      currentPassenger?.status === "accepted";
 
     // Status tracking for debugging when needed
 
@@ -1928,18 +1945,55 @@ const StudentCarpoolSystem = ({
         {/* Driver avatars and time */}
         <View style={styles.bottomSection}>
           <View style={styles.avatarsContainer}>
-            <Avatar.Image
-              size={32}
-              source={{ uri: ride.rideCreatorPhoto }}
-              style={styles.driverAvatar}
-            />
+            <View
+              style={[
+                styles.driverAvatar,
+                {
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: "#1565C0",
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: "#FFF",
+                  fontSize: 14,
+                  fontWeight: "700",
+                }}
+              >
+                {ride.rideCreatorName?.charAt(0)?.toUpperCase() || "D"}
+              </Text>
+            </View>
             {ride.passengers.slice(0, 2).map((passenger, index) => (
-              <Avatar.Image
+              <View
                 key={passenger.id}
-                size={32}
-                source={{ uri: passenger.photo }}
-                style={[styles.passengerAvatar, { marginLeft: -8 }]}
-              />
+                style={[
+                  styles.passengerAvatar,
+                  {
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: "#4CAF50",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginLeft: -8,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: "#FFF",
+                    fontSize: 14,
+                    fontWeight: "700",
+                  }}
+                >
+                  {passenger.name?.charAt(0)?.toUpperCase() || "P"}
+                </Text>
+              </View>
             ))}
             {ride.passengers.length > 2 && (
               <View style={styles.morePassengers}>
@@ -2015,30 +2069,6 @@ const StudentCarpoolSystem = ({
               ]}
             >
               <Text style={styles.fullWidthStatusText}>✓ Request Accepted</Text>
-            </View>
-          )}
-
-          {hasJoined && currentPassenger?.status === "confirmed" && (
-            <View
-              style={[
-                styles.fullWidthStatusBtn,
-                { backgroundColor: "#4CAF50" },
-              ]}
-            >
-              <Text style={styles.fullWidthStatusText}>✓ Joined Ride</Text>
-            </View>
-          )}
-
-          {isPending && !isAccepted && (
-            <View
-              style={[
-                styles.fullWidthStatusBtn,
-                { backgroundColor: "#FF9800" },
-              ]}
-            >
-              <Text style={styles.fullWidthStatusText}>
-                ⏳ Pending Approval
-              </Text>
             </View>
           )}
         </View>
@@ -2209,12 +2239,17 @@ const StudentCarpoolSystem = ({
               tintColor={isDarkMode ? "#FFF" : "#000"}
             />
           }
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: mainScrollY } } }],
-            { useNativeDriver: false }
-          )}
+          onScroll={(event) => {
+            // Handle both internal animation and external scroll handler
+            Animated.event(
+              [{ nativeEvent: { contentOffset: { y: mainScrollY } } }],
+              { useNativeDriver: false }
+            )(event);
+            onScroll(event);
+          }}
           scrollEventThrottle={16}
           stickyHeaderIndices={joinedRides.length > 0 ? [1] : [0]}
+          contentContainerStyle={{ paddingBottom: 100 }} // Extra space for floating nav
         >
           {/* Joined Rides Section that slides up */}
           {joinedRides.length > 0 && (
@@ -2526,15 +2561,26 @@ const StudentCarpoolSystem = ({
         </ScrollView>
 
         {/* Floating Create Ride Button */}
-        <TouchableOpacity
+        <Animated.View
           style={[
             styles.floatingButton,
-            { backgroundColor: isDarkMode ? "#FFF" : "#000" },
+            {
+              backgroundColor: isDarkMode ? "#FFF" : "#000",
+              bottom: isBottomNavVisible ? 125 : 60, // Move up when nav visible, down when hidden
+            },
           ]}
-          onPress={handleCreateRide}
         >
-          <Plus size={24} color={isDarkMode ? "#000" : "#FFF"} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.floatingButtonInner}
+            onPress={handleCreateRide}
+            activeOpacity={0.8}
+          >
+            <Plus
+              size={Platform.OS === "android" ? 22 : 24}
+              color={isDarkMode ? "#000" : "#FFF"}
+            />
+          </TouchableOpacity>
+        </Animated.View>
       </View>
 
       {/* Modals */}
@@ -3959,18 +4005,23 @@ const styles = StyleSheet.create({
   },
   floatingButton: {
     position: "absolute",
-    bottom: 20,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
+    width: Platform.OS === "android" ? 50 : 56, // Smaller on Android
+    height: Platform.OS === "android" ? 50 : 56, // Smaller on Android
+    borderRadius: Platform.OS === "android" ? 25 : 28, // Adjusted for smaller size
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    zIndex: 1001, // Above bottom nav
+  },
+  floatingButtonInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: Platform.OS === "android" ? 25 : 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   // Verification Modal Styles
   modalOverlay: {

@@ -177,12 +177,9 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
         allowsMultipleSelection: false, // Ensure single selection
       });
 
-      console.log("Image picker result:", result);
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedAsset = result.assets[0];
         setSelectedImage(selectedAsset.uri);
-        console.log("Selected image URI:", selectedAsset.uri);
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -215,8 +212,6 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
       const response = await fetch(imageUri);
       const arrayBuffer = await response.arrayBuffer();
 
-      console.log("File size:", arrayBuffer.byteLength);
-
       // Upload using Supabase client
       const { data, error } = await supabase.storage
         .from("profile-pictures")
@@ -229,8 +224,6 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
         console.error("Supabase upload error:", error);
         throw error;
       }
-
-      console.log("Upload successful:", data);
 
       // Get public URL
       const { data: urlData } = supabase.storage
@@ -639,7 +632,6 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                     <Text style={styles.cameraIcon}>📷</Text>
                   </LinearGradient>
                 </TouchableOpacity> */}
-
               </View>
               <View style={styles.profileInfo}>
                 <Text style={[styles.userName, textStyle]}>
@@ -853,38 +845,39 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
         </View>
 
         {/* Modern Logout Button */}
-        <TouchableOpacity
-          style={[
-            styles.modernCard,
-            {
-              backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF",
-              marginTop: 16,
-            },
-          ]}
-          onPress={handleLogout}
-        >
-          <View style={styles.modernMenuItemContent}>
-            <LinearGradient
-              colors={["#FF6B6B", "#EE5A5A"]}
-              style={styles.modernMenuIcon}
-            >
-              <Text style={styles.modernMenuIconText}>🚪</Text>
-            </LinearGradient>
-            <View style={styles.modernMenuTextContainer}>
-              <Text style={[styles.modernMenuTitle, { color: "#FF6B6B" }]}>
-                Logout
-              </Text>
-              <Text style={[styles.modernMenuSubtitle, secondaryTextStyle]}>
-                Sign out of your account
-              </Text>
+        <View style={styles.logoutSection}>
+          <TouchableOpacity
+            style={[
+              styles.modernCard,
+              {
+                backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF",
+              },
+            ]}
+            onPress={handleLogout}
+          >
+            <View style={styles.modernMenuItemContent}>
+              <LinearGradient
+                colors={["#FF6B6B", "#EE5A5A"]}
+                style={styles.modernMenuIcon}
+              >
+                <Text style={styles.modernMenuIconText}>🚪</Text>
+              </LinearGradient>
+              <View style={styles.modernMenuTextContainer}>
+                <Text style={[styles.modernMenuTitle, { color: "#FF6B6B" }]}>
+                  Logout
+                </Text>
+                <Text style={[styles.modernMenuSubtitle, secondaryTextStyle]}>
+                  Sign out of your account
+                </Text>
+              </View>
+              <View style={styles.modernMenuArrow}>
+                <Text style={[styles.modernArrowText, { color: "#FF6B6B" }]}>
+                  ›
+                </Text>
+              </View>
             </View>
-            <View style={styles.modernMenuArrow}>
-              <Text style={[styles.modernArrowText, { color: "#FF6B6B" }]}>
-                ›
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
 
         {/* Bottom Navigation Space */}
         <View style={styles.bottomSpace} />
@@ -1462,8 +1455,8 @@ const styles = StyleSheet.create({
   modernCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
+    marginHorizontal: 0, // Removed since menuSection now has padding
+    marginBottom: 16, // Increased spacing between cards
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1637,7 +1630,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   menuSection: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  logoutSection: {
     marginTop: 8,
+    paddingHorizontal: 16,
   },
   menuItem: {
     marginBottom: 4,
@@ -1680,7 +1678,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   bottomSpace: {
-    height: 10,
+    height: 100, // More space for better navigation clearance
   },
   modalContainer: {
     flex: 1,

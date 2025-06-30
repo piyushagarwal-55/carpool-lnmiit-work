@@ -9,6 +9,8 @@ import {
   Alert,
   Image,
   Animated as RNAnimated,
+  Platform,
+  Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,6 +32,8 @@ import {
 // ✅ Import Animated from reanimated if you need animated components
 import Animated from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import { Plus } from "lucide-react-native";
 
 // Screens
 import { AuthContext } from "./AuthContext";
@@ -121,21 +125,50 @@ interface CarpoolRide {
   createdAt: string;
 }
 
+// Get device dimensions for responsive styling
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const isLargeScreen = SCREEN_HEIGHT > 800;
+const isAndroid = Platform.OS === "android";
+
 // Add database configuration validation
 const validateDatabaseConfig = async () => {
   try {
+    console.log("🔍 Validating database connection...");
     const { data, error } = await supabase
       .from("carpool_rides")
       .select("id")
       .limit(1);
 
     if (error) {
-      console.error("Database validation failed:", error);
+      console.error("❌ Database validation failed:", error.message);
+
+      // Check for specific error types
+      if (error.message?.includes("Network request failed")) {
+        console.error(
+          "🌐 Network connectivity issue - Check your internet connection"
+        );
+        console.error("🔗 Supabase URL might be incorrect or project deleted");
+        console.error(
+          "💡 Go to https://supabase.com/dashboard to check your project"
+        );
+      }
+
       return false;
     }
+
+    console.log("✅ Database validation successful");
     return true;
   } catch (error) {
-    console.error("Database connection test failed:", error);
+    console.error("❌ Database connection test failed:", error);
+
+    // Provide helpful debugging info
+    console.error("🔧 Troubleshooting steps:");
+    console.error(
+      "1. Check if your Supabase project exists at https://supabase.com/dashboard"
+    );
+    console.error("2. Verify your internet connection");
+    console.error("3. Make sure the Supabase URL and key are correct");
+
     return false;
   }
 };
@@ -269,6 +302,12 @@ const AppContent = ({ session }: { session: Session }) => {
   const router = useRouter();
   const themeTransition = useSharedValue(0);
 
+  // Floating bottom nav animation
+  const [isBottomNavVisible, setIsBottomNavVisible] = useState(true);
+  const bottomNavAnimation = useSharedValue(0);
+  const lastScrollY = useSharedValue(0);
+  const scrollThreshold = 10; // Minimum scroll distance to trigger hide/show
+
   useEffect(() => {
     setIsDarkMode(false);
   }, [colorScheme]);
@@ -280,17 +319,42 @@ const AppContent = ({ session }: { session: Session }) => {
     });
   }, [isDarkMode]);
 
-  // Add connection status monitoring
+  // Bottom nav visibility animation
+  useEffect(() => {
+    bottomNavAnimation.value = withTiming(isBottomNavVisible ? 0 : 100, {
+      duration: 300,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    });
+  }, [isBottomNavVisible]);
+
+  // Animated style for bottom navigation
+  const animatedBottomNavStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: bottomNavAnimation.value,
+        },
+      ],
+      opacity: isBottomNavVisible ? 1 : 0,
+    };
+  });
+
+  // Add connection status monitoring (reduced frequency to avoid spam)
   useEffect(() => {
     const checkConnection = async () => {
       const isConnected = await validateDatabaseConfig();
       if (!isConnected) {
-        console.warn("Database connection issues detected");
+        console.warn(
+          "⚠️ Database connection issues detected - App will work with limited functionality"
+        );
       }
     };
 
+    // Initial check
     checkConnection();
-    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
+
+    // Reduced frequency to check every 5 minutes instead of 30 seconds
+    const interval = setInterval(checkConnection, 300000); // Check every 5 minutes
     return () => clearInterval(interval);
   }, []);
   useEffect(() => {
@@ -725,6 +789,29 @@ const AppContent = ({ session }: { session: Session }) => {
     }).start();
   };
 
+  // Handle scroll to show/hide bottom navigation
+  const handleScroll = (event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDifference = currentScrollY - lastScrollY.value;
+
+    // Only trigger if scroll difference is significant
+    if (Math.abs(scrollDifference) > scrollThreshold) {
+      if (scrollDifference > 0 && currentScrollY > 100) {
+        // Scrolling down and past 100px - hide nav
+        if (isBottomNavVisible) {
+          setIsBottomNavVisible(false);
+        }
+      } else if (scrollDifference < 0 || currentScrollY <= 50) {
+        // Scrolling up or near top - show nav
+        if (!isBottomNavVisible) {
+          setIsBottomNavVisible(true);
+        }
+      }
+    }
+
+    lastScrollY.value = currentScrollY;
+  };
+
   // ✅ FIXED: Early returns after all hooks are declared
   if (isInitialLoading) {
     return <LoadingScreen isDarkMode={isDarkMode} />;
@@ -792,6 +879,8 @@ const AppContent = ({ session }: { session: Session }) => {
                       setIndex(2); // Navigate to profile tab
                     }}
                     onToggleSidebar={toggleSidebar}
+                    onScroll={handleScroll}
+                    isBottomNavVisible={isBottomNavVisible}
                   />
                 )}
                 {index === 1 && (
@@ -826,78 +915,108 @@ const AppContent = ({ session }: { session: Session }) => {
                 )}
               </View>
 
-              {/* Custom Bottom Navigation */}
-              <View
-                style={[
-                  styles.bottomNavContainer,
-                  {
-                    backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
-                    borderTopColor: isDarkMode ? "#333333" : "#E0E0E0",
-                    borderTopWidth: 1,
-                    zIndex: 1,
-                    elevation: 1,
-                  },
-                ]}
+              {/* Floating Bottom Navigation with Blur Background */}
+              <Animated.View
+                style={[styles.floatingBottomNav, animatedBottomNavStyle]}
               >
-                {routes.map((route, routeIndex) => {
-                  const isActive = index === routeIndex;
-                  const iconName = isActive
-                    ? route.focusedIcon
-                    : route.unfocusedIcon;
+                <BlurView
+                  intensity={80}
+                  tint={isDarkMode ? "dark" : "light"}
+                  style={[
+                    styles.blurBackground,
+                    {
+                      backgroundColor: isDarkMode
+                        ? "rgba(0, 0, 0, 0.7)"
+                        : "rgba(255, 255, 255, 0.7)",
+                    },
+                  ]}
+                >
+                  <View style={styles.navContent}>
+                    {routes.map((route, routeIndex) => {
+                      const isActive = index === routeIndex;
+                      const iconName = isActive
+                        ? route.focusedIcon
+                        : route.unfocusedIcon;
 
-                  return (
-                    <TouchableOpacity
-                      key={route.key}
-                      style={[styles.tabItem, isActive && styles.activeTabItem]}
-                      onPress={() => setIndex(routeIndex)}
-                      activeOpacity={0.7}
-                    >
-                      <View
-                        style={[
-                          styles.tabIconContainer,
-                          isActive && {
-                            backgroundColor: isDarkMode
-                              ? "rgba(255,255,255,0.1)"
-                              : "rgba(0,0,0,0.1)",
-                          },
-                        ]}
-                      >
-                        <IconButton
-                          icon={iconName}
-                          size={22}
-                          iconColor={
-                            isActive
-                              ? isDarkMode
-                                ? "#FFFFFF"
-                                : "#000000"
-                              : isDarkMode
-                              ? "#666666"
-                              : "#999999"
-                          }
-                          style={styles.tabButton}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.tabLabel,
-                          {
-                            color: isActive
-                              ? isDarkMode
-                                ? "#FFFFFF"
-                                : "#000000"
-                              : isDarkMode
-                              ? "#666666"
-                              : "#999999",
-                            fontWeight: isActive ? "700" : "500",
-                          },
-                        ]}
-                      >
-                        {route.title}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                      return (
+                        <TouchableOpacity
+                          key={route.key}
+                          style={[
+                            styles.tabItem,
+                            isActive && styles.activeTabItem,
+                          ]}
+                          onPress={() => setIndex(routeIndex)}
+                          activeOpacity={0.7}
+                        >
+                          <View
+                            style={[
+                              styles.tabIconContainer,
+                              isActive && {
+                                backgroundColor: isDarkMode
+                                  ? "rgba(255,255,255,0.1)"
+                                  : "rgba(0,0,0,0.1)",
+                              },
+                            ]}
+                          >
+                            <IconButton
+                              icon={iconName}
+                              size={isAndroid ? (isLargeScreen ? 21 : 19) : 22}
+                              iconColor={
+                                isActive
+                                  ? isDarkMode
+                                    ? "#FFFFFF"
+                                    : "#000000"
+                                  : isDarkMode
+                                  ? "#666666"
+                                  : "#999999"
+                              }
+                              style={styles.tabButton}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.tabLabel,
+                              {
+                                color: isActive
+                                  ? isDarkMode
+                                    ? "#FFFFFF"
+                                    : "#000000"
+                                  : isDarkMode
+                                  ? "#666666"
+                                  : "#999999",
+                                fontWeight: isActive ? "700" : "500",
+                              },
+                            ]}
+                          >
+                            {route.title}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </BlurView>
+              </Animated.View>
+
+              {/* Floating Action Button */}
+              {/* {index === 0 && (
+                <Animated.View
+                  style={[
+                    styles.floatingActionButton,
+                    {
+                      backgroundColor: isDarkMode ? "#FFF" : "#000",
+                      bottom: isBottomNavVisible ? 110 : 30, // Move with nav visibility
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={styles.fabInner}
+                    onPress={handleCreateRide}
+                    activeOpacity={0.8}
+                  >
+                    <Plus size={24} color={isDarkMode ? "#000" : "#FFF"} />
+                  </TouchableOpacity>
+                </Animated.View>
+              )} */}
             </View>
 
             {/* ✅ FIXED: CreateRideScreen moved outside sidebar */}
@@ -1676,41 +1795,77 @@ const styles = StyleSheet.create({
   },
   bottomNavContainer: {
     flexDirection: "row",
-    paddingVertical: 9,
+    paddingVertical: isAndroid ? 8 : 9,
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingBottom: isAndroid ? (isLargeScreen ? 20 : 16) : 20,
     marginBottom: 0,
     alignItems: "center",
     justifyContent: "space-around",
     position: "relative", // Ensure it respects z-index
+    minHeight: isAndroid ? (isLargeScreen ? 72 : 68) : 70,
+    maxHeight: isAndroid ? 78 : 80,
+  },
+  floatingBottomNav: {
+    position: "absolute",
+    bottom: isAndroid ? 20 : 30,
+    left: 16,
+    right: 16,
+    borderRadius: 25,
+    minHeight: isAndroid ? (isLargeScreen ? 85 : 80) : 82, // Made taller
+    maxHeight: isAndroid ? 90 : 90,
+    zIndex: 1000,
+    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowColor: "#000",
+    overflow: "hidden",
+  },
+  blurBackground: {
+    flex: 1,
+    borderRadius: 25,
+    justifyContent: "center", // Center content vertically
+    alignItems: "center", // Center content horizontally
+  },
+  navContent: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8, // Minimal padding for perfect centering
+    alignItems: "center",
+    justifyContent: "space-around",
+    width: "100%", // Take full width
+    height: "100%", // Take full height
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minHeight: 50,
-    maxWidth: 80,
+    paddingVertical: 0, // Remove vertical padding to center properly
+    paddingHorizontal: isAndroid ? 8 : 10,
+    height: "100%", // Take full height of navigation
+    maxWidth: isAndroid ? 78 : 80,
   },
   activeTabItem: {
     transform: [{ scale: 1.05 }],
   },
   tabButton: {
     margin: 0,
-    padding: 6,
+    padding: 0, // Remove padding for perfect centering
     backgroundColor: "transparent",
+    alignSelf: "center",
   },
   tabLabel: {
-    fontSize: 12,
-    marginTop: 6,
+    fontSize: isAndroid ? (isLargeScreen ? 11.5 : 10.5) : 12,
+    marginTop: 2, // Reduced margin for better centering
     textAlign: "center",
     fontWeight: "500",
     letterSpacing: 0.3,
   },
   tabIconContainer: {
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: isAndroid ? 11 : 12,
+    padding: isAndroid ? 2 : 3, // Reduced padding
+    alignItems: "center",
+    justifyContent: "center",
   },
   activeIndicator: {
     position: "absolute",
@@ -1720,5 +1875,25 @@ const styles = StyleSheet.create({
     width: 24,
     height: 3,
     borderRadius: 2,
+  },
+  floatingActionButton: {
+    position: "absolute",
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 12,
+    zIndex: 1001, // Above bottom nav
+  },
+  fabInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
