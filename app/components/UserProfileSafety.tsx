@@ -772,7 +772,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
           </TouchableOpacity> */}
 
           {/* Safety */}
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[
               styles.modernCard,
               { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
@@ -805,10 +805,10 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                 </Text>
               </View>
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {/* General Settings */}
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[
               styles.modernCard,
               { backgroundColor: isDarkMode ? "#1A1A1A" : "#FFFFFF" },
@@ -841,7 +841,7 @@ const UserProfileSafety: React.FC<UserProfileSafetyProps> = ({
                 </Text>
               </View>
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Modern Logout Button */}

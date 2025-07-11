@@ -1938,7 +1938,7 @@ const StudentCarpoolSystem = ({
             </View>
           )}
           <Text style={styles.startTimeText}>
-            Starts in {expiryInfo.timeUntilStart}
+            {formatDate(ride.departureTime)} at {formatTime(ride.departureTime)}
           </Text>
         </View>
 
@@ -2437,7 +2437,7 @@ const StudentCarpoolSystem = ({
               styles.sectionTitle,
               {
                 color: isDarkMode ? "#FFF" : "#000",
-                marginTop: 32,
+                marginTop: 16,
                 marginHorizontal: 16,
                 marginBottom: 16,
               },

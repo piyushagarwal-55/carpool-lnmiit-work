@@ -96,8 +96,32 @@ export default function CreateRideScreen({
   useEffect(() => {
     if (visible) {
       setCurrentStep(0);
+      // Reset any picker states
+      setShowDatePicker(false);
+      setShowTimePicker(false);
     }
   }, [visible]);
+
+  // Debug time picker state changes
+  useEffect(() => {
+    console.log("Time picker visibility changed:", showTimePicker);
+  }, [showTimePicker]);
+
+  // Debug time value changes
+  useEffect(() => {
+    console.log("FormData time changed:", formData.time.toLocaleTimeString());
+  }, [formData.time]);
+
+  // Simplified function to open time picker
+  const openTimePicker = () => {
+    if (showTimePicker) {
+      console.log("Time picker already open, ignoring");
+      return;
+    }
+
+    console.log("Opening time picker");
+    setShowTimePicker(true);
+  };
 
   // Popular LNMIIT locations
   const popularLocations = [
@@ -383,22 +407,27 @@ export default function CreateRideScreen({
   };
 
   const onTimeChange = (event: any, selectedTime?: Date) => {
-    // Handle dismissal
+    console.log("Time picker event:", event.type, selectedTime);
+
+    // Handle dismissal/cancellation
     if (event.type === "dismissed") {
+      console.log("Time picker dismissed");
       setShowTimePicker(false);
       return;
     }
 
-    // Handle time selection
-    if (selectedTime && (event.type === "set" || Platform.OS === "ios")) {
-      console.log("Time selected:", selectedTime);
+    // Handle time selection - simplified approach
+    if (selectedTime) {
+      console.log("Time selected:", selectedTime.toLocaleTimeString());
+
+      // Update the form data immediately
       setFormData((prevData) => ({
         ...prevData,
         time: selectedTime,
       }));
 
-      // For Android, close modal immediately after selection
-      if (Platform.OS === "android") {
+      // Close picker on Android when "set", iOS handled by Done button
+      if (Platform.OS === "android" && event.type === "set") {
         setShowTimePicker(false);
       }
     }
@@ -589,7 +618,10 @@ export default function CreateRideScreen({
                   styles.dateTimeButton,
                   { backgroundColor: isDarkMode ? "#2A2A2A" : "#F8F9FA" },
                 ]}
-                onPress={() => setShowTimePicker(true)}
+                onPress={() => {
+                  console.log("Time picker button pressed");
+                  openTimePicker();
+                }}
               >
                 <Clock size={20} color={isDarkMode ? "#FFF" : "#000"} />
                 <View style={styles.dateTimeInfo}>
@@ -672,7 +704,7 @@ export default function CreateRideScreen({
               <Modal
                 transparent={true}
                 visible={showTimePicker}
-                animationType="fade"
+                animationType="slide"
                 onRequestClose={() => setShowTimePicker(false)}
               >
                 <View style={styles.pickerOverlay}>
@@ -691,36 +723,55 @@ export default function CreateRideScreen({
                       Select Time
                     </Text>
                     <DateTimePicker
-                      value={formData.time}
+                      value={
+                        formData.time instanceof Date &&
+                        !isNaN(formData.time.getTime())
+                          ? formData.time
+                          : new Date()
+                      }
                       mode="time"
-                      display={Platform.OS === "ios" ? "spinner" : "clock"}
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
                       onChange={onTimeChange}
                       themeVariant={isDarkMode ? "dark" : "light"}
                     />
-                    <View style={styles.pickerButtonRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerCancelButton,
-                          { backgroundColor: "#F5F5F5" },
-                        ]}
-                        onPress={() => setShowTimePicker(false)}
-                      >
-                        <Text style={styles.pickerCancelText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerDoneButton,
-                          { backgroundColor: "#E8F5E8" },
-                        ]}
-                        onPress={() => setShowTimePicker(false)}
-                      >
-                        <Text
-                          style={[styles.pickerDoneText, { color: "#2E7D32" }]}
+                    {Platform.OS === "ios" && (
+                      <View style={styles.pickerButtonRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.pickerCancelButton,
+                            { backgroundColor: "#F5F5F5" },
+                          ]}
+                          onPress={() => {
+                            console.log("iOS Cancel pressed");
+                            setShowTimePicker(false);
+                          }}
                         >
-                          Done
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                          <Text style={styles.pickerCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.pickerDoneButton,
+                            { backgroundColor: "#E8F5E8" },
+                          ]}
+                                                      onPress={() => {
+                              console.log(
+                                "iOS Done pressed - current time:",
+                                formData.time.toLocaleTimeString()
+                              );
+                              setShowTimePicker(false);
+                            }}
+                        >
+                          <Text
+                            style={[
+                              styles.pickerDoneText,
+                              { color: "#2E7D32" },
+                            ]}
+                          >
+                            Done
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 </View>
               </Modal>
@@ -991,7 +1042,7 @@ export default function CreateRideScreen({
               ))}
 
               {/* <View style={styles.preferenceItem}> */}
-                {/* <View style={styles.preferenceInfo}>
+              {/* <View style={styles.preferenceInfo}>
                   <Text style={styles.preferenceIcon}>⚡</Text>
                   <Text
                     style={[
@@ -1002,7 +1053,7 @@ export default function CreateRideScreen({
                     Instant Booking
                   </Text>
                 </View> */}
-                {/* <Switch
+              {/* <Switch
                   value={formData.instantBooking}
                   onValueChange={(value) =>
                     setFormData({ ...formData, instantBooking: value })
