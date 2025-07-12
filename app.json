@@ -9,10 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "jsEngine": "hermes",
-    "statusBarStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "statusBarStyle": "light",
       "bundleIdentifier": "tripIt",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
