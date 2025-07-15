@@ -984,7 +984,7 @@ export const rideManagementAPI = {
       return { success: false, error: "Ride not found in database" };
     } catch (error) {
       console.error("❌ Test failed:", error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
 
@@ -1015,7 +1015,7 @@ export const rideManagementAPI = {
       };
     } catch (error) {
       console.error("Database state check failed:", error);
-      return { totalRides: 0, error: error.message };
+      return { totalRides: 0, error: error instanceof Error ? error.message : String(error) };
     }
   },
   // Delete ride with cleanup (hard delete)

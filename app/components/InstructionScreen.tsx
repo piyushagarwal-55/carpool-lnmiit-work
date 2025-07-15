@@ -172,7 +172,11 @@ export default function InstructionScreen({
 
           <ScrollView
             style={styles.content}
+            contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
+            bounces={true}
+            scrollEventThrottle={16}
+            nestedScrollEnabled={true}
           >
             {/* Welcome Section */}
             <View
@@ -351,6 +355,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  scrollContainer: {
+    paddingBottom: 60,
   },
   welcomeSection: {
     padding: 20,

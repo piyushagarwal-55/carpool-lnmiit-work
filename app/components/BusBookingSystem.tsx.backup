@@ -2877,7 +2877,7 @@ const styles = StyleSheet.create({
     padding: 20,
     position: "relative",
   },
-  busStripePattern2: {
+  busStripePattern: {
     position: "absolute",
     top: 0,
     left: 0,
@@ -2885,11 +2885,11 @@ const styles = StyleSheet.create({
     height: 8,
     flexDirection: "row",
   },
-  busStripe2: {
+  busStripe: {
     flex: 1,
     height: "100%",
   },
-  modernBusHeader2: {
+  modernBusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -2986,7 +2986,7 @@ const styles = StyleSheet.create({
   modernBusActions: {
     alignItems: "center",
   },
-  modernActionButton2: {
+  modernActionButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 24,
@@ -3304,7 +3304,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  liveIndicator2: {
+  liveIndicator: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#EF4444",
@@ -3312,14 +3312,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  liveDot2: {
+  liveDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: "#FFFFFF",
     marginRight: 4,
   },
-  liveText2: {
+  liveText: {
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "700",
@@ -3343,7 +3343,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 2,
   },
-  statLabel2: {
+  statLabel: {
     fontSize: 11,
     fontWeight: "500",
     textTransform: "uppercase",
@@ -3360,7 +3360,7 @@ const styles = StyleSheet.create({
   departedLabel: {
     marginTop: 8,
   },
-  departedText2: {
+  departedText: {
     fontSize: 14,
     fontWeight: "600",
   },
@@ -3415,12 +3415,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  busStatusBadge2: {
+  busStatusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  busStatusText2: {
+  busStatusText: {
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
@@ -3676,12 +3676,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flex: 1,
   },
-  statusBadge2: {
+  statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  statusText2: {
+  statusText: {
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "600",
@@ -4221,12 +4221,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  modernStatusBadge2: {
+  modernStatusBadge: {
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  modernStatusText2: {
+  modernStatusText: {
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
@@ -4245,17 +4245,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
   },
-  detailIcon2: {
+  detailIcon: {
     fontSize: 20,
     marginBottom: 8,
   },
-  detailLabel2: {
+  detailLabel: {
     fontSize: 12,
     fontWeight: "500",
     marginBottom: 4,
     textAlign: "center",
   },
-  detailValue2: {
+  detailValue: {
     fontSize: 16,
     fontWeight: "700",
     textAlign: "center",
@@ -4264,7 +4264,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
-  actionButton2: {
+  actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -4331,20 +4331,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  statusBadge3: {
+  statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     minWidth: 80,
     alignItems: "center",
   },
-  statusText3: {
+  statusText: {
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
     textAlign: "center",
   },
-  notifyButton2: {
+  notifyButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -4354,13 +4354,13 @@ const styles = StyleSheet.create({
     gap: 8,
     minWidth: 140,
   },
-  notifyButtonText2: {
+  notifyButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
   },
-  departedText3: {
+  departedText: {
     fontSize: 14,
     fontWeight: "500",
     fontStyle: "italic",
@@ -4562,7 +4562,7 @@ const styles = StyleSheet.create({
   },
 
   // Modern Bus Card Styles (Legacy)
-  modernBusCard2: {
+  modernBusCard: {
     borderRadius: 20,
     marginBottom: 16,
     marginHorizontal: 20,
@@ -4573,7 +4573,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     overflow: "hidden",
   },
-  modernBusHeader3: {
+  modernBusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -4630,7 +4630,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
   },
-  modernStatusBadge3: {
+  modernStatusBadge: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
@@ -4645,7 +4645,7 @@ const styles = StyleSheet.create({
   statusEmoji: {
     fontSize: 14,
   },
-  modernStatusText3: {
+  modernStatusText: {
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
@@ -4702,7 +4702,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 8,
   },
-  modernActionButton3: {
+  modernActionButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -4734,7 +4734,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.3)",
     opacity: 0.6,
   },
-  departedIndicator2: {
+  departedIndicator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
