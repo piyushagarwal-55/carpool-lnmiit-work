@@ -7,7 +7,6 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "nodeModulesPath": ".",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -18,7 +17,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "nodeModulesPath": ".",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -30,7 +28,6 @@
     },
     "production": {
       "autoIncrement": true,
-      "nodeModulesPath": ".",
       "ios": {
         "resourceClass": "m-medium"
       },
